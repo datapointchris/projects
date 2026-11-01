@@ -48,7 +48,7 @@ todoui                                              # the status bar reads SYNCE
 ```
 
 The first three lines are the whole setup for local use. The right end of the status bar reads
-`LOCAL` and the database path. That proves todoui is running without sync. In the TUI, `a` adds a
+`LOCAL` and the database path, which shows todoui is running without sync. In the TUI, `a` adds a
 project, `Tab` moves to the item pane, and `a` adds an item there. `q` quits.
 
 The second group is only for sync, and it comes before you add anything. Nothing written with sync
@@ -73,8 +73,7 @@ u         undo the last change                              R       sync now
 ?         every key the pane you are in takes               q       quit
 ```
 
-The status bar carries the keys the current row takes, and `?` lists every key for the pane. That is
-why this list stops at the first ones.
+The status bar carries the keys the current row takes, and `?` lists every key for the pane.
 
 The project pane opens on an `All` row, which shows every item grouped by project. `space` on a
 project adds it to a selection. The item pane then shows the selected projects' items, grouped the
@@ -134,8 +133,8 @@ shelved and closed projects again, each marked with its status.
 Dropping requires a reason, because "deferred" invites the same idea back next month and "dropped,
 and here is why" does not.
 
-Closing a project does not touch its items. An item still open when the project closed was still
-open, and that is worth knowing.
+Closing a project does not touch its items, so an item left open shows the project closed with
+work unfinished.
 
 Only an active project holds its name. A completed `todoui sync improvements` frees the name for the
 next round of them.
@@ -154,15 +153,14 @@ unreachable shows the last 8 characters of its id until its push lands and earns
 
 With sync on, every edit is queued and pushed as you make it. The TUI pulls on launch, then again
 every `sync.interval` (default two minutes) for as long as it is open. A pull waits while a text
-input, an overlay, the reader or a move is open, and runs on the next tick instead. It never
-moves the ground under an edit.
+input, an overlay, the reader or a move is open, and runs on the next tick instead.
 
 Queued pushes retry on a timer. A change made while the API was unreachable is sent once it comes
 back, with no further edit to trigger it.
 
 The status bar names the API's URL beside one of `SYNCING...`, `PENDING (n)`, `SYNC ERR` or
-`SYNCED`. An unreachable API shows `SYNC ERR` and leaves the local data in place. todoui is
-local-first and never blocks on the network. `R` in the TUI or `todoui sync` forces a reconcile.
+`SYNCED`. An unreachable API shows `SYNC ERR` and leaves the local data in place. `R` in the TUI or
+`todoui sync` forces a reconcile.
 
 A pull is two requests, because the item list embeds memberships, dependencies and sub-tasks.
 Against an API that does not embed them, it falls back to two more requests per item. Lower

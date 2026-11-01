@@ -40,7 +40,7 @@ func screenWidth(row string) int {
 }
 
 // A long note opens at its top, scrolls by the rows it renders into, and the
-// view never outgrows the window — the overflow is what cut the title off. The
+// view never outgrows the window, so the title stays on screen. The
 // list row is where esc lands, and an action key acts on the item shown.
 func TestReaderScrollsALongNoteByRenderedRows(t *testing.T) {
 	note := longNote()
@@ -102,7 +102,7 @@ func TestReaderScrollsALongNoteByRenderedRows(t *testing.T) {
 }
 
 // A note's placeholder written as <slug> is text the reader shows, where glamour
-// alone strips it as an HTML tag. Code and autolinks render as they always did.
+// alone strips it as an HTML tag. Code spans and autolinks still render as code and links.
 func TestReaderShowsAnAngleBracketedWordAsWritten(t *testing.T) {
 	note := "Run `new <x>` then <slug>, and swap <old> for </new>.\n\n<details>\nsee <https://example.com>\n"
 	got := ansi.Strip(strings.Join(renderMarkdown(note, 80), "\n"))

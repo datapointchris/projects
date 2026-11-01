@@ -40,7 +40,7 @@ type App struct {
 	// create independent of any refresh that reorders m.items underneath.
 	addTaskItemID    string
 	addTaskItemTitle string
-	// Target of modeEditTitle, captured on keypress for the same reason. The
+	// Target of modeEditTitle, captured on keypress. The
 	// edit starts from the list or from the reader, and only the keypress knows
 	// which item it meant.
 	editTitleItemID string
