@@ -151,6 +151,19 @@ func TestAMovedItemLandsWhereItIsDroppedBelowAnArchivedOne(t *testing.T) {
 	move("g", "bravo", "charlie", "delta")
 }
 
+// A database written by the single-row reorder holds ties, and a tied row can sit
+// below the drop while sharing a position with the row above it.
+func TestADropBelowATiedRowLandsUnderIt(t *testing.T) {
+	member := func(id string, position int) model.ProjectItemInProject {
+		return model.ProjectItemInProject{ProjectItem: model.ProjectItem{ID: id}, Position: position}
+	}
+	members := []model.ProjectItemInProject{member("a", 0), member("b", 1), member("c", 1), member("d", 2)}
+
+	if got := positionBelow(members, "d", "b"); got != 2 {
+		t.Errorf("dropping d under b landed at %d, want 2", got)
+	}
+}
+
 // The add-task prompt is an overlay, so it shows in a window too short for the
 // list. An input that is not drawn still swallows every keystroke.
 func TestAddTaskPromptVisibleInShortWindow(t *testing.T) {

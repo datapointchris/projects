@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	goSync "sync"
 	"testing"
 	"time"
@@ -202,6 +203,40 @@ func TestSyncBackend_TaskOperations(t *testing.T) {
 
 	if recorder.count() < 5 {
 		t.Fatalf("expected at least 5 HTTP calls, got %d: %v", recorder.count(), recorder.snapshot())
+	}
+}
+
+// A person adds a task and checks it off before the next pull. The check names the
+// local id, so the server has to hold the task under it, or a 404 drops the check and
+// the pull brings the task back unchecked.
+func TestATaskCheckedOffBeforeThePullReachesTheServerUnderItsOwnID(t *testing.T) {
+	createdAs := make(chan string, 8)
+	recorder := &callRecorder{}
+	sb, _ := setupSync(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/tasks") {
+			var body struct {
+				ID string `json:"id"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			createdAs <- body.ID
+		}
+		recorder.handler()(w, r)
+	}))
+
+	p, _ := sb.CreateProject(model.CreateProject{Name: "Tasks"})
+	item, _ := sb.CreateItem(model.CreateProjectItem{Title: "WithTasks", ProjectIDs: []string{p.ID}})
+	task, err := sb.CreateTask(item.ID, model.CreateProjectItemTask{Title: "Sub"})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	select {
+	case got := <-createdAs:
+		if got != task.ID {
+			t.Errorf("the server was asked to create task %q, and the TUI holds it as %q", got, task.ID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the task's create never reached the server")
 	}
 }
 

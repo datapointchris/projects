@@ -235,6 +235,7 @@ func (s *SyncBackend) CreateTask(itemID string, input model.CreateProjectItemTas
 		return nil, err
 	}
 	_ = s.engine.QueueOp(OpCreateTask, result.ID, taskPayload{
+		ID:     result.ID,
 		ItemID: itemID,
 		Title:  input.Title,
 	})
@@ -434,7 +435,7 @@ func (s *SyncBackend) queueTaskUndo(result *model.UndoResult, dropped int64) {
 			return
 		}
 		task := detail.Task
-		_ = s.engine.QueueOp(OpCreateTask, task.ID, taskPayload{ItemID: task.ItemID, Title: task.Title})
+		_ = s.engine.QueueOp(OpCreateTask, task.ID, taskPayload{ID: task.ID, ItemID: task.ItemID, Title: task.Title})
 		if task.Completed {
 			_ = s.engine.QueueOp(OpCompleteTask, task.ID, taskRefPayload{ItemID: task.ItemID})
 		}
@@ -456,6 +457,7 @@ func (s *SyncBackend) queueTaskUndo(result *model.UndoResult, dropped int64) {
 func (s *SyncBackend) queueRestoredChildren(result *model.UndoResult) {
 	for _, task := range result.RestoredTasks {
 		_ = s.engine.QueueOp(OpCreateTask, task.ID, taskPayload{
+			ID:     task.ID,
 			ItemID: task.ItemID,
 			Title:  task.Title,
 		})
@@ -525,7 +527,9 @@ type depPayload struct {
 	DependsOnID string `json:"depends_on_id"`
 }
 
+// taskPayload carries the local id, because a later update names the task by it.
 type taskPayload struct {
+	ID     string `json:"id"`
 	ItemID string `json:"item_id"`
 	Title  string `json:"title"`
 }

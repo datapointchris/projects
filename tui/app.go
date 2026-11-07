@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -820,17 +821,36 @@ func reorderItemCmd(b backend.Backend, itemID, projectID string, above *model.Pr
 			if err != nil {
 				return errMsg{err}
 			}
-			for _, member := range slices.Concat(unarchived, archived) {
-				if member.ID != itemID && member.Position <= above.Position {
-					position++
-				}
-			}
+			position = positionBelow(slices.Concat(unarchived, archived), itemID, above.ID)
 		}
 		if err := b.ReorderItem(itemID, projectID, position); err != nil {
 			return errMsg{err}
 		}
 		return itemReorderedMsg{}
 	}
+}
+
+// positionBelow counts the members ahead of a drop, in the order a store lists them,
+// because a row tied on position with aboveID can sit on either side of it.
+func positionBelow(members []model.ProjectItemInProject, itemID, aboveID string) int {
+	slices.SortStableFunc(members, func(a, b model.ProjectItemInProject) int {
+		return cmp.Or(
+			cmp.Compare(a.Position, b.Position),
+			a.CreatedAt.Compare(b.CreatedAt),
+			strings.Compare(a.ID, b.ID),
+		)
+	})
+	position := 0
+	for _, member := range members {
+		if member.ID == itemID {
+			continue
+		}
+		position++
+		if member.ID == aboveID {
+			break
+		}
+	}
+	return position
 }
 
 func reorderProjectCmd(b backend.Backend, projectID string, newPos int) tea.Cmd {
