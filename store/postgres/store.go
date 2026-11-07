@@ -68,9 +68,11 @@ func (s *Store) InTx(ctx context.Context, fn func(tx store.Operations) error) er
 	}
 	writer := store.WriterFrom(ctx)
 	if err := q.BindWriter(ctx, generated.BindWriterParams{
-		Actor:     writer.Actor,
-		RequestID: writer.RequestID,
-		JobRunID:  writer.JobRunID,
+		Actor:       writer.Actor,
+		RequestID:   writer.RequestID,
+		JobRunID:    writer.JobRunID,
+		Traceparent: writer.Traceparent,
+		Baggage:     writer.Baggage,
 	}); err != nil {
 		return fmt.Errorf("binding the writer: %w", err)
 	}

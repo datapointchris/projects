@@ -9,15 +9,17 @@ import (
 )
 
 type AuditTrail struct {
-	ID        int64
-	ChangedAt time.Time
-	TableName string
-	RecordID  string
-	Operation string
-	Changes   []byte
-	Actor     *string
-	RequestID *string
-	JobRunID  *string
+	ID          int64
+	ChangedAt   time.Time
+	TableName   string
+	RecordID    string
+	Operation   string
+	Changes     []byte
+	Actor       *string
+	RequestID   *string
+	JobRunID    *string
+	Traceparent *string
+	Baggage     *string
 }
 
 type Project struct {

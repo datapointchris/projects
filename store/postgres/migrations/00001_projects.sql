@@ -1,15 +1,13 @@
 -- +goose Up
+-- Lookup tables. postgres.Migrate upserts their rows from model.ProjectKinds and
+-- model.ProjectStatuses on every run, so a new kind or status needs no migration.
 CREATE TABLE project_kinds (
     name text PRIMARY KEY
 );
 
-INSERT INTO project_kinds (name) VALUES ('build'), ('chore'), ('life');
-
 CREATE TABLE project_statuses (
     name text PRIMARY KEY
 );
-
-INSERT INTO project_statuses (name) VALUES ('active'), ('someday'), ('completed'), ('dropped');
 
 CREATE TABLE projects (
     id uuid CONSTRAINT pk_projects PRIMARY KEY,
@@ -107,8 +105,9 @@ CREATE TABLE undo_log (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Every insert, update and delete to a row of an audited table leaves one entry
--- here, whatever wrote it: a statement, a cascade, or a person at a SQL prompt.
+-- Every insert, delete and changing update to a row of an audited table leaves one
+-- entry here, whatever wrote it: a statement, a cascade, or a person at a SQL prompt.
+-- traceparent and baggage join an entry to the trace of the request that wrote it.
 CREATE TABLE audit_trail (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     changed_at timestamptz NOT NULL DEFAULT now(),
@@ -119,6 +118,8 @@ CREATE TABLE audit_trail (
     actor text,
     request_id text,
     job_run_id text,
+    traceparent text,
+    baggage text,
     CONSTRAINT ck_audit_trail_operation_is_a_write CHECK (operation IN ('insert', 'update', 'delete'))
 );
 
@@ -160,7 +161,8 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    INSERT INTO audit_trail (table_name, record_id, operation, changes, actor, request_id, job_run_id)
+    INSERT INTO audit_trail
+        (table_name, record_id, operation, changes, actor, request_id, job_run_id, traceparent, baggage)
     VALUES (
         CASE WHEN TG_TABLE_SCHEMA = 'public' THEN TG_TABLE_NAME ELSE TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME END,
         coalesce(primary_key_text, ''),
@@ -168,7 +170,9 @@ BEGIN
         written,
         nullif(current_setting('projects.actor', true), ''),
         nullif(current_setting('projects.request_id', true), ''),
-        nullif(current_setting('projects.job_run_id', true), '')
+        nullif(current_setting('projects.job_run_id', true), ''),
+        nullif(current_setting('projects.traceparent', true), ''),
+        nullif(current_setting('projects.baggage', true), '')
     );
     RETURN NULL;
 END;

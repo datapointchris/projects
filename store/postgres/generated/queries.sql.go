@@ -45,18 +45,28 @@ const bindWriter = `-- name: BindWriter :exec
 SELECT
     set_config('projects.actor', $1::text, true),
     set_config('projects.request_id', $2::text, true),
-    set_config('projects.job_run_id', $3::text, true)
+    set_config('projects.job_run_id', $3::text, true),
+    set_config('projects.traceparent', $4::text, true),
+    set_config('projects.baggage', $5::text, true)
 `
 
 type BindWriterParams struct {
-	Actor     string
-	RequestID string
-	JobRunID  string
+	Actor       string
+	RequestID   string
+	JobRunID    string
+	Traceparent string
+	Baggage     string
 }
 
 // The third argument makes each setting end with this transaction.
 func (q *Queries) BindWriter(ctx context.Context, arg BindWriterParams) error {
-	_, err := q.db.Exec(ctx, bindWriter, arg.Actor, arg.RequestID, arg.JobRunID)
+	_, err := q.db.Exec(ctx, bindWriter,
+		arg.Actor,
+		arg.RequestID,
+		arg.JobRunID,
+		arg.Traceparent,
+		arg.Baggage,
+	)
 	return err
 }
 

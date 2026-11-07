@@ -53,6 +53,14 @@ type Project struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// ProjectKinds and ProjectStatuses are the rows each store's lookup table holds. A new
+// status also takes a decision in ProjectIsTerminal and SortProjectsForBoard, whose
+// defaults otherwise treat it as open and as closed.
+var (
+	ProjectKinds    = []string{"build", "chore", "life"}
+	ProjectStatuses = []string{StatusActive, StatusSomeday, StatusCompleted, StatusDropped}
+)
+
 // ProjectIsTerminal reports whether a status closes the project it is on.
 func ProjectIsTerminal(status string) bool {
 	return status == StatusCompleted || status == StatusDropped

@@ -1,7 +1,7 @@
 -- Schema definition for sqlc
 
--- Lookup tables, so adding a kind or a status is an insert. lookup_rows.sql holds
--- their rows.
+-- Lookup tables. lookup_rows.sql holds their rows, and
+-- TestEachStoreHoldsTheKnownKindsAndStatuses holds those to model's lists.
 CREATE TABLE project_kinds (
     name TEXT PRIMARY KEY
 );

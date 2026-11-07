@@ -8,7 +8,9 @@ SELECT pg_advisory_xact_lock(sqlc.arg(lock_key)::bigint);
 SELECT
     set_config('projects.actor', sqlc.arg(actor)::text, true),
     set_config('projects.request_id', sqlc.arg(request_id)::text, true),
-    set_config('projects.job_run_id', sqlc.arg(job_run_id)::text, true);
+    set_config('projects.job_run_id', sqlc.arg(job_run_id)::text, true),
+    set_config('projects.traceparent', sqlc.arg(traceparent)::text, true),
+    set_config('projects.baggage', sqlc.arg(baggage)::text, true);
 
 -- name: ListProjects :many
 SELECT * FROM projects ORDER BY position, name;

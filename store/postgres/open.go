@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib" // goose reads through database/sql
 	"github.com/pressly/goose/v3"
+
+	"github.com/datapointchris/projects/model"
 )
 
 //go:embed migrations/*.sql
@@ -36,6 +38,26 @@ func Migrate(ctx context.Context, url string) error {
 	}
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
+	}
+	return upsertLookupRows(ctx, database)
+}
+
+// upsertLookupRows runs on every migrate, so a kind or status added to model reaches
+// a database that has already taken every migration.
+func upsertLookupRows(ctx context.Context, database *sql.DB) error {
+	lookups := []struct {
+		statement string
+		names     []string
+	}{
+		{"INSERT INTO project_kinds (name) VALUES ($1) ON CONFLICT (name) DO NOTHING", model.ProjectKinds},
+		{"INSERT INTO project_statuses (name) VALUES ($1) ON CONFLICT (name) DO NOTHING", model.ProjectStatuses},
+	}
+	for _, lookup := range lookups {
+		for _, name := range lookup.names {
+			if _, err := database.ExecContext(ctx, lookup.statement, name); err != nil {
+				return fmt.Errorf("adding lookup row %q: %w", name, err)
+			}
+		}
 	}
 	return nil
 }

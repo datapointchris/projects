@@ -40,6 +40,28 @@ func newTestBackend(t *testing.T) *Service {
 	return New(sqlite.New(database))
 }
 
+// Each store seeds its lookup rows its own way. A kind one holds and the other lacks
+// is accepted on one and refused on the other.
+func TestEachStoreHoldsTheKnownKindsAndStatuses(t *testing.T) {
+	b := newTestBackend(t)
+	ctx := context.Background()
+
+	kinds, err := b.store.ListProjectKinds(ctx)
+	if err != nil {
+		t.Fatalf("listing kinds: %v", err)
+	}
+	statuses, err := b.store.ListProjectStatuses(ctx)
+	if err != nil {
+		t.Fatalf("listing statuses: %v", err)
+	}
+	if want := slices.Sorted(slices.Values(model.ProjectKinds)); !slices.Equal(kinds, want) {
+		t.Errorf("the store holds kinds %v, want %v", kinds, want)
+	}
+	if want := slices.Sorted(slices.Values(model.ProjectStatuses)); !slices.Equal(statuses, want) {
+		t.Errorf("the store holds statuses %v, want %v", statuses, want)
+	}
+}
+
 func mustCreateProject(t *testing.T, b *Service, name string) *model.Project {
 	t.Helper()
 	p, err := b.CreateProject(model.CreateProject{Name: name})

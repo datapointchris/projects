@@ -30,9 +30,11 @@ type Store interface {
 // Writer names who a transaction writes for. A store that keeps an audit trail
 // records it beside each change, and one that keeps none ignores it.
 type Writer struct {
-	Actor     string
-	RequestID string
-	JobRunID  string
+	Actor       string
+	RequestID   string
+	JobRunID    string
+	Traceparent string
+	Baggage     string
 }
 
 type writerKey struct{}

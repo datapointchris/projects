@@ -1,7 +1,6 @@
 // Package postgrestest gives a test a migrated database of its own. One container
 // serves the whole test binary, or the server TEST_DATABASE_URL names, and each test
-// clones a migrated template, which costs a few milliseconds where migrating costs
-// a hundred.
+// clones a migrated template, which is cheaper than migrating.
 package postgrestest
 
 import (

@@ -15,6 +15,10 @@ import (
 // traces through this API's logs and its audit trail.
 const HeaderRequestID = "X-Request-ID"
 
+// HeaderTraceparent carries the W3C trace a request belongs to, which its log line
+// and its audit rows keep, so either joins back to the trace.
+const HeaderTraceparent = "traceparent"
+
 // record is what inner layers learn about a request that the final line reports.
 type record struct {
 	id       string
@@ -103,6 +107,7 @@ func Middleware(log *slog.Logger, next http.Handler) http.Handler {
 			slog.Int("bytes", recorder.bytes),
 			slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000),
 			slog.String("request_id", id),
+			slog.String("traceparent", r.Header.Get(HeaderTraceparent)),
 			slog.String("actor", current.actor),
 			slog.String("client_id", current.clientID),
 			slog.Bool("service", current.service),

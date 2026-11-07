@@ -45,7 +45,11 @@ func Protect(routes *http.ServeMux, scopes map[string][]string, verifier goapiau
 func bindWriter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		writer := store.Writer{RequestID: requestlog.RequestID(ctx)}
+		writer := store.Writer{
+			RequestID:   requestlog.RequestID(ctx),
+			Traceparent: r.Header.Get(requestlog.HeaderTraceparent),
+			Baggage:     r.Header.Get("baggage"),
+		}
 		if identity, ok := goapiauth.IdentityFrom(ctx); ok {
 			writer.Actor = identity.Subject
 			if identity.Service {
