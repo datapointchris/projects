@@ -3,7 +3,7 @@
   "$id": "urn:projects:probe:v1",
   "title": "probe",
   "type": "object",
-  "description": "What /health and /ready answer.",
+  "description": "What /health and /ready answer. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "status"

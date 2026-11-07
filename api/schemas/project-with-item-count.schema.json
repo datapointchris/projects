@@ -3,7 +3,7 @@
   "$id": "urn:projects:project-with-item-count:v1",
   "title": "project-with-item-count",
   "type": "object",
-  "description": "A project and what its items add up to.",
+  "description": "A project and what its items add up to. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "id",

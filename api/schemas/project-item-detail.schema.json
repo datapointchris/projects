@@ -3,7 +3,7 @@
   "$id": "urn:projects:project-item-detail:v1",
   "title": "project-item-detail",
   "type": "object",
-  "description": "One item read alone, naming what it waits on.",
+  "description": "One item read alone, naming what it waits on. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "id",

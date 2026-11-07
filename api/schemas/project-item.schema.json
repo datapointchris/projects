@@ -3,7 +3,7 @@
   "$id": "urn:projects:project-item:v1",
   "title": "project-item",
   "type": "object",
-  "description": "An item with what is filed against it, as a list returns it.",
+  "description": "An item with what is filed against it, as a list returns it. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "id",

@@ -1,8 +1,8 @@
 // Package wire is what the API answers with. It is apart from model because a
-// client depends on this contract and never on the server's types: every field is
-// always sent, an empty one as null, so a reader indexing by name finds it, and a
-// change to model cannot change an answer by accident. Each struct has its JSON
-// Schema under api/schemas.
+// client depends on this contract and never on the server's types: every field of a
+// row is always sent, an empty value as null and an empty list as [], so a reader
+// indexing by name finds it, and a change to model cannot change an answer by
+// accident. Each struct has its JSON Schema under api/schemas.
 package wire
 
 import (

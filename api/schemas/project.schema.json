@@ -3,7 +3,7 @@
   "$id": "urn:projects:project:v1",
   "title": "project",
   "type": "object",
-  "description": "One project.",
+  "description": "One project. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "id",

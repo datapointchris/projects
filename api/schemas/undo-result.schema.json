@@ -3,7 +3,7 @@
   "$id": "urn:projects:undo-result:v1",
   "title": "undo-result",
   "type": "object",
-  "description": "What an undo reversed.",
+  "description": "What an undo reversed. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "description",

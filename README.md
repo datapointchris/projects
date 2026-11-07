@@ -7,7 +7,8 @@ the background when it is on.
 
 `projects` is the TUI and nothing more. Its subcommands are `sync`, `update`, `version` and
 `completion`, and none of them reads or writes an item. Scripts and agents reach the same projects
-and items through the API. `projects-api`, in this repo, serves it on Postgres.
+and items through the API the database is bound to. `projects-api`, in this repo, is one server of
+that API, on Postgres.
 
 ## Install
 
@@ -289,7 +290,8 @@ registry are read and never written.
 ## The API — the same rules over HTTP, on Postgres
 
 `projects-api` serves projects, items, dependencies and tasks under `/api/v1`. It runs the rules the TUI
-runs, over a Postgres store instead of SQLite, so a rule behaves the same in both.
+runs, over a Postgres store instead of SQLite, so a rule behaves the same in both. The one exception is
+the ban on a project named for a repo, which reads a registry file this server does not hold.
 
 ```text
 projects-api
@@ -317,9 +319,9 @@ Every setting comes from the environment:
 | `POSTGRES_DB` | required | |
 | `PORT` | `8000` | Where it listens |
 
-`projects-api migrate` brings the schema up to date and exits. It reads only the `POSTGRES_` settings.
-With no argument, `projects-api` serves, and it never migrates on its own. Two pods starting together
-would race, and a bad migration would crash-loop what is serving.
+`projects-api migrate` brings the schema up to date, adds any new kind or status, and exits. It reads
+only the `POSTGRES_` settings. With no argument, `projects-api` serves, and it never migrates on its own.
+Two pods starting together would race, and a bad migration would crash-loop what is serving.
 
 ```bash
 docker run --rm --env-file settings.env ghcr.io/datapointchris/projects:latest projects-api migrate
@@ -327,28 +329,21 @@ docker run --rm --env-file settings.env -p 8000:8000 ghcr.io/datapointchris/proj
 ```
 
 `/health` answers for the process. `/ready` answers 503 while Postgres or the identity provider does
-not. TERM stops new requests, lets the ones in flight finish for up to 20 seconds, and exits zero. Logs
-are one JSON object per line on stdout, and each request's line names its caller and its
-`X-Request-ID`.
+not. A request that outlasts `requestDeadline` in `api/routes/routes.go`, as when Postgres stops
+answering, answers 503. TERM stops new requests and lets the ones in flight finish. It exits zero if
+they finish inside `drainTimeout` in `api/main.go`, and non-zero if one outlasts it. Logs are one JSON
+object per line on stdout, and each request's line names its caller, its `X-Request-ID` and its
+`traceparent`.
 
 **A client's id says who it is.** A token from a client whose id starts `projects-cli-` acts as the person
-who logged in, and reaches every route. One starting `projects-svc-` is a service. It reaches only what
-its scopes list, and the one scope is `projects.items.read`:
-
-```text
-GET /api/v1/project-items
-GET /api/v1/project-items/blocked
-GET /api/v1/project-items/search
-GET /api/v1/project-items/{id}
-GET /api/v1/project-items/{id}/blockers
-GET /api/v1/project-items/{item_id}/tasks
-GET /api/v1/projects/{id}/items
-```
+who logged in, and reaches every route. One starting `projects-svc-` is a service, and reaches only what
+its scopes list in `routes.ServiceScopes`. `projects.items.read` is the read scope. A client with neither
+prefix answers 401, whatever it holds, so moving a caller onto this API takes a client of its own.
 
 **`{id}` takes more than an id.** A project answers to its UUID or its name, and an item to its UUID or
 its number. A name holding a slash is reached by escaping it, as `/api/v1/projects/web%2Fapi`.
 
-**Every field is always sent, an empty one as `null`.** In a `PATCH`, a field left out stays as it is,
+**A row's every field is always sent: an empty value as `null`, and an empty list as `[]`.** In a `PATCH`, a field left out stays as it is,
 and a field sent as `null` clears it. A field that cannot be empty refuses `null` by name.
 
 A refusal is `{"error": <status phrase>, "message": <why>}`. A refused input adds `errors`, listing each

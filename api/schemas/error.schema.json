@@ -3,7 +3,7 @@
   "$id": "urn:projects:error:v1",
   "title": "error",
   "type": "object",
-  "description": "Every refusal. message always says why in one string. errors lists each refused input on a validation 422.",
+  "description": "Every refusal. message always says why in one string. errors lists each refused input on a validation 422. A field added is not a new version, and a field reshaped or removed is.",
   "required": [
     "error",
     "message"

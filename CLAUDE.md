@@ -126,16 +126,17 @@ store/postgres       the same, with goose migrations and an audit trigger
   whatever types a store uses for its own rows. A new column on a project, item or task joins its record
   there and its store's restore, and `TestEveryModelFieldSurvivesAnUndo` fails until both carry it.
 - **A store's statements carry what only a statement can do atomically, or what only it can sort.**
-  `store/store.go` states each on its method: a new row's position, an item's `updated_at`, a restore's
-  handling of a row already there, and the order projects list in by status. Each store states them in
-  its own `queries.sql`.
+  `store/store.go` states each on its method: a new row's position, an item's `updated_at`, and a
+  restore's handling of a row already there. Each store states them in its own `queries.sql`.
 
 Two carve-outs are declared here rather than assumed:
 
 - **`sync` reaches `store/sqlite/generated` directly.** A pull rewrites rows wholesale, with no undo entry
   and none of the rules, and the push queue and origin binding belong to no rule. Routing that through
-  `service` would give the rules a surface only the engine calls. It ends when the sync engine is deleted.
-  `generated` can then move under `store/sqlite/internal`, where the compiler enforces the seam.
+  `service` would give the rules a surface only the engine calls. A pull writes only the columns it has
+  always carried, so on a synced database `kind` and `completed_at` are what that database set, and neither
+  arrives from elsewhere. It ends when the sync engine is deleted. `generated` can then move under
+  `store/sqlite/internal`, where the compiler enforces the seam.
 - **Local mode links `service` directly.** A client normally depends on the wire contract and never on a
   server's types, because importing them couples deploy order. Local mode has no server, so that reason
   does not reach it. Anything on the HTTP path keeps its own lean structs.
@@ -189,7 +190,8 @@ started this.
 A missing registry bans nothing.
 
 Enforcement is on the service (`RefusingRepoNames`), the one path every create
-and rename takes.
+and rename takes. It is an option `main.go` sets. `api/main.go` does not, because a
+container holds no registry, so the API bans nothing, as a missing registry does.
 
 ## A project has a status, and it is not an `archived` flag
 
@@ -302,16 +304,19 @@ PROJECTS_TEST_STORE=postgres go test ./service/  # every rule on Postgres
 (cd store/postgres && go tool sqlc generate)     # after editing queries.sql or a migration
 ```
 
-`postgrestest` starts one `postgres:16-alpine` per test binary with testcontainers, and clones a template
+`postgrestest` starts one Postgres container per test binary with testcontainers, and clones a template
 per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, and the commit hook runs
 `-short`, so CI is what runs them.
 
 - **`api/wire` is the contract, and `model` is not.** A client depends on the wire, so an answer changes
   only by editing a `wire` struct and its file under `api/schemas`. `TestEveryAnswerMatchesItsSchema`
   fails when the two differ. A new shape takes a file and a row in that test.
-- **Every field is sent, an empty one as `null`, and times are UTC with a `Z`.** `wire.Time` prints six
-  fractional digits when there is a fraction, and none when there is not. Existing clients index these
-  by name.
+- **A row's every field is always sent: an empty value as `null`, and an empty list as `[]`. Times are UTC
+  with a `Z`.** `wire.Time` prints six fractional digits when there is a fraction, and none when there is
+  not. Existing clients index these by name.
+- **`/api/v2` is this API's version signal, and no answer carries `schema_version`.** That is an exception
+  to the rule that a shape names its version in the document, because a list answers a bare array, which
+  has no place for the field. A field added is not a new version, and a field reshaped or removed is.
 - **A `PATCH` is read field by field**, by `requestBody`, because a struct cannot tell a field left out
   from one sent as null. Left out keeps, null clears, and a column that cannot be empty refuses null.
 - **A wildcard holds an escaped slash.** `{id}` matches one escaped segment, so a project name holding
@@ -320,19 +325,26 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   out of the scope.
 - **`InTx` takes `pg_advisory_xact_lock` first**, the analog of SQLite's immediate transaction, so what a
   rule read still holds at commit. It costs one writer at a time, which one person's write rate never
-  feels.
+  feels. `WithRequestDeadline` bounds that wait, and every other, so a database that stops answering
+  costs a client a 503.
 - **Every write is audited by a row trigger**, into `audit_trail`, because a trigger also sees cascades.
-  `InTx` binds `projects.actor`, `projects.request_id` and `projects.job_run_id` with `set_config(...,
-  true)`, and the trigger reads them. A person is recorded by subject and a service by client id.
-  `undo_log` has no trigger: it writes on every write, and would copy each whole row the real tables
-  already audit.
+  `InTx` binds `projects.actor`, `projects.request_id`, `projects.job_run_id`, `projects.traceparent` and
+  `projects.baggage` with `set_config(..., true)`, and the trigger reads them. A person is recorded by
+  subject and a service by client id. `undo_log` has no trigger: it writes on every write, and would copy
+  each whole row the real tables already audit. A new table brings its trigger, or
+  `TestEveryTableIsAuditedButWhatOptsOut` fails.
+- **A kind or status is a row in `model.ProjectKinds` or `model.ProjectStatuses`**, and in SQLite's
+  `lookup_rows.sql`. `postgres.Migrate` upserts Postgres's from `model`, and
+  `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it.
 - **Item numbers come from the `item_numbers` sequence**, through `AssigningItemNumbers`. A database
-  loaded from elsewhere needs the sequence set past its last number.
+  loaded from elsewhere needs the sequence set from the old sequence's own counter, because numbers it
+  already handed out can outrun the rows left.
 - **`.sqlfluffignore` keeps the SQLite hook off `store/postgres`**, and a second hook in
   `.pre-commit-config.yaml` lints it in its own dialect, because the config holds one dialect.
 - **A release publishes the image and manifests at the tag `go-semantic-release` cut**, in `release.yml`.
   One version names both the TUI and the API, because a rule change in `service` moves both. A new
-  directory the binary imports joins `.dockerignore`'s allowlist, or the image build fails.
+  directory the binary imports joins `.dockerignore`'s allowlist, or `validate.yml`'s image build fails
+  the pull request.
 
 ## Never write the breaking-change trailer in a commit message
 

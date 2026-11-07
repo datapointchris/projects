@@ -3,7 +3,7 @@
   "$id": "urn:projects:project-item-task:v1",
   "title": "project-item-task",
   "type": "object",
-  "description": "One task on an item.",
+  "description": "One task on an item. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "id",
