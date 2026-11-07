@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:project-with-item-count:v1",
+  "title": "project-with-item-count",
+  "type": "object",
+  "description": "A project and what its items add up to.",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "description",
+    "kind",
+    "status",
+    "status_reason",
+    "closed_at",
+    "position",
+    "created_at",
+    "item_count",
+    "open_count",
+    "completed_count",
+    "repos"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "description": "One of the names in the project_kinds table."
+    },
+    "status": {
+      "type": "string",
+      "description": "One of the names in the project_statuses table."
+    },
+    "status_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "position": {
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "item_count": {
+      "type": "integer",
+      "description": "Every membership, archived items included."
+    },
+    "open_count": {
+      "type": "integer"
+    },
+    "completed_count": {
+      "type": "integer"
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

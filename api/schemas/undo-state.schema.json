@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:undo-state:v1",
+  "title": "undo-state",
+  "type": "object",
+  "description": "Whether anything is left to undo.",
+  "additionalProperties": false,
+  "required": [
+    "can_undo"
+  ],
+  "properties": {
+    "can_undo": {
+      "type": "boolean"
+    }
+  }
+}

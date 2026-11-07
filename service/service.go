@@ -134,6 +134,7 @@ func refuseReservedName(name string) error {
 	return &model.Refusal{
 		Kind:    model.ErrReservedName,
 		Field:   "name",
+		Input:   name,
 		Message: fmt.Sprintf("cannot end in %s, which /projects/<name>/items reads as an item list", quoteName(itemListSegment)),
 	}
 }

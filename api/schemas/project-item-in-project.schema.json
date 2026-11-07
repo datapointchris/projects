@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:project-item-in-project:v1",
+  "title": "project-item-in-project",
+  "type": "object",
+  "description": "An item as one project holds it.",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "number",
+    "title",
+    "notes",
+    "repo",
+    "completed",
+    "completed_at",
+    "archived",
+    "status",
+    "created_at",
+    "updated_at",
+    "position",
+    "project_count"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "number": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "The item's handle. Null only on a store whose server has not assigned one yet."
+    },
+    "title": {
+      "type": "string"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completed": {
+      "type": "boolean"
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "completed",
+        "archived"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "position": {
+      "type": "integer"
+    },
+    "project_count": {
+      "type": "integer",
+      "description": "How many projects hold the item."
+    }
+  }
+}

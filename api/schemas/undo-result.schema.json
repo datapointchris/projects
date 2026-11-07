@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:undo-result:v1",
+  "title": "undo-result",
+  "type": "object",
+  "description": "What an undo reversed.",
+  "additionalProperties": false,
+  "required": [
+    "description",
+    "action",
+    "entity_type",
+    "entity_id"
+  ],
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "entity_type": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    }
+  }
+}

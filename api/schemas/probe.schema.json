@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:probe:v1",
+  "title": "probe",
+  "type": "object",
+  "description": "What /health and /ready answer.",
+  "additionalProperties": false,
+  "required": [
+    "status"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "ready",
+        "unavailable"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

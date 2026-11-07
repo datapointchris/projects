@@ -35,11 +35,13 @@ var (
 
 // Refusal is a rule saying no, with the sentence a person reads. Kind is the
 // sentinel a caller matches, so errors.Is sees through it to one of the errors
-// above. Field names the input field at fault, where one input is.
+// above. Field names the input field at fault, where one input is, and Input holds
+// what it was sent.
 type Refusal struct {
 	Kind    error
 	Message string
 	Field   string
+	Input   any
 }
 
 func (r *Refusal) Error() string { return r.Message }
