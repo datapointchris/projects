@@ -11,6 +11,7 @@ import (
 
 	"github.com/datapointchris/tuidrive"
 
+	"github.com/datapointchris/projects/cli"
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/store/sqlite"
 )
@@ -42,7 +43,7 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = database.Close() }()
-		projects, err := localOnlyBackend(database, "").ListProjectsByStatus(model.StatusAll)
+		projects, err := cli.LocalService(database, "").ListProjectsByStatus(model.StatusAll)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +184,7 @@ func seedFormerDatabaseWithUnflushedWAL(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 	defer func() { _ = database.Close() }()
-	if _, err := localOnlyBackend(database, "").CreateProject(model.CreateProject{Name: "Held only in the WAL"}); err != nil {
+	if _, err := cli.LocalService(database, "").CreateProject(model.CreateProject{Name: "Held only in the WAL"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, suffix := range []string{"", "-wal", "-shm"} {

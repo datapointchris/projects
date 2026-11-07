@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/datapointchris/projects/config"
@@ -24,6 +25,7 @@ type registryFile struct {
 // Registry is the set of known repo names, empty when the file is absent.
 type Registry struct {
 	names map[string]bool
+	path  string
 }
 
 // DefaultPath is where this machine keeps the registry: $PROJECTS_REPOS_REGISTRY,
@@ -61,7 +63,7 @@ func DefaultPath() string {
 func Load(path string) (*Registry, error) {
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return &Registry{}, nil
+		return &Registry{path: path}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading repo registry %s: %w", path, err)
@@ -74,12 +76,48 @@ func Load(path string) (*Registry, error) {
 	for _, repo := range parsed.Repos {
 		names[repo.Name] = true
 	}
-	return &Registry{names: names}, nil
+	return &Registry{names: names, path: path}, nil
 }
 
 // Available reports whether the registry was found and had any repos in it.
 func (r *Registry) Available() bool {
 	return r != nil && len(r.names) > 0
+}
+
+// Names is every registered repo, sorted, for a prompt to offer.
+func (r *Registry) Names() []string {
+	if r == nil {
+		return nil
+	}
+	names := make([]string, 0, len(r.names))
+	for name := range r.names {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// Validate refuses a repo tag the registry does not hold, naming the near ones.
+// An empty name is the untagged work, and a missing registry refuses nothing.
+//
+// On a write a mistyped tag drops the item out of every repo view, and on a read
+// it selects nothing, which reads the same as a repo with no work.
+func (r *Registry) Validate(name string) error {
+	if name == "" || !r.Available() || r.names[name] {
+		return nil
+	}
+	lowered := strings.ToLower(name)
+	var near []string
+	for _, known := range r.Names() {
+		lowerKnown := strings.ToLower(known)
+		if strings.Contains(lowerKnown, lowered) || strings.HasPrefix(lowered, lowerKnown) {
+			near = append(near, known)
+		}
+	}
+	if len(near) > 0 {
+		return fmt.Errorf("unknown repo %q — did you mean %s?", name, strings.Join(near[:min(len(near), 3)], ", "))
+	}
+	return fmt.Errorf("unknown repo %q — %s lists the registered names", name, r.path)
 }
 
 // Knows reports whether name is a registered repo. Case- and

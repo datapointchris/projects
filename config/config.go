@@ -24,6 +24,17 @@ type Config struct {
 	// the data directory below it are composed by repos.DefaultPath, so the whole
 	// resolution order reads in one place rather than half here and half there.
 	ReposRegistry string `mapstructure:"repos_registry"`
+
+	// API is the projects API every command reads and writes through. Set, no
+	// database is opened. Unset, the database under local is the store, so a
+	// fresh install works with no server. goclilogin reads it beside issuer,
+	// client_id and token_command, and `projects auth login <url>` writes the
+	// first three. They are declared here because ErrorUnused refuses a key the
+	// struct has no home for.
+	API          string   `mapstructure:"api"`
+	Issuer       string   `mapstructure:"issuer"`
+	ClientID     string   `mapstructure:"client_id"`
+	TokenCommand []string `mapstructure:"token_command"`
 }
 
 // SyncConfig holds settings for background sync with the remote API.

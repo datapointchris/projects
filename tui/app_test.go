@@ -58,7 +58,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 		}
 	}
 
-	app := NewApp(b, nil, ":memory:", 2*time.Minute)
+	app := NewApp(b, nil, Where{DatabasePath: ":memory:"}, 2*time.Minute)
 	send(t, app, tea.WindowSizeMsg{Width: width, Height: height})
 	send(t, app, app.Init()())
 	send(t, app, app.fetchItems()())
@@ -389,7 +389,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	engine := sync.New(database, ts.URL, "")
 	t.Cleanup(engine.Stop)
-	app := NewApp(service.New(sqlite.New(database)), engine, ":memory:", 20*time.Millisecond)
+	app := NewApp(service.New(sqlite.New(database)), engine, Where{DatabasePath: ":memory:"}, 20*time.Millisecond)
 	send(t, app, tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	countHits := func() int {

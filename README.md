@@ -1,14 +1,20 @@
 # projects
 
-A terminal UI for organizing personal projects. It holds the projects, the items that make each one
-up, the dependencies between items, and the sub-tasks on each item. It reads and writes a local
-SQLite database, so it works with no network at all. Sync to an API server is optional, and runs in
-the background when it is on.
+A command line and a terminal UI for organizing personal projects. It holds the projects, the items
+that make each one up, the dependencies between items, and the sub-tasks on each item.
 
-`projects` is the TUI and nothing more. Its subcommands are `sync`, `update`, `version` and
-`completion`, and none of them reads or writes an item. Scripts and agents reach the same projects
-and items through the API the database is bound to. `projects-api`, in this repo, is one server of
-that API, on Postgres.
+The config file chooses where the data lives. With no `api` key, every command reads and writes a
+SQLite database on this machine, so it works with no network at all. With `api` set, every command
+reads and writes that API and opens no database. `projects-api`, in this repo, is that API, on
+Postgres. Both modes run the API's own routes: in database mode they are served inside the process,
+so a refusal, an exit code and a `--json` answer are the same in both.
+
+```bash
+projects                      # help: every command, grouped
+projects next --limit 1       # the one item to work on next
+projects items show 42        # one item with its tasks and blockers
+projects tui                  # the board, where everything is a key press
+```
 
 ## Install
 
@@ -39,28 +45,95 @@ off.
 ```bash
 go install github.com/datapointchris/projects@latest  # the binary, and nothing else
 projects version                                      # proves the install, and opens no database
-projects                                              # creates ~/.local/share/projects/projects.db, opens the TUI
-
-mkdir -p ~/.config/projects                           # projects reads its config and never writes one
-$EDITOR ~/.config/projects/config.toml                # [sync] enabled, api_url, token_command
-projects sync                                         # binds the database to that API, then pulls
-projects                                              # the status bar reads SYNCED and the API's URL
+projects create --name "Repaint the fence"            # creates ~/.local/share/projects/projects.db
+projects tui                                          # the board, reading that database
 ```
 
-The first three lines are the whole setup for local use. The right end of the status bar reads
-`LOCAL` and the database path, which shows `projects` is running without sync. In the TUI, `a` adds a
-project, `Tab` moves to the item pane, and `a` adds an item there. `q` quits.
+Those lines are the whole setup for database mode. The right end of the board's status bar reads
+`LOCAL` and the database path. In the board, `a` adds a project, `Tab` moves to the item pane, and `a`
+adds an item there. `q` quits.
 
-The second group is only for sync, and it comes before you add anything. Nothing written with sync
-off is queued for push. The first pull deletes it as rows the server never returned. The guard under
-[A database belongs to one API](#a-database-belongs-to-one-api-and-a-pull-that-would-empty-it-stops)
-stops that only once a pull would delete ten projects or ten items. To keep local work and sync as
-well, point `PROJECTS_DB` or `db_path` at a second database for the synced one.
+To work through an API instead:
+
+```bash
+projects auth login https://projects.example.com      # writes api, issuer and client_id to the config file
+projects list                                         # now reads the API, and opens no database
+projects tui                                          # the status bar reads API and the API's host
+```
+
+`auth login` fills in the config file, and the `api` key it writes is what switches every command to
+the API. A database already on the machine is left as it is, and nothing copies it to the API.
 
 `config.toml` takes the keys under
 [Configuration](#configuration--one-toml-file-every-key-overridable-from-the-environment). A key
 `projects` does not read is an error rather than ignored, so a misspelled key never passes for an unset
 one.
+
+## The project verbs sit at the root, and the item verbs under `projects items`
+
+```text
+projects list | next | show <project>
+projects create | edit | shelve | complete | close | reopen | delete
+projects items list | blocked | search | show | blockers
+projects items create | edit | complete | reopen | archive | unarchive | delete | reorder
+projects items tasks list | add | complete | edit | remove
+projects items dependencies add | remove | tree
+projects items memberships add | remove
+projects tui
+projects auth login | logout | status | token
+projects sync | version | update | completion
+```
+
+- `<project>` is a project's name or UUID. `<item>` is an item's number or UUID.
+- An answer goes to stdout. A hint, a prompt and an error go to stderr.
+- Every read takes `--json`, which prints one JSON document on stdout. A list is a bare array, and an
+  empty one is `[]`.
+- `show`, `items show`, `next`, `items dependencies tree` and `tui --json` print documents that carry
+  `schema_version`. [cli/schemas](cli/schemas) holds their JSON Schemas. Every other `--json` answer
+  is the API's own shape, under [api/schemas](api/schemas).
+- `next` prints ten items unless `--limit` says otherwise. A list under `projects items` prints every
+  row unless `--limit` caps it.
+- `--repo` takes a name from the repo registry. On a filter, `--repo ""` means untagged work. On
+  `items edit`, it clears the tag.
+- `items create` in a terminal asks for the title and projects the flags left out. Typing `+` at the
+  project question creates a project on the spot. `--no-input`, or no terminal, fails instead and
+  names the flag that would have answered.
+- `delete` and every `remove` ask first. `--yes` skips the question. With `--no-input`, or no
+  terminal, they refuse unless `--yes` is passed.
+- `projects tui --once` prints one frame at `COLUMNS` by `LINES` and exits. `projects tui --json`
+  prints what the board is drawn from. With neither and no terminal, `projects tui` refuses.
+
+| Exit | Meaning |
+| ---- | ------- |
+| `0` | Done |
+| `1` | Refused or failed: not found, not logged in, a rule said no |
+| `2` | A usage error: an unknown flag, a missing argument, a value the API refused as input |
+| `4` | The API never answered: refused connections, timeouts, `429` and `5xx` after three attempts |
+
+## Through an API, a login on this machine carries every command
+
+`projects auth login <url>` reads the API's protected-resource metadata to find the identity provider,
+then shows a code to approve in any browser, on any device. It writes `api`, `issuer` and `client_id`
+into the config file and keeps the token in the OS keychain. Where no keychain answers, the token goes
+to a file under `$XDG_STATE_HOME/projects/`. `auth status` names which one holds it.
+
+The client id defaults to `projects-cli-<hostname>`. Each machine logs in as its own client, and the
+API reads that prefix as a person.
+
+`auth token` prints the access token, refreshed when it has expired. `auth logout` removes it.
+
+A service has no person to approve a code. With `PROJECTS_CLIENT_SECRET` set, every command
+authenticates as `client_id` with the client-credentials grant, asking for `projects.items.read`.
+That client is a confidential client registered for the service alone, and its id starts
+`projects-svc-`. `auth login` refuses while the secret is set.
+
+`token_command` in the config file replaces both. It is an argument list, run without a shell. Its
+stdout is a token response, a JSON object holding `access_token`, and no login runs. An API that needs no real token,
+such as a dev stack whose proxy sets the caller's identity, takes a command that prints a stand-in.
+
+`--api <url>` on any command outranks the file's `api` for one run. An address other than the file's
+must name the file's issuer in its own metadata, so a token is never sent to an API that does not
+trust the provider that issued it.
 
 ## Coming from todoui — the first run moves the data, and the rest is by hand
 
@@ -93,7 +166,7 @@ j / k     move through items and their tasks as one list    J / K   jump item to
 Tab       switch pane                                       Enter   read it in full
 a         add a project, or an item to this project         space   mark done
 T         dependency browser                                /       search every project
-u         undo the last change                              R       sync now
+u         undo the last change                              R       sync, or read the API, now
 ?         every key the pane you are in takes               q       quit
 ```
 
@@ -103,8 +176,11 @@ The project pane opens on an `All` row, which shows every item grouped by projec
 project adds it to a selection. The item pane then shows the selected projects' items, grouped the
 same way. An item belongs to one project or to several. `A` adds an item to more than one, and `p`
 changes which projects hold it. Each item carries a title, notes, a checklist of sub-tasks, and the
-items it waits on. The reader also names the repo the item is for. That tag is set through the API
-and arrives with sync. `projects` has no key that sets it.
+items it waits on. The reader also names the repo the item is for. The board has no key that sets
+that tag. `projects items edit <item> --repo <name>` sets it.
+
+Through an API, the status bar reads `API` and the API's host. The board reads the API again every
+`sync.interval`, and `R` reads it at once.
 
 `Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
 what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
@@ -132,8 +208,9 @@ project named after a repo becomes the bucket every later papercut falls into, b
 keeps existing after the work is done. An item's repo tag carries that association instead. The tag
 crosses project boundaries and outlives any one project.
 
-So creating a project refuses a name the repo registry holds, and so does renaming one. The registry
-is a JSON file with a `repos` array, and each entry's `name` is a banned project name:
+So creating a project refuses a name the repo registry holds, and so does renaming one. That holds
+in database mode only. Through an API it bans nothing, because the API holds no registry. The
+registry is a JSON file with a `repos` array, and each entry's `name` is a banned project name:
 
 ```json
 { "repos": [{ "name": "projects" }] }
@@ -150,7 +227,8 @@ A missing registry bans nothing. A registry that does not parse fails every crea
 the parse error.
 
 A project's status is `active`, `someday`, `completed` or `dropped`. Reading a project, `c`
-completes it, `x` drops it, `S` shelves it for someday, and `r` reopens a shelved or closed one.
+completes it, `x` drops it, `S` shelves it for someday, and `r` reopens a shelved or closed one. On
+the command line those are `projects complete`, `close --reason`, `shelve` and `reopen`.
 Completing a project is what takes it out of the list, so there is no separate archive step the way
 items have one. A shelved project leaves the list too, but records no closing date. `C` shows
 shelved and closed projects again, each marked with its status.
@@ -169,13 +247,24 @@ An item shows its number, the same handle the API answers with. The number is no
 `projects` creates every id as a UUIDv7, so an item can be created offline and pushed without a round
 trip to claim one.
 
-With sync on, the number comes from the API's response to the create, and the TUI shows it once the
-push lands. With sync off, `projects` allocates the next number itself. An item created while the API is
-unreachable shows the last 8 characters of its id until its push lands and earns it a number.
+Through an API, the API numbers the item as it creates it. With sync on, the number comes from the
+API's response to the create, and the TUI shows it once the push lands. In database mode with sync
+off, `projects` allocates the next number itself. An item created while a synced API is unreachable
+shows the last 8 characters of its id until its push lands and earns it a number.
 
-## Sync is automatic, and `projects sync` is for now rather than for correctness
+## Sync keeps a database a copy of an API, and only the board writes to the copy
 
-With sync on, every edit is queued and pushed as you make it. The TUI pulls on launch, then again
+Sync is the older way to reach an API. `[sync] enabled = true` keeps a database on this machine as a
+copy of `sync.api_url`, and `projects tui` edits the copy and pushes each edit. With `api` set there
+is no copy, so a config file holding both `api` and `[sync] enabled = true` stops every command,
+naming both keys.
+
+With sync on, every read on the command line answers from the copy. A command that writes refuses
+with a sentence naming `api`. Its write would land in the copy with nothing queued to push, and the
+next pull would delete it. `projects sync` refuses when `api` is set, because there is nothing to
+reconcile.
+
+With sync on, every edit in the board is queued and pushed as you make it. The TUI pulls on launch, then again
 every `sync.interval` (default two minutes) for as long as it is open. A pull waits while a text
 input, an overlay, the reader or a move is open, and runs on the next tick instead.
 
@@ -222,7 +311,13 @@ as well as Linux. No config file is a valid configuration: a local database, wit
 [config.example.toml](config.example.toml) is an annotated copy.
 
 ```toml
-# repos_registry = "/path/to/repos.json"  # a bare key, so it sits above the first [section]
+# Bare keys sit above the first [section].
+# repos_registry = "/path/to/repos.json"
+
+# api = "https://projects.example.com"  # set, every command goes to this API and no database opens
+# issuer = "https://auth.example.com/application/o/projects/"  # auth login writes it from the API
+# client_id = "projects-cli-desk"  # auth login writes it; default projects-cli-<hostname>
+# token_command = ["printf", '{"access_token":"dev","token_type":"Bearer"}']  # replaces the login
 
 [local]
 # db_path = "/custom/path/projects.db"  # default: ~/.local/share/projects/projects.db
@@ -234,9 +329,13 @@ enabled = false
 # interval = "2m"  # longest it goes without reconciling; floored at 15s
 ```
 
-`enabled = true` without an `api_url` is an error.
+`enabled = true` without an `api_url` is an error. So is `enabled = true` beside `api`.
 
-`token_command` is how `projects` authenticates to the API without holding a secret itself. It is split
+The bare `token_command` belongs to `api`, and is an argument list printing a token response. The
+`[sync]` one belongs to `api_url`, and is a string printing a bare token. The two never stand in for
+each other.
+
+`[sync]`'s `token_command` is how `projects` authenticates to the API without holding a secret itself. It is split
 on spaces and run without a shell or stdin. Whatever it prints becomes the bearer token. A command
 that has not finished in 10 seconds fails. `projects` keeps the token until the API refuses it, then
 runs the command once more and retries once. A failing command's first line of stderr is what the
@@ -258,39 +357,46 @@ Each variable overrides the key beside it:
 | `PROJECTS_SYNC_INTERVAL` | `sync.interval`, as a duration such as `30s` or `5m` |
 | `PROJECTS_REPOS_REGISTRY` | `repos_registry` |
 
-## Local-first — SQLite is the store, and sync is a layer over it
+`api`, `issuer`, `client_id` and the bare `token_command` take no variable. `--api` outranks `api` for
+one run. `PROJECTS_CLIENT_SECRET` switches the login to the client-credentials grant.
 
-Every read and write goes to the embedded SQLite database. The optional sync engine pushes mutations
-and pulls remote state in the background.
+## Every command speaks HTTP to the API's routes, served in the process or across the network
+
+A command reads and writes through one HTTP client. In database mode its transport hands each
+request to the API's own routes inside the process, over the SQLite store. Through an API, the
+transport is the network. So a rule, a refusal and a `--json` shape are one thing in both modes.
 
 ```text
-TUI
-    |
-    v
-Backend interface
-    |
-    +-- service.Service (every rule, always)
-    |       |
-    |       +-- store.Store -> store/sqlite (SQLite)
-    |
-    +-- SyncBackend (wraps the service, optional)
-            |
-            +-- Push: pending_sync queue -> HTTP to the API
-            +-- Pull: HTTP from the API -> upsert local SQLite
+projects <command>                     projects tui
+    |                                      |
+    v                                      v
+apiclient.Client                       backend.Backend
+    |                                      |
+    +-- database mode                      +-- database mode: service.Service,
+    |     InProcess -> api/routes          |     in SyncBackend when sync is on
+    |       -> service.Service             |
+    |       -> store/sqlite                +-- api: apiclient.Backend
+    |                                            -> apiclient.Client
+    +-- api: HTTP, three attempts
+          -> projects-api
 ```
+
+The sync engine, when it is on, sits in the board's path alone. It pushes each queued write over
+HTTP and pulls the API's state into the local database.
 
 The data model is projects, items, the memberships joining them many to many, dependencies between
 items, and sub-tasks.
 
-`projects` writes two places. The database at `db_path` holds the data, the queue of pending pushes, and
-the API the database is bound to. The update check keeps its last result under
-`$XDG_STATE_HOME/projects/`, which defaults to `~/.local/state/projects/`. The config file and the repo
-registry are read and never written.
+In database mode, the database at `db_path` holds the data, the queue of pending pushes, and the API
+the database is bound to. The update check keeps its last result under `$XDG_STATE_HOME/projects/`,
+which defaults to `~/.local/state/projects/`. `auth login` is the only command that writes the config
+file, and it adds its keys without rewriting the rest. The repo registry is read and never written.
 
 ## The API — the same rules over HTTP, on Postgres
 
-`projects-api` serves projects, items, dependencies and tasks under `/api/v1`. It runs the rules the TUI
-runs, over a Postgres store instead of SQLite, so a rule behaves the same in both. The one exception is
+`projects-api` serves projects, items, dependencies and tasks under `/api/v1`. It runs the routes and
+rules the command line runs in database mode, over a Postgres store instead of SQLite, so a rule
+behaves the same in both. The one exception is
 the ban on a project named for a repo, which reads a registry file this server does not hold.
 
 ```text
@@ -300,7 +406,7 @@ projects-api
 api/routes      decode, call, encode
     |
     v
-service.Service every rule, shared with the TUI
+service.Service every rule, shared with database mode
     |
     v
 store/postgres  pgx, goose migrations, a row trigger writing audit_trail

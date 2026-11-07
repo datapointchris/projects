@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:dependency-tree:v1",
+  "title": "dependency-tree",
+  "description": "`projects items dependencies tree --json`: the items the trees draw and the edges between them, never the drawing. An edge runs from an item to what it depends on whichever way the drawing ran, and only roots follows --invert.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "nodes", "edges", "roots"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "The version of this document's shape. A field added keeps it, and a field reshaped or removed raises it."
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "roots": {
+      "type": "array",
+      "description": "The id of each item a tree is drawn from.",
+      "items": { "type": "string", "format": "uuid" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "number", "title", "status", "repo", "projects"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "number": {
+          "type": ["integer", "null"],
+          "description": "The item's handle. Null only on a synced database whose API has not assigned one yet."
+        },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "completed", "archived"] },
+        "repo": { "type": ["string", "null"] },
+        "projects": {
+          "type": "array",
+          "description": "The name of each project the item is in.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item", "depends_on"],
+      "properties": {
+        "item": { "type": "string", "format": "uuid" },
+        "depends_on": { "type": "string", "format": "uuid" }
+      }
+    }
+  }
+}

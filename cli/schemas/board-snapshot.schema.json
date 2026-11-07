@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:board-snapshot:v1",
+  "title": "board-snapshot",
+  "description": "`projects tui --json`: what the board shows as it opens. The project pane lists the active projects, and the item pane the open items of the project under the cursor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "view",
+    "projects",
+    "project",
+    "items"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "The version of this document's shape. A field added keeps it, and a field reshaped or removed raises it."
+    },
+    "view": {
+      "type": "string",
+      "enum": [
+        "projects"
+      ],
+      "description": "The tab the snapshot is of."
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/project-with-item-count"
+      }
+    },
+    "project": {
+      "description": "The project under the cursor, or null with no projects.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/project-with-item-count"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/project-item-in-project"
+      }
+    }
+  },
+  "$defs": {
+    "project-with-item-count": {
+      "type": "object",
+      "description": "A project and what its items add up to. A field added is not a new version, and a field reshaped or removed is.",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "kind",
+        "status",
+        "status_reason",
+        "closed_at",
+        "position",
+        "created_at",
+        "item_count",
+        "open_count",
+        "completed_count",
+        "repos"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "One of the names in the project_kinds table."
+        },
+        "status": {
+          "type": "string",
+          "description": "One of the names in the project_statuses table."
+        },
+        "status_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "closed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "item_count": {
+          "type": "integer",
+          "description": "Every membership, archived items included."
+        },
+        "open_count": {
+          "type": "integer"
+        },
+        "completed_count": {
+          "type": "integer"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "project-item-in-project": {
+      "type": "object",
+      "description": "An item as one project holds it. A field added is not a new version, and a field reshaped or removed is.",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "number",
+        "title",
+        "notes",
+        "repo",
+        "completed",
+        "completed_at",
+        "archived",
+        "status",
+        "created_at",
+        "updated_at",
+        "position",
+        "project_count"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "number": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "The item's handle. Null only on a store whose server has not assigned one yet."
+        },
+        "title": {
+          "type": "string"
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "completed",
+            "archived"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "project_count": {
+          "type": "integer",
+          "description": "How many projects hold the item."
+        }
+      }
+    }
+  }
+}

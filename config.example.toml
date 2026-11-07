@@ -1,16 +1,30 @@
 # projects configuration
 # Place at ~/.config/projects/config.toml
-# All values can be overridden with environment variables.
+# The keys under [local] and [sync], and repos_registry, can be overridden with
+# environment variables. Bare keys must stay above the first [section].
 
-# Repo registry, whose names a project may not take.
+# Repo registry, whose names a project may not take in database mode.
 # Set this when the registry is maintained outside the tool's data directory and
-# shared with other tools. A bare key, so it must stay above the first [section].
+# shared with other tools.
 # Env: PROJECTS_REPOS_REGISTRY
 # Default: ~/.local/share/projects/repos.json
 # repos_registry = "/path/to/repos.json"
 
+# The projects API every command reads and writes. Set, no database is opened.
+# Unset, the database under [local] is the store. `projects auth login <url>`
+# writes it, with issuer and client_id. --api outranks it for one run.
+# api = "https://projects.example.com"
+# The identity provider the API trusts. auth login reads it from the API.
+# issuer = "https://auth.example.com/application/o/projects/"
+# This machine's client. Default: projects-cli-<hostname>
+# client_id = "projects-cli-desk"
+# A command printing a token response, as an argument list run without a shell.
+# Set, no login runs. For an API that needs no real token, print a stand-in.
+# token_command = ["printf", '{"access_token":"dev","token_type":"Bearer"}']
+
 [sync]
-# Enable background sync with ichrisbirch API
+# Keep the database a copy of an API, for the board. Refused beside api.
+# With it on, a command that writes refuses: make the change in `projects tui`.
 # Env: PROJECTS_SYNC
 enabled = false
 # The API server's host, required when enabled. The tool adds /api/v1 itself.
@@ -22,6 +36,7 @@ enabled = false
 # Env: PROJECTS_SYNC_TOKEN_COMMAND
 # token_command = "<cli> auth token"
 # Longest the tool goes without reconciling: the TUI's background pull period.
+# Through api, how often the board reads the API again.
 # A duration such as "30s" or "5m". Anything below 15s is raised to 15s.
 # Env: PROJECTS_SYNC_INTERVAL
 # Default: 2m

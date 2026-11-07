@@ -943,6 +943,14 @@ func (s *Service) ListMemberships() ([]model.Membership, error) {
 
 // --- Tasks ---
 
+func (s *Service) ListAllTasks() ([]model.ProjectItemTask, error) {
+	tasks, err := s.store.ListAllTasks(s.ctx())
+	if err != nil {
+		return nil, fmt.Errorf("listing tasks: %w", err)
+	}
+	return tasks, nil
+}
+
 func (s *Service) ListTasks(itemRef string) ([]model.ProjectItemTask, error) {
 	ctx := s.ctx()
 	item, err := resolveItem(ctx, s.store, itemRef)
