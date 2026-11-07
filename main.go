@@ -23,6 +23,10 @@ import (
 )
 
 func main() {
+	if refusal := config.RetiredVariableRefusal(); refusal != "" {
+		fmt.Fprintf(os.Stderr, "error: %s\n", refusal)
+		os.Exit(2)
+	}
 	autoConfig := autoupdate.Config{Update: cli.UpdateConfig()}
 	if err := goclikit.Execute(context.Background(), rootCmd(), autoConfig); err != nil {
 		if !errors.Is(err, goclikit.ErrReported) {
@@ -92,6 +96,9 @@ func rootCmd() *cobra.Command {
 			var err error
 			cfg, err = config.Load()
 			if err != nil {
+				return err
+			}
+			if err := config.MoveDataUnderFormerName(cfg.Local.DBPath); err != nil {
 				return err
 			}
 

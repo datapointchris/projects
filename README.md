@@ -62,6 +62,23 @@ well, point `PROJECTS_DB` or `db_path` at a second database for the synced one.
 `projects` does not read is an error rather than ignored, so a misspelled key never passes for an unset
 one.
 
+## Coming from todoui — the first run moves the data, and the rest is by hand
+
+This tool was called `todoui`. Quit any running copy of it, then install this one, because
+`todoui update` cannot cross the rename: the release archive no longer holds a binary of that name.
+
+The first run that opens the default database moves everything in `$XDG_DATA_HOME/todoui` to
+`$XDG_DATA_HOME/projects`. `todoui.db` becomes `projects.db`, and its `-wal` and `-shm` files go with
+it, because the WAL can hold committed rows. A file already at the destination stops the run with
+exit 1, naming both paths, and nothing moves. A run where `PROJECTS_DB` or `db_path` names another
+database moves nothing.
+
+Move `~/.config/todoui/config.toml` to `~/.config/projects/config.toml` by hand. Until then `projects`
+reads no config, so sync is off.
+
+A `TODOUI_*` variable still set stops every command with exit 2, naming the `PROJECTS_*` variable that
+replaced it. Ignoring it would open the default database where the variable chose another.
+
 ## The TUI — projects on the left, their items on the right, every key one press away
 
 ```text

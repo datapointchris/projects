@@ -40,6 +40,12 @@ direnv exec . go run . sync   # one reconcile against the dev API
 direnv exec . env | rg '^PROJECTS'   # nothing printed: no .envrc here
 ```
 
+**The former name is handled in one file.** `config/former_name.go` refuses a `TODOUI_*` variable and
+moves the old data directory on the first run that opens the default database. A run naming its
+database moves nothing, so a run from `.envrc` leaves the real data where it is. An `.envrc` still
+exporting the old names is refused rather than ignored, which keeps it from falling through to the
+production database. The `MIGRATION` marker there says when the file retires.
+
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
 
