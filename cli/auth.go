@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -75,7 +76,7 @@ func newAuthLoginCommand() *cobra.Command {
 				}
 				url = args[0]
 			}
-			if err := refuseLoginBesideSync(); err != nil {
+			if err := refuseLoginBesideSync(url); err != nil {
 				return err
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), loginTimeout)
@@ -129,18 +130,16 @@ func newAuthLoginCommand() *cobra.Command {
 	return cmd
 }
 
-// refuseLoginBesideSync refuses a login that would write api into a file that
-// keeps a synced database, because the next command would then refuse the pair.
-func refuseLoginBesideSync() error {
+// refuseLoginBesideSync refuses a login that would write api beside a synced
+// database, because every command after it would refuse the pair.
+func refuseLoginBesideSync(url string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	if cfg.Sync.Enabled {
-		return fmt.Errorf("%s sets [sync] enabled = true, and logging in writes api beside it, which is two authorities for "+
-			"the same rows; remove [sync] first to work through the API", homeAsTilde(configFilePath()))
-	}
-	return nil
+	_, err = chooseMode(cfg, cmp.Or(url, "the API it logs in to"),
+		"logging in writes api to "+homeAsTilde(configFilePath()))
+	return err
 }
 
 func newAuthLogoutCommand() *cobra.Command {

@@ -39,15 +39,15 @@ func newProjectsListCommand() *cobra.Command {
 			if err := validateStatus(cmd, projectStatus, projectStatuses); err != nil {
 				return err
 			}
-			filter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
 			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = source.Close() }()
+			filter, err := repoFlagValue(cmd, source, repo)
+			if err != nil {
+				return err
+			}
 			projects, err := source.client.ListProjects(cmd.Context(),
 				apiclient.ProjectQuery{Status: projectStatus, Repo: filter, Limit: limitFlag(cmd)})
 			if err != nil {

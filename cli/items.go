@@ -109,16 +109,16 @@ func newItemsListCommand() *cobra.Command {
 			if project != "" && cmd.Flags().Changed("repo") {
 				return goclikit.UsageError(errors.New("--repo and --project are different questions — pass one"))
 			}
-			filter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
-			query := apiclient.ItemQuery{Status: itemStatus, Repo: filter, Since: since, Until: until, Limit: limitFlag(cmd)}
 			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = source.Close() }()
+			filter, err := repoFlagValue(cmd, source, repo)
+			if err != nil {
+				return err
+			}
+			query := apiclient.ItemQuery{Status: itemStatus, Repo: filter, Since: since, Until: until, Limit: limitFlag(cmd)}
 			if project == "" {
 				items, err := source.client.ListItems(cmd.Context(), query)
 				if err != nil {
@@ -162,12 +162,12 @@ func newItemsBlockedCommand() *cobra.Command {
 		Example: "  projects items blocked\n  projects items blocked --repo photo-sorter",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
-			return listItems(cmd, asJSON, func(ctx context.Context, c *apiclient.Client) ([]wire.ProjectItem, error) {
-				return c.ListBlockedItems(ctx, filter)
+			return listItems(cmd, asJSON, func(ctx context.Context, source *dataSource) ([]wire.ProjectItem, error) {
+				filter, err := repoFlagValue(cmd, source, repo)
+				if err != nil {
+					return nil, err
+				}
+				return source.client.ListBlockedItems(ctx, filter)
 			})
 		},
 	}
@@ -188,12 +188,12 @@ func newItemsSearchCommand() *cobra.Command {
 		Example: "  projects items search kitchen\n  projects items search \"off-site backup\" --repo photo-sorter",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			filter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
-			return listItems(cmd, asJSON, func(ctx context.Context, c *apiclient.Client) ([]wire.ProjectItem, error) {
-				return c.SearchItems(ctx, args[0], filter)
+			return listItems(cmd, asJSON, func(ctx context.Context, source *dataSource) ([]wire.ProjectItem, error) {
+				filter, err := repoFlagValue(cmd, source, repo)
+				if err != nil {
+					return nil, err
+				}
+				return source.client.SearchItems(ctx, args[0], filter)
 			})
 		},
 	}
@@ -210,8 +210,8 @@ func newItemsBlockersCommand() *cobra.Command {
 		Example: "  projects items blockers 118",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listItems(cmd, asJSON, func(ctx context.Context, c *apiclient.Client) ([]wire.ProjectItem, error) {
-				return c.ListBlockers(ctx, args[0])
+			return listItems(cmd, asJSON, func(ctx context.Context, source *dataSource) ([]wire.ProjectItem, error) {
+				return source.client.ListBlockers(ctx, args[0])
 			})
 		},
 	}
@@ -221,13 +221,13 @@ func newItemsBlockersCommand() *cobra.Command {
 
 // listItems is the body of blocked, search and blockers: one read, then JSON or
 // a table.
-func listItems(cmd *cobra.Command, asJSON bool, read func(context.Context, *apiclient.Client) ([]wire.ProjectItem, error)) error {
+func listItems(cmd *cobra.Command, asJSON bool, read func(context.Context, *dataSource) ([]wire.ProjectItem, error)) error {
 	source, err := openDataSource(cmd)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = source.Close() }()
-	items, err := read(cmd.Context(), source.client)
+	items, err := read(cmd.Context(), source)
 	if err != nil {
 		return source.explain(err)
 	}
@@ -323,15 +323,20 @@ func newItemsEditCommand() *cobra.Command {
 				edit.Notes, edit.ClearNotes = &notes, notes == ""
 			}
 			if f.Changed("repo") {
-				if err := validateRepoFlag(cmd, repo); err != nil {
-					return err
-				}
 				edit.Repo, edit.ClearRepo = &repo, repo == ""
 			}
 			if edit == (apiclient.ItemChanges{}) {
 				return goclikit.UsageError(errors.New("nothing to change — pass --title, --notes or --repo"))
 			}
-			return runItemUpdate(cmd, args[0], edit, asJSON, "Updated")
+			source, err := openForWriting(cmd)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = source.Close() }()
+			if err := validateRepoFlag(cmd, source, repo); err != nil {
+				return err
+			}
+			return updateItem(cmd, source, args[0], edit, asJSON, "Updated")
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "New item title")
@@ -372,6 +377,10 @@ func runItemUpdate(cmd *cobra.Command, ref string, edit apiclient.ItemChanges, a
 		return err
 	}
 	defer func() { _ = source.Close() }()
+	return updateItem(cmd, source, ref, edit, asJSON, done)
+}
+
+func updateItem(cmd *cobra.Command, source *dataSource, ref string, edit apiclient.ItemChanges, asJSON bool, done string) error {
 	item, err := source.client.UpdateItem(cmd.Context(), ref, edit)
 	if err != nil {
 		return source.explain(err)

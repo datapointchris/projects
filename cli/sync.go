@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/datapointchris/projects/config"
 	"github.com/datapointchris/projects/sync"
 )
 
@@ -30,18 +29,14 @@ func newSyncCommand() *cobra.Command {
 			"  projects sync --force    sync even when the pull would delete most local rows",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := config.RefuseConfigUnderFormerName(); err != nil {
-				return err
-			}
-			cfg, err := config.Load()
+			cfg, deployment, mode, err := decideMode(cmd.Context())
 			if err != nil {
 				return err
 			}
-			if cfg.API != "" {
-				return fmt.Errorf("api in %s sends every command to %s, so there is no database copy to sync",
-					homeAsTilde(configFilePath()), cfg.API)
+			if mode == apiMode {
+				return fmt.Errorf("%s, so there is no database copy to sync", apiPhrase(deployment.API))
 			}
-			source, err := openDataSource(cmd)
+			source, err := openDatabase(cfg)
 			if err != nil {
 				return err
 			}

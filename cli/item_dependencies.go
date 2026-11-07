@@ -152,15 +152,15 @@ func newDependenciesTreeCommand() *cobra.Command {
 			if cmd.Flags().Changed("depth") {
 				maxDepth = depth
 			}
-			repoFilter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
 			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = source.Close() }()
+			repoFilter, err := repoFlagValue(cmd, source, repo)
+			if err != nil {
+				return err
+			}
 			// Every item, whatever the flags narrow to: a finished item mid-chain
 			// joins the halves either side of it, so a subset splits one tree.
 			items, err := source.client.ListItems(cmd.Context(), apiclient.ItemQuery{Status: model.StatusAll})

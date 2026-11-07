@@ -122,7 +122,7 @@ func itemCreateFields(ctx context.Context, source *dataSource, made *createdProj
 		names = append(names, project.Name)
 	}
 	sort.Strings(names)
-	registry, err := repos.Load(repos.DefaultPath())
+	registry, err := source.repoRegistry()
 	if err != nil {
 		return nil, err
 	}

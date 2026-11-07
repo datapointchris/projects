@@ -71,20 +71,82 @@ func LocalService(database *sql.DB, reposRegistryPath string) *service.Service {
 	return service.New(sqlite.New(database), service.AssigningItemNumbers(), service.RefusingRepoNames(reposRegistryPath))
 }
 
-// openDataSource decides the mode and opens it. --api or the config file's api key
-// is API mode, and opens no database. Neither is database mode.
+// runMode is where a run's data lives.
+type runMode int
+
+const (
+	databaseMode runMode = iota
+	apiMode
+)
+
+// openDataSource opens where this run's data lives, as decideMode answers it.
 func openDataSource(cmd *cobra.Command) (*dataSource, error) {
-	if err := config.RefuseConfigUnderFormerName(); err != nil {
-		return nil, err
-	}
-	cfg, err := config.Load()
+	cfg, deployment, mode, err := decideMode(cmd.Context())
 	if err != nil {
 		return nil, err
 	}
-	if apiOverride != "" || cfg.API != "" {
-		return openAPI(cmd.Context(), cfg)
+	if mode == apiMode {
+		return openAPI(cmd.Context(), cfg, deployment)
 	}
 	return openDatabase(cfg)
+}
+
+// decideMode reads the config file and the login settings in it, and answers
+// which store this run uses. goclilogin's reading of api is the one the mode
+// follows, because it is the one every request is then sent with.
+func decideMode(ctx context.Context) (*config.Config, goclilogin.Deployment, runMode, error) {
+	if err := config.RefuseConfigUnderFormerName(); err != nil {
+		return nil, goclilogin.Deployment{}, databaseMode, err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, goclilogin.Deployment{}, databaseMode, err
+	}
+	deployment, loadErr := loadDeployment(ctx, apiOverride)
+	mode, err := chooseMode(cfg, deployment.API.Value, apiPhrase(deployment.API))
+	if err != nil {
+		return nil, deployment, mode, err
+	}
+	// With no api, the deployment's only error worth stopping for is a file it
+	// could not read: a broken api line must not fall back to the database.
+	if loadErr != nil && (mode == apiMode || !errors.Is(loadErr, goclilogin.ErrNotConfigured)) {
+		return nil, deployment, mode, loadErr
+	}
+	return cfg, deployment, mode, nil
+}
+
+// chooseMode is the one answer to where a run's data lives: the API api names, or
+// this machine's database when it names none. A synced database beside an API is
+// refused, because the two are authorities for the same rows. apiPhrase says
+// what named the API.
+func chooseMode(cfg *config.Config, api, apiPhrase string) (runMode, error) {
+	if api == "" {
+		return databaseMode, nil
+	}
+	if cfg.Sync.Enabled {
+		chosenBy, remedy := syncChosenBy()
+		return apiMode, fmt.Errorf("%s, and %s keeps a synced database, which are two authorities for the same rows; "+
+			"%s to work through the API", apiPhrase, chosenBy, remedy)
+	}
+	return apiMode, nil
+}
+
+// apiPhrase names what chose the API, as the first thing a person checks.
+func apiPhrase(api goclilogin.Setting) string {
+	if api.Source == goclilogin.SourceCommandLine {
+		return "--api sends this command to " + api.Value
+	}
+	return fmt.Sprintf("api in %s sends every command to %s", homeAsTilde(api.From), api.Value)
+}
+
+// syncChosenBy names what turned sync on and how to turn it off. The variable
+// outranks the file, so it is named whenever it is set.
+func syncChosenBy() (chosenBy, remedy string) {
+	if value := os.Getenv(config.SyncVariable); value != "" {
+		return fmt.Sprintf("%s=%s in the environment", config.SyncVariable, value), "unset " + config.SyncVariable
+	}
+	path := homeAsTilde(configFilePath())
+	return "[sync] enabled = true in " + path, "remove [sync] from " + path
 }
 
 // openForWriting is openDataSource for a command that writes, refused before it
@@ -101,15 +163,7 @@ func openForWriting(cmd *cobra.Command) (*dataSource, error) {
 	return source, nil
 }
 
-func openAPI(ctx context.Context, cfg *config.Config) (*dataSource, error) {
-	if cfg.Sync.Enabled {
-		return nil, fmt.Errorf("%s sets api and [sync] enabled = true, which are two authorities for the same rows; "+
-			"remove [sync] to work through the API, or remove api to keep the synced database", homeAsTilde(configFilePath()))
-	}
-	deployment, err := loadDeployment(ctx, apiOverride)
-	if err != nil {
-		return nil, err
-	}
+func openAPI(ctx context.Context, cfg *config.Config, deployment goclilogin.Deployment) (*dataSource, error) {
 	source := &dataSource{cfg: cfg, deployment: &deployment}
 	// oauth2 fetches a token through the context its source was built with, so the
 	// fetch is bounded by that context's client rather than by the request's.
@@ -118,11 +172,34 @@ func openAPI(ctx context.Context, cfg *config.Config) (*dataSource, error) {
 	if err != nil {
 		return nil, source.explain(err)
 	}
-	httpClient := oauth2.NewClient(ctx, tokens)
-	httpClient.Transport = apiclient.Retrying(httpClient.Transport)
-	httpClient.Timeout = requestTimeout
+	// The token is fetched outside the retries, so a provider that does not answer
+	// is asked once per request and is never reported as the API.
+	httpClient := &http.Client{
+		Transport: &oauth2.Transport{
+			Source: oauth2.ReuseTokenSource(nil, failedTokensMarked{tokens}),
+			Base:   apiclient.Retrying(http.DefaultTransport),
+		},
+		Timeout: requestTimeout,
+	}
 	source.client = apiclient.New(deployment.API.Value, httpClient)
 	return source, nil
+}
+
+// tokenFailure is a token this run could not get, so no request was sent.
+type tokenFailure struct{ error }
+
+func (f tokenFailure) Unwrap() error { return f.error }
+
+// failedTokensMarked marks every failure to get a token, so explain words it as
+// the login provider's rather than the API's.
+type failedTokensMarked struct{ next oauth2.TokenSource }
+
+func (m failedTokensMarked) Token() (*oauth2.Token, error) {
+	token, err := m.next.Token()
+	if err != nil {
+		return nil, tokenFailure{err}
+	}
+	return token, nil
 }
 
 // tokenSource is the config file's token_command where it names one, the
@@ -158,9 +235,10 @@ func openDatabase(cfg *config.Config) (*dataSource, error) {
 	if cfg.Sync.Enabled {
 		source.local = service.New(sqlite.New(database), service.RefusingRepoNames(repos.DefaultPath()))
 		source.engine = sync.New(database, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
-		source.writeRefusal = fmt.Sprintf("[sync] enabled = true keeps this database a copy of %s, and a write from a "+
-			"command would never reach it; make the change in `projects tui`, or set api in %s and remove [sync] "+
-			"to write through the projects API", cfg.Sync.APIURL, homeAsTilde(configFilePath()))
+		chosenBy, remedy := syncChosenBy()
+		source.writeRefusal = fmt.Sprintf("%s keeps this database a copy of %s, and a write from a command would "+
+			"never reach it; make the change in `projects tui`, or %s and set api in %s to write through the projects API",
+			chosenBy, cfg.Sync.APIURL, remedy, homeAsTilde(configFilePath()))
 	} else {
 		source.local = LocalService(database, repos.DefaultPath())
 	}
@@ -210,6 +288,16 @@ func (s *dataSource) boardBackend() backend.Backend {
 	default:
 		return s.local
 	}
+}
+
+// repoRegistry is what a repo tag is checked against: this machine's registry in
+// database mode, and an empty one through an API, which holds tags any machine
+// may have written.
+func (s *dataSource) repoRegistry() (*repos.Registry, error) {
+	if s.deployment != nil {
+		return &repos.Registry{}, nil
+	}
+	return repos.Load(repos.DefaultPath())
 }
 
 // apiHost is the API's host, or "" in database mode.

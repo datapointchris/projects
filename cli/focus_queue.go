@@ -13,7 +13,7 @@ import (
 	"github.com/datapointchris/projects/model"
 )
 
-// defaultNextItemLimit caps the items `projects next` prints; --limit raises it.
+// defaultNextItemLimit caps the items `projects next` prints when --limit is not given.
 const defaultNextItemLimit = 10
 
 // focusShown is `projects next --json`. cli/schemas/focus-queue.schema.json is its
@@ -53,15 +53,15 @@ func newProjectsNextCommand() *cobra.Command {
 			"  projects next --limit 1 --json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter, err := repoFlagValue(cmd, repo)
-			if err != nil {
-				return err
-			}
 			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = source.Close() }()
+			filter, err := repoFlagValue(cmd, source, repo)
+			if err != nil {
+				return err
+			}
 			// Every open item, uncapped, because --limit caps what is printed here.
 			all, err := source.client.ListItems(cmd.Context(), apiclient.ItemQuery{Status: model.ItemStatusOpen, Repo: filter})
 			if err != nil {

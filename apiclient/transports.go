@@ -50,6 +50,7 @@ type retrying struct {
 }
 
 func (t retrying) RoundTrip(request *http.Request) (*http.Response, error) {
+	sent := false
 	for attempt := 1; ; attempt++ {
 		response, err := t.next.RoundTrip(request)
 		if err == nil {
@@ -57,7 +58,11 @@ func (t retrying) RoundTrip(request *http.Request) (*http.Response, error) {
 				response = nil
 			}
 		}
+		sent = sent || err == nil || !neverSent(err)
 		if attempt == Attempts || !worthRetrying(request.Method, response, err) {
+			if err != nil {
+				err = &Unanswered{Method: request.Method, Attempts: attempt, Sent: sent, Err: err}
+			}
 			return response, err
 		}
 		pause := t.pause(attempt, response)
@@ -67,7 +72,7 @@ func (t retrying) RoundTrip(request *http.Request) (*http.Response, error) {
 		select {
 		case <-time.After(pause):
 		case <-request.Context().Done():
-			return nil, request.Context().Err()
+			return nil, &Unanswered{Method: request.Method, Attempts: attempt, Sent: sent, Err: request.Context().Err()}
 		}
 		request = request.Clone(request.Context())
 		if request.GetBody != nil {
@@ -79,6 +84,28 @@ func (t retrying) RoundTrip(request *http.Request) (*http.Response, error) {
 		}
 	}
 }
+
+// Unanswered is a request that got no answer. Attempts counts the tries, and is 0
+// where nothing counted them. Sent is whether any try may have reached the API, so
+// a write that was sent may have been carried out.
+type Unanswered struct {
+	Method   string
+	Attempts int
+	Sent     bool
+	Err      error
+}
+
+func (u *Unanswered) Error() string {
+	if u.Attempts > 1 {
+		return fmt.Sprintf("%v, after %d attempts", u.Err, u.Attempts)
+	}
+	return u.Err.Error()
+}
+
+func (u *Unanswered) Unwrap() error { return u.Err }
+
+// Read is whether the request only read, so sending it again changes nothing.
+func (u *Unanswered) Read() bool { return u.Method == http.MethodGet }
 
 // answerCutShort is a body that broke after its status arrived.
 type answerCutShort struct{ error }

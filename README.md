@@ -71,30 +71,27 @@ one.
 
 ## The project verbs sit at the root, and the item verbs under `projects items`
 
-```text
-projects list | next | show <project>
-projects create | edit | shelve | complete | close | reopen | delete
-projects items list | blocked | search | show | blockers
-projects items create | edit | complete | reopen | archive | unarchive | delete | reorder
-projects items tasks list | add | complete | edit | remove
-projects items dependencies add | remove | tree
-projects items memberships add | remove
-projects tui
-projects auth login | logout | status | token
-projects sync | version | update | completion
+`projects --help` lists every command, grouped. `projects items --help` lists the item verbs, with
+`tasks`, `dependencies` and `memberships` as nouns under them.
+
+```bash
+projects show "Kitchen remodel"                          # a project and its open items
+projects items create --project "Kitchen remodel" --title "Get three quotes"
+projects items dependencies add 43 --depends-on 42       # 43 waits on 42
 ```
 
 - `<project>` is a project's name or UUID. `<item>` is an item's number or UUID.
 - An answer goes to stdout. A hint, a prompt and an error go to stderr.
 - Every read takes `--json`, which prints one JSON document on stdout. A list is a bare array, and an
   empty one is `[]`.
-- `show`, `items show`, `next`, `items dependencies tree` and `tui --json` print documents that carry
-  `schema_version`. [cli/schemas](cli/schemas) holds their JSON Schemas. Every other `--json` answer
-  is the API's own shape, under [api/schemas](api/schemas).
-- `next` prints ten items unless `--limit` says otherwise. A list under `projects items` prints every
+- A `--json` document this tool composes carries `schema_version`, and [cli/schemas](cli/schemas)
+  holds its JSON Schema. Every other `--json` answer is the API's own shape, under
+  [api/schemas](api/schemas).
+- `next` prints a capped list, and `--limit` sets the cap. A list under `projects items` prints every
   row unless `--limit` caps it.
-- `--repo` takes a name from the repo registry. On a filter, `--repo ""` means untagged work. On
-  `items edit`, it clears the tag.
+- In database mode, `--repo` takes a name from the repo registry. Through an API it takes any tag,
+  because tags come from every machine sharing the API. On a filter, `--repo ""` means untagged work.
+  On `items edit`, it clears the tag.
 - `items create` in a terminal asks for the title and projects the flags left out. Typing `+` at the
   project question creates a project on the spot. `--no-input`, or no terminal, fails instead and
   names the flag that would have answered.
@@ -106,13 +103,14 @@ projects sync | version | update | completion
 | Exit | Meaning |
 | ---- | ------- |
 | `0` | Done |
-| `1` | Refused or failed: not found, not logged in, a rule said no |
+| `1` | Refused or failed: not found, not logged in, a rule said no, or a write the API may have carried out |
 | `2` | A usage error: an unknown flag, a missing argument, a value the API refused as input |
-| `4` | The API gave no answer: a refused connection, a timeout, a `429` or a `5xx` |
+| `4` | Running it again is safe and may succeed: the API or the login provider gave no answer, a `429`, or a `5xx` to a read |
 
-A read tries three times before it exits 4, on a failed connection, an answer cut short, or a `429`,
-`502`, `503` or `504`. A write tries again only where the connection never opened, so it is never sent
-twice.
+A read is retried before it exits 4, on a failed connection, an answer cut short, or a `429`, `502`,
+`503` or `504`. A write is retried only where the connection never opened, so it is never sent twice.
+A write that was sent and got no answer, or a `5xx`, exits 1 and says it may have been carried out,
+because running it again could do it twice.
 
 ## Through an API, a login on this machine carries every command
 
@@ -258,7 +256,7 @@ shows the last 8 characters of its id until its push lands and earns it a number
 
 ## Sync keeps a database a copy of an API, and only the board writes to the copy
 
-Sync is the older way to reach an API. `[sync] enabled = true` keeps a database on this machine as a
+`[sync] enabled = true` keeps a database on this machine as a
 copy of `sync.api_url`, and `projects tui` edits the copy and pushes each edit. With `api` set there
 is no copy, so a config file holding both `api` and `[sync] enabled = true` stops every command,
 naming both keys.
@@ -337,7 +335,7 @@ enabled = false
 
 The bare `token_command` belongs to `api`, and is an argument list printing a token response. The
 `[sync]` one belongs to `api_url`, and is a string printing a bare token. The two never stand in for
-each other.
+each other, and either written in the other's shape is refused, naming the shape it takes.
 
 `[sync]`'s `token_command` is how `projects` authenticates to the API without holding a secret itself. It is split
 on spaces and run without a shell or stdin. Whatever it prints becomes the bearer token. A command
@@ -381,7 +379,7 @@ apiclient.Client                       backend.Backend
     |       -> service.Service             |
     |       -> store/sqlite                +-- api: apiclient.Backend
     |                                            -> apiclient.Client
-    +-- api: HTTP, three attempts
+    +-- api: HTTP, retried
           -> projects-api
 ```
 

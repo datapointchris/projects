@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/projects/model"
-	"github.com/datapointchris/projects/repos"
 )
 
 // itemStatuses is what an item --status takes. They partition every item, because
@@ -99,11 +98,11 @@ func validateStatus(cmd *cobra.Command, status string, known []string) error {
 // repoFlagValue validates --repo and renders it as a filter. Absent is nil, no
 // filter. Present and empty asks for the untagged items, the work that is not
 // code, which collapsing the two would leave unreachable.
-func repoFlagValue(cmd *cobra.Command, repo string) (*string, error) {
+func repoFlagValue(cmd *cobra.Command, source *dataSource, repo string) (*string, error) {
 	if !cmd.Flags().Changed("repo") {
 		return nil, nil
 	}
-	if err := validateRepoFlag(cmd, repo); err != nil {
+	if err := validateRepoFlag(cmd, source, repo); err != nil {
 		return nil, err
 	}
 	return &repo, nil
@@ -112,11 +111,11 @@ func repoFlagValue(cmd *cobra.Command, repo string) (*string, error) {
 // validateRepoFlag refuses a --repo the registry does not know. On a write a
 // mistyped tag drops the item out of every repo view, and on a read it selects
 // nothing, which reads the same as a repo with no work.
-func validateRepoFlag(cmd *cobra.Command, repo string) error {
+func validateRepoFlag(cmd *cobra.Command, source *dataSource, repo string) error {
 	if !cmd.Flags().Changed("repo") {
 		return nil
 	}
-	registry, err := repos.Load(repos.DefaultPath())
+	registry, err := source.repoRegistry()
 	if err != nil {
 		return err
 	}

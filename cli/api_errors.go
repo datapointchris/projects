@@ -4,24 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
+	"golang.org/x/oauth2"
 
 	"github.com/datapointchris/projects/apiclient"
 )
 
-// noAnswerError is a request the API never judged: it was not reached, timed out,
-// or answered 429 or 5xx. It exits 4, because the same command later can succeed.
+// noAnswerError is a failure a later run of the same command can pass without
+// doing anything twice: a read that got no answer, a 429 or a 5xx, and a write
+// that never reached the API or got a 429. It exits 4.
 type noAnswerError struct{ error }
 
 func (n noAnswerError) Unwrap() error { return n.error }
 
 // explain words an error from a request for the person reading it. A credential
 // failure names its own remedy, a service is never sent to a login it cannot
-// complete, and a refusal is the API's sentence alone.
+// complete, and a refusal is the API's sentence alone. A write the API may have
+// carried out says so and exits 1, so nothing told to retry on 4 repeats it.
 func (s *dataSource) explain(err error) error {
 	if err == nil {
 		return nil
@@ -36,19 +41,69 @@ func (s *dataSource) explain(err error) error {
 			return worded
 		}
 	}
-	switch {
-	case isRefusal && refused.StatusCode == http.StatusUnprocessableEntity && refused.Message != "":
-		return goclikit.UsageError(refused)
-	case isRefusal && (refused.StatusCode == http.StatusTooManyRequests || refused.StatusCode >= http.StatusInternalServerError):
-		return noAnswerError{s.unanswered(refused)}
-	case errors.Is(err, context.DeadlineExceeded):
-		return noAnswerError{s.unanswered(err)}
+	var noToken tokenFailure
+	if s.deployment != nil && errors.As(err, &noToken) {
+		return s.noToken(noToken.error)
 	}
+	if isRefusal && refused.StatusCode == http.StatusUnprocessableEntity && refused.Message != "" {
+		return goclikit.UsageError(refused)
+	}
+	if s.deployment == nil {
+		return err
+	}
+	if isRefusal && (refused.StatusCode == http.StatusTooManyRequests || refused.StatusCode >= http.StatusInternalServerError) {
+		answered := s.answeredWith(refused)
+		if refused.Read() || refused.StatusCode == http.StatusTooManyRequests {
+			return noAnswerError{answered}
+		}
+		return mayHaveBeenCarriedOut(refused.Method, answered)
+	}
+	var lost *apiclient.Unanswered
+	if errors.As(err, &lost) {
+		if lost.Read() || !lost.Sent {
+			return noAnswerError{s.unanswered(lost)}
+		}
+		return mayHaveBeenCarriedOut(lost.Method, s.unanswered(lost))
+	}
+	// A transport error nothing counted, such as the client's own deadline running
+	// out, is taken to have been sent.
 	var transport *url.Error
 	if errors.As(err, &transport) {
-		return noAnswerError{s.unanswered(transport.Err)}
+		if strings.EqualFold(transport.Op, http.MethodGet) {
+			return noAnswerError{s.unanswered(transport.Err)}
+		}
+		return mayHaveBeenCarriedOut(strings.ToUpper(transport.Op), s.unanswered(transport.Err))
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return noAnswerError{s.unanswered(err)}
 	}
 	return err
+}
+
+// mayHaveBeenCarriedOut is a write that reached the API with no answer saying
+// whether it landed. Running it again could do it twice, so it exits 1.
+func mayHaveBeenCarriedOut(method string, cause error) error {
+	return fmt.Errorf("%w; the %s was sent, so it may have been carried out — check before running it again", cause, method)
+}
+
+// noToken is a token this run could not get, so no request was sent. A provider
+// that did not answer is a failure a later run can pass.
+func (s *dataSource) noToken(cause error) error {
+	from := "the login provider at " + s.deployment.Issuer.Value
+	if s.deployment.HandsTokens() {
+		from = "token_command in " + homeAsTilde(s.deployment.Path)
+	}
+	failed := fmt.Errorf("no token from %s: %w", from, cause)
+	var network net.Error
+	var provider *oauth2.RetrieveError
+	switch {
+	case errors.As(cause, &network), errors.Is(cause, context.DeadlineExceeded):
+		return noAnswerError{failed}
+	case errors.As(cause, &provider) && provider.Response != nil &&
+		(provider.Response.StatusCode == http.StatusTooManyRequests || provider.Response.StatusCode >= http.StatusInternalServerError):
+		return noAnswerError{failed}
+	}
+	return failed
 }
 
 // credentialFailure words a failure to authenticate, which the request never got
@@ -95,15 +150,26 @@ func (s *dataSource) credentialFailure(err error, refused *apiclient.APIError) e
 
 // unanswered names the API and what chose it, as the first thing a person checks.
 func (s *dataSource) unanswered(cause error) error {
-	if s.deployment == nil {
-		return cause
-	}
 	api := s.deployment.API
-	chosenBy := "--api"
-	if api.Source == goclilogin.SourceFile {
-		chosenBy = "api in " + homeAsTilde(api.From)
+	return fmt.Errorf("no answer from the API at %s (%s): %w", api.Value, chosenBy(api), cause)
+}
+
+// answeredWith is a 429 or 5xx, which names the API the way unanswered does.
+func (s *dataSource) answeredWith(refused *apiclient.APIError) error {
+	api := s.deployment.API
+	answered := fmt.Sprintf("the API at %s (%s) answered %d %s", api.Value, chosenBy(api),
+		refused.StatusCode, http.StatusText(refused.StatusCode))
+	if refused.Message != "" {
+		answered += ": " + refused.Message
 	}
-	return fmt.Errorf("no answer from the API at %s (%s): %w, %d attempts", api.Value, chosenBy, cause, apiclient.Attempts)
+	return errors.New(answered)
+}
+
+func chosenBy(api goclilogin.Setting) string {
+	if api.Source == goclilogin.SourceFile {
+		return "api in " + homeAsTilde(api.From)
+	}
+	return "--api"
 }
 
 // notFound is the API's sentence for a 404 it explained, which goclikit follows

@@ -176,16 +176,27 @@ Bare `projects` prints help. The project verbs sit at the root, and the item ver
 `projects items`, with `tasks`, `dependencies` and `memberships` as nouns under it. `cli/root.go`
 builds the tree. Help renders through `gotermstyle/cobrahelp`.
 
-- **The `api` key, or `--api`, chooses the mode, and neither means the database.** `openDataSource`
-  decides it in each command's `RunE`, so `help`, `completion` and `version` open nothing.
-- **`api` beside `[sync] enabled = true` refuses every command**, naming both keys, because they are
-  two authorities for the same rows.
+- **The `api` key, or `--api`, chooses the mode, and neither means the database.** `decideMode` in
+  `cli/data_source.go` reads goclilogin's parse of the key, so the mode and the login read one
+  setting. It runs in each command's `RunE`, so `help`, `completion` and `version` open nothing.
+- **`api` beside sync refuses**, through `chooseMode`, the one check every command, `projects sync`
+  and `auth login` take. The two are two authorities for the same rows. The refusal names
+  `PROJECTS_SYNC` when the environment turned sync on, and the config file's `[sync]` otherwise.
 - **With sync on, a command that writes refuses before it asks anything.** `openForWriting` holds the
   sentence, and `refusingWrites` answers 409 with it for any write that reaches the in-process routes
   without it. A write there would land in the copy with nothing queued, and the next pull deletes it.
 - **Exit codes are 0, 1 for refused or failed, 2 for usage, and 4 for no answer.** `exitCodeFor` in
-  `cli/root.go` maps them. A 422 is usage. A 429, a 5xx or a transport error after
-  `apiclient.Attempts` is no answer. A refused credential is 1.
+  `cli/root.go` maps them, and `explain` in `cli/api_errors.go` words them. A 422 is usage.
+  A refused credential is 1.
+- **4 means running it again is safe.** That covers a read with no answer or a 5xx, a 429, a write
+  that never left, and a token request the login provider did not answer. `apiclient.Retrying`
+  returns `apiclient.Unanswered`, which records the method, the attempts made and whether any try
+  was sent.
+- **A write that was sent and got no answer, or got a 5xx, exits 1.** It may have been carried out,
+  and the message says to check before running it again.
+- **The token is fetched outside the retries.** `oauth2.Transport` wraps `Retrying`, so a failed token
+  request is not retried as though the API had not answered. `failedTokensMarked` tags the failure
+  as a `tokenFailure`, and `noToken` words it with the issuer or the `token_command`.
 - **A `--json` document this tool composes carries `schema_version`**, and its schema is under
   `cli/schemas`. A new shape takes a file there and a row in `both_modes_test.go`. Every other
   `--json` answer is the API's own, under `api/schemas`.
@@ -193,7 +204,9 @@ builds the tree. Help renders through `gotermstyle/cobrahelp`.
   client id `projects-cli-<host>`, and the client-credentials grant with `projects.items.read` when
   `PROJECTS_CLIENT_SECRET` is set.
 - **The repo-name ban runs in database mode only.** `LocalService` sets `RefusingRepoNames`, and an API
-  sets none.
+  sets none. `--repo` is checked against this machine's registry in database mode only too, because
+  an API serves tags written from every machine. `repoRegistry` on the data source answers an empty
+  registry in API mode.
 
 An item shows its **number**, the handle the API assigns and answers with. The UUID is the sync key
 and stops there.

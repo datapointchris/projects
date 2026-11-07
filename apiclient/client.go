@@ -33,13 +33,17 @@ func New(base string, httpClient *http.Client) *Client {
 	return &Client{Base: strings.TrimRight(base, "/"), http: httpClient}
 }
 
-// APIError is an answer outside 2xx. Message is the API's own sentence, empty when
-// the body carried none, as a proxy's error page does.
+// APIError is an answer outside 2xx to a request sent with Method. Message is the
+// API's own sentence, empty when the body carried none, as a proxy's error page does.
 type APIError struct {
+	Method     string
 	StatusCode int
 	Message    string
 	Problems   []wire.ValidationError
 }
+
+// Read is whether the refused request only read, so sending it again changes nothing.
+func (e *APIError) Read() bool { return e.Method == http.MethodGet }
 
 func (e *APIError) Error() string {
 	if e.Message != "" {
@@ -90,7 +94,7 @@ func (c *Client) call(ctx context.Context, method, path string, query url.Values
 		return fmt.Errorf("reading the answer to %s %s: %w", method, path, err)
 	}
 	if response.StatusCode >= http.StatusMultipleChoices {
-		return refusalOf(response.StatusCode, received)
+		return refusalOf(method, response.StatusCode, received)
 	}
 	if answer == nil || len(received) == 0 {
 		return nil
@@ -101,8 +105,8 @@ func (c *Client) call(ctx context.Context, method, path string, query url.Values
 	return nil
 }
 
-func refusalOf(status int, body []byte) *APIError {
-	refused := &APIError{StatusCode: status}
+func refusalOf(method string, status int, body []byte) *APIError {
+	refused := &APIError{Method: method, StatusCode: status}
 	var answer wire.Error
 	if json.Unmarshal(body, &answer) == nil {
 		refused.Message = answer.Message
