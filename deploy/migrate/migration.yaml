@@ -1,0 +1,78 @@
+# `projects-api migrate` from the API's own image, against the Postgres the API
+# uses. It reads the same projects-settings ConfigMap and Secret as app/. Each
+# migration keeps the release before it working, so the old pods serve on the
+# new schema while the new ones start.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: projects-migrate
+  labels:
+    app.kubernetes.io/instance: projects-migrate
+    app.kubernetes.io/component: migration
+automountServiceAccountToken: false
+---
+# A Job's pod template cannot change once created, so Flux's force annotation
+# replaces the Job when a release changes its image, and that runs the next
+# migration. It sets no ttlSecondsAfterFinished: Flux would recreate a Job the
+# TTL deleted, and run it again. Applied without Flux, delete the finished Job
+# before applying a new release.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: projects-migrate
+  labels:
+    app.kubernetes.io/instance: projects-migrate
+    app.kubernetes.io/component: migration
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+    kubernetes.io/description: Migrates the projects Postgres schema to the release's newest before its API rolls out
+    ignore-check.kube-linter.io/job-ttl-seconds-after-finished: "Flux recreates a Job its TTL deleted, and would run the migration again"
+spec:
+  # Retries cover a Postgres that is still starting. The command exits 1 for that
+  # and for a migration that fails, so no exit code is told apart.
+  backoffLimit: 4
+  activeDeadlineSeconds: 600
+  # A drain or a preemption spends no retry.
+  podFailurePolicy:
+    rules:
+      - action: Ignore
+        onPodConditions:
+          - type: DisruptionTarget
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: projects-migrate
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: projects-migrate
+      automountServiceAccountToken: false
+      # As in app/: a Service named postgres would otherwise set POSTGRES_PORT.
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: projects
+          imagePullPolicy: IfNotPresent
+          command: [projects-api, migrate]
+          envFrom:
+            - configMapRef:
+                name: projects-settings
+            - secretRef:
+                name: projects-settings
+          # The schema's migrations hold DDL and no row moves. A data migration
+          # moving rows can take more, so the limit sits above the request.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

@@ -1,0 +1,14 @@
+*
+!go.mod
+!go.sum
+!api/
+!backend/
+!config/
+!graph/
+!model/
+!repos/
+!service/
+!store/
+**/*_test.go
+store/sqlite/
+store/postgres/postgrestest/

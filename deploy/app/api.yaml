@@ -1,0 +1,123 @@
+# The projects API: a stateless Deployment behind a Service.
+#
+# The cluster supplies what this directory does not create:
+#
+# - A ConfigMap and a Secret, both named projects-settings, holding the settings
+#   README.md lists as environment variables. POSTGRES_PASSWORD goes in the
+#   Secret. The pod reads both, so any other setting may sit in either.
+# - A route to the Service reaching /.well-known/oauth-protected-resource as
+#   well as /api/v1, since a client logging in reads the first to find the
+#   issuer. PUBLIC_URL names the address that route serves.
+# - Each NetworkPolicy the pod reaches Postgres and the issuer through.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: projects-api
+  labels:
+    app.kubernetes.io/instance: projects-api
+    app.kubernetes.io/component: api
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projects-api
+  labels:
+    app.kubernetes.io/instance: projects-api
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: projects
+    app.kubernetes.io/instance: projects-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projects-api
+  labels:
+    app.kubernetes.io/instance: projects-api
+    app.kubernetes.io/component: api
+  annotations:
+    kubernetes.io/description: The projects HTTP API, serving /api/v1 to its clients over Postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: projects
+      app.kubernetes.io/instance: projects-api
+  # The new pod is ready before the old one stops, so a release drops no requests.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: projects-api
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: projects-api
+      automountServiceAccountToken: false
+      # Service links would put POSTGRES_PORT=tcp://<ip>:5432 in the environment
+      # wherever a Service named postgres shares the namespace, and the API reads
+      # POSTGRES_PORT as a number.
+      enableServiceLinks: false
+      # The image's numeric USER is the uid, so runAsNonRoot can check it.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # Covers the preStop sleep plus the API's 20 second drain, with room to spare.
+      # Raise it with drainTimeout in api/main.go.
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: projects
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: projects-settings
+            - secretRef:
+                name: projects-settings
+          # Endpoints drop a terminating pod a moment after TERM reaches it, so
+          # the sleep keeps it accepting until no proxy routes to it.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          # /ready answers 503 while Postgres or the identity provider does not,
+          # which takes the pod out of the Service without restarting it.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          # A resident set of about 22 MiB after a couple of thousand requests over
+          # a few hundred rows. The room is for a list answered to several clients at
+          # once. The limit equals the request, so the pod never uses more memory
+          # than the scheduler set aside for it.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
