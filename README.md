@@ -64,20 +64,27 @@ one.
 
 ## Coming from todoui — the first run moves the data, and the rest is by hand
 
-This tool was called `todoui`. Quit any running copy of it, then install this one, because
-`todoui update` cannot cross the rename: the release archive no longer holds a binary of that name.
+This tool was called `todoui`. Quit any running copy, delete the binary (`rm ~/go/bin/todoui`), then
+install this one. `todoui update` cannot cross the rename, because the release archive no longer holds
+a binary of that name. Deleting it matters: one run of an old `todoui` after the move creates a new
+empty database at the old path, and `projects` then stops until that file is gone.
+
+Move `~/.config/todoui/config.toml` to `~/.config/projects/config.toml` first. While only the old file
+exists, every run that opens a database stops with exit 1, naming both paths. Reading no config would
+turn sync off, and the next pull deletes what was written with it off.
 
 The first run that opens the default database moves everything in `$XDG_DATA_HOME/todoui` to
 `$XDG_DATA_HOME/projects`. `todoui.db` becomes `projects.db`, and its `-wal` and `-shm` files go with
-it, because the WAL can hold committed rows. A file already at the destination stops the run with
-exit 1, naming both paths, and nothing moves. A run where `PROJECTS_DB` or `db_path` names another
-database moves nothing.
+it, because the WAL can hold committed rows. `todoui.db` beside an existing `projects.db` stops the run
+with exit 1, naming both paths, and nothing moves. Any other file already at its destination stays
+behind under `todoui`.
 
-Move `~/.config/todoui/config.toml` to `~/.config/projects/config.toml` by hand. Until then `projects`
-reads no config, so sync is off.
+A run where `PROJECTS_DB` or `db_path` names another database moves nothing, so a machine that always
+names one moves any `repos.json` by hand. A database path inside `$XDG_DATA_HOME/todoui` stops the run,
+because the first default run moves that directory out from under it.
 
-A `TODOUI_*` variable still set stops every command with exit 2, naming the `PROJECTS_*` variable that
-replaced it. Ignoring it would open the default database where the variable chose another.
+A retired `TODOUI_*` variable set to a value stops every command with exit 2, naming the variable that
+replaced it. Ignoring `TODOUI_DB` would open the default database where the variable chose another.
 
 ## The TUI — projects on the left, their items on the right, every key one press away
 

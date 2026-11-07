@@ -124,7 +124,7 @@ const minSyncInterval = 15 * time.Second
 // ~/Library/Application Support on macOS — not where CLI tools put config.
 func newViper() *viper.Viper {
 	v := viper.New()
-	v.AddConfigPath(filepath.Join(userConfigDir(), "projects"))
+	v.AddConfigPath(filepath.Join(userConfigDir(), toolName))
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 	return v
@@ -167,8 +167,13 @@ func ExpandTilde(path string) string {
 	return filepath.Join(home, path[2:])
 }
 
+const (
+	toolName      = "projects"
+	defaultDBFile = toolName + ".db"
+)
+
 func defaultDBPath() string {
-	return filepath.Join(userDataDir(), "projects", "projects.db")
+	return filepath.Join(DataDir(), defaultDBFile)
 }
 
 // userConfigDir returns $XDG_CONFIG_HOME or ~/.config.
@@ -183,11 +188,10 @@ func userConfigDir() string {
 	return filepath.Join(home, ".config")
 }
 
-// UserDataDir returns the XDG data directory ($XDG_DATA_HOME or ~/.local/share).
-// Exported so every package resolving a data path uses one resolver rather than
-// its own copy of the env-var-then-fallback shape.
-func UserDataDir() string {
-	return userDataDir()
+// DataDir is the tool's directory under the XDG data home, which every package
+// resolving a data path asks for.
+func DataDir() string {
+	return filepath.Join(userDataDir(), toolName)
 }
 
 // userDataDir returns the XDG data directory ($XDG_DATA_HOME or ~/.local/share).

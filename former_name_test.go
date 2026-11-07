@@ -15,9 +15,9 @@ import (
 	"github.com/datapointchris/projects/model"
 )
 
-// Each case runs the built binary under a scratch home, because the refusal and the
-// move both happen before anything a test could call in process. `sync` reaches the
-// move and then stops at sync being off, so no case needs a terminal.
+// Each case runs the built binary under a scratch home, because the exit code and the
+// order against opening the database belong to main. `sync` reaches the move and then
+// stops at sync being off, so no case needs a terminal.
 func TestFormerNameOnFirstRun(t *testing.T) {
 	binary := tuidrive.Build(t, ".")
 
@@ -27,7 +27,7 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 		seedFormerDatabaseWithUnflushedWAL(t, former)
 		writeFile(t, filepath.Join(former, "dev.db"), "dev")
 
-		if output, code := home.run(t, binary); code != 1 || !strings.Contains(output, "sync is disabled") {
+		if output, code := home.run(t, binary); code != 1 {
 			t.Fatalf("exit %d, output %q, want it to reach the disabled sync", code, output)
 		}
 
@@ -77,6 +77,54 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 
 		if readFile(t, formerDB) != "former" {
 			t.Error("a run naming its database touched the former one")
+		}
+	})
+
+	t.Run("a config left at the former path refuses before sync silently turns off", func(t *testing.T) {
+		home := newScratchHome(t)
+		formerConfig := filepath.Join(home.root, "config", "todoui", "config.toml")
+		formerDB := filepath.Join(home.dataDir("todoui"), "todoui.db")
+		writeFile(t, formerConfig, "[sync]\nenabled = true\n")
+		writeFile(t, formerDB, "former")
+
+		output, code := home.run(t, binary)
+
+		if code != 1 || !strings.Contains(output, formerConfig) {
+			t.Errorf("exit %d, output %q, want exit 1 naming %s", code, output, formerConfig)
+		}
+		if readFile(t, formerDB) != "former" {
+			t.Error("a refused run moved the former database")
+		}
+	})
+
+	t.Run("a .envrc edited before the first default run leaves dev.db behind and moves the real database", func(t *testing.T) {
+		home := newScratchHome(t)
+		former, current := home.dataDir("todoui"), home.dataDir("projects")
+		writeFile(t, filepath.Join(former, "todoui.db"), "real")
+		writeFile(t, filepath.Join(former, "dev.db"), "old dev")
+		writeFile(t, filepath.Join(current, "dev.db"), "new dev")
+
+		home.run(t, binary)
+
+		if readFile(t, filepath.Join(former, "dev.db")) != "old dev" || readFile(t, filepath.Join(current, "dev.db")) != "new dev" {
+			t.Error("a dev.db on both sides was overwritten")
+		}
+		if _, err := os.Lstat(filepath.Join(former, "todoui.db")); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("the real database stayed behind: %v", err)
+		}
+	})
+
+	t.Run("a TODOUI_DB value moved across unchanged refuses, naming the new directory", func(t *testing.T) {
+		home := newScratchHome(t)
+		named := filepath.Join(home.dataDir("todoui"), "dev.db")
+
+		output, code := home.run(t, binary, "PROJECTS_DB="+named)
+
+		if code != 1 || !strings.Contains(output, filepath.Join(home.dataDir("projects"), "dev.db")) {
+			t.Errorf("exit %d, output %q, want exit 1 naming the new path", code, output)
+		}
+		if _, err := os.Lstat(named); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("a refused run created %s: %v", named, err)
 		}
 	})
 

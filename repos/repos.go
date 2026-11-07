@@ -53,7 +53,7 @@ func DefaultPath() string {
 	if declared := config.ConfiguredReposRegistry(); declared != "" {
 		return declared
 	}
-	return filepath.Join(config.UserDataDir(), "projects", "repos.json")
+	return filepath.Join(config.DataDir(), "repos.json")
 }
 
 // Load reads the registry at path. A missing file is not an error: it yields a

@@ -93,6 +93,9 @@ func rootCmd() *cobra.Command {
 			if !needsBackend(cmd) {
 				return nil
 			}
+			if err := config.RefuseConfigUnderFormerName(); err != nil {
+				return err
+			}
 			var err error
 			cfg, err = config.Load()
 			if err != nil {
