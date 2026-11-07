@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -12,17 +14,52 @@ import (
 	"time"
 
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/postgres"
+	"github.com/datapointchris/projects/store/postgres/postgrestest"
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
+// testStoreEnv names the store this suite's rules run over, so one rule is proved on
+// both stores by one test. CI runs the suite once for each.
+const testStoreEnv = "PROJECTS_TEST_STORE"
+
+func runsOnPostgres() bool {
+	return os.Getenv(testStoreEnv) == "postgres"
+}
+
 func newTestBackend(t *testing.T) *Service {
 	t.Helper()
+	if runsOnPostgres() {
+		return New(postgres.New(postgrestest.Pool(t)), AssigningItemNumbers())
+	}
 	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
 	return New(sqlite.New(database))
+}
+
+// Each store seeds its lookup rows its own way. A kind one holds and the other lacks
+// is accepted on one and refused on the other.
+func TestEachStoreHoldsTheKnownKindsAndStatuses(t *testing.T) {
+	b := newTestBackend(t)
+	ctx := context.Background()
+
+	kinds, err := b.store.ListProjectKinds(ctx)
+	if err != nil {
+		t.Fatalf("listing kinds: %v", err)
+	}
+	statuses, err := b.store.ListProjectStatuses(ctx)
+	if err != nil {
+		t.Fatalf("listing statuses: %v", err)
+	}
+	if want := slices.Sorted(slices.Values(model.ProjectKinds)); !slices.Equal(kinds, want) {
+		t.Errorf("the store holds kinds %v, want %v", kinds, want)
+	}
+	if want := slices.Sorted(slices.Values(model.ProjectStatuses)); !slices.Equal(statuses, want) {
+		t.Errorf("the store holds statuses %v, want %v", statuses, want)
+	}
 }
 
 func mustCreateProject(t *testing.T, b *Service, name string) *model.Project {
@@ -129,8 +166,8 @@ func TestCreateItemRequiresProject(t *testing.T) {
 		Title:      "orphan task",
 		ProjectIDs: []string{},
 	})
-	if err != model.ErrLastProject {
-		t.Errorf("expected ErrLastProject, got %v", err)
+	if !errors.Is(err, model.ErrNoProjects) {
+		t.Errorf("expected ErrNoProjects, got %v", err)
 	}
 }
 
@@ -228,7 +265,7 @@ func TestRemoveFromProjectPreservesLastProject(t *testing.T) {
 	})
 
 	err := b.RemoveFromProject(item.ID, p.ID)
-	if err != model.ErrLastProject {
+	if !errors.Is(err, model.ErrLastProject) {
 		t.Errorf("expected ErrLastProject, got %v", err)
 	}
 }
@@ -249,7 +286,7 @@ func TestDependencyCycleDetection(t *testing.T) {
 	}
 
 	err := b.AddDependency(t3.ID, t1.ID)
-	if err != model.ErrCyclicDependency {
+	if !errors.Is(err, model.ErrCyclicDependency) {
 		t.Errorf("expected ErrCyclicDependency, got %v", err)
 	}
 }
@@ -430,7 +467,7 @@ func TestUndoWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestProjectItemCountExcludesArchived(t *testing.T) {
+func TestProjectCountsPartitionItemCount(t *testing.T) {
 	b := newTestBackend(t)
 
 	p := mustCreateProject(t, b, "work")
@@ -444,8 +481,8 @@ func TestProjectItemCountExcludesArchived(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getting project: %v", err)
 	}
-	if project.ItemCount != 1 {
-		t.Errorf("expected item_count 1 (excluding archived), got %d", project.ItemCount)
+	if project.ItemCount != 2 || project.OpenCount != 1 || project.CompletedCount != 0 {
+		t.Errorf("counts = %d items, %d open, %d completed, want 2, 1, 0", project.ItemCount, project.OpenCount, project.CompletedCount)
 	}
 }
 
@@ -847,14 +884,27 @@ func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {
 // refuses that upgrade once another writer has committed unless the transaction
 // began with the write lock.
 func TestAnEditSurvivesASecondWriter(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "projects.db")
-	writer := func() *Service {
-		database, err := sqlite.Open(path)
-		if err != nil {
-			t.Fatalf("opening database: %v", err)
+	var writer func() *Service
+	if runsOnPostgres() {
+		url := postgrestest.URL(t)
+		writer = func() *Service {
+			pool, err := postgres.Connect(context.Background(), url)
+			if err != nil {
+				t.Fatalf("connecting: %v", err)
+			}
+			t.Cleanup(pool.Close)
+			return New(postgres.New(pool), AssigningItemNumbers())
 		}
-		t.Cleanup(func() { _ = database.Close() })
-		return New(sqlite.New(database))
+	} else {
+		path := filepath.Join(t.TempDir(), "projects.db")
+		writer = func() *Service {
+			database, err := sqlite.Open(path)
+			if err != nil {
+				t.Fatalf("opening database: %v", err)
+			}
+			t.Cleanup(func() { _ = database.Close() })
+			return New(sqlite.New(database))
+		}
 	}
 	first, second := writer(), writer()
 	p := mustCreateProject(t, first, "work")
@@ -953,7 +1003,7 @@ func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 	t.Run("project snapshot", func(t *testing.T) {
 		b, database := newTestBackendWithDatabase(t)
 
-		const projectID = "project-from-the-log"
+		const projectID = "01900000-0000-7000-8000-000000000001"
 		writeUndoEntry(t, database, "delete", "project", projectID, fmt.Sprintf(
 			`{"project":{"ID":%q,"Name":"as it was","Description":{"String":"","Valid":false},"Status":"active",`+
 				`"StatusReason":{"String":"","Valid":false},"ClosedAt":{"String":"","Valid":false},`+
@@ -977,7 +1027,7 @@ func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 		p := mustCreateProject(t, b, "work")
 		blocker := mustCreateItem(t, b, model.CreateProjectItem{Title: "blocker", ProjectIDs: []string{p.ID}})
 
-		const itemID, taskID = "item-from-the-log", "task-from-the-log"
+		const itemID, taskID = "01900000-0000-7000-8000-000000000002", "01900000-0000-7000-8000-000000000003"
 		writeUndoEntry(t, database, "delete", "item", itemID, fmt.Sprintf(
 			`{"item":{"ID":%[1]q,"Number":{"Int64":41,"Valid":true},"Title":"as it was",`+
 				`"Notes":{"String":"its notes","Valid":true},"Repo":{"String":"its-repo","Valid":true},`+

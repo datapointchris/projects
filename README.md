@@ -2,13 +2,13 @@
 
 A terminal UI for organizing personal projects. It holds the projects, the items that make each one
 up, the dependencies between items, and the sub-tasks on each item. It reads and writes a local
-SQLite database, so it works with no network at all. Sync to an
-[ichrisbirch](https://github.com/datapointchris/ichrisbirch) API server is optional, and runs in the
-background when it is on.
+SQLite database, so it works with no network at all. Sync to an API server is optional, and runs in
+the background when it is on.
 
 `projects` is the TUI and nothing more. Its subcommands are `sync`, `update`, `version` and
 `completion`, and none of them reads or writes an item. Scripts and agents reach the same projects
-and items through ichrisbirch's own CLI, against the same API.
+and items through the API the database is bound to. `projects-api`, in this repo, is one server of
+that API, on Postgres.
 
 ## Install
 
@@ -103,8 +103,8 @@ The project pane opens on an `All` row, which shows every item grouped by projec
 project adds it to a selection. The item pane then shows the selected projects' items, grouped the
 same way. An item belongs to one project or to several. `A` adds an item to more than one, and `p`
 changes which projects hold it. Each item carries a title, notes, a checklist of sub-tasks, and the
-items it waits on. The reader also names the repo the item is for. That tag is set through
-ichrisbirch and arrives with sync. `projects` has no key that sets it.
+items it waits on. The reader also names the repo the item is for. That tag is set through the API
+and arrives with sync. `projects` has no key that sets it.
 
 `Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
 what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
@@ -165,7 +165,7 @@ next round of them.
 
 ## An item's handle is its number, and its key is a UUID
 
-An item shows its number, the same handle ichrisbirch prints. The number is not the primary key.
+An item shows its number, the same handle the API answers with. The number is not the primary key.
 `projects` creates every id as a UUIDv7, so an item can be created offline and pushed without a round
 trip to claim one.
 
@@ -275,8 +275,8 @@ Backend interface
     |
     +-- SyncBackend (wraps the service, optional)
             |
-            +-- Push: pending_sync queue -> HTTP to ichrisbirch
-            +-- Pull: HTTP from ichrisbirch -> upsert local SQLite
+            +-- Push: pending_sync queue -> HTTP to the API
+            +-- Pull: HTTP from the API -> upsert local SQLite
 ```
 
 The data model is projects, items, the memberships joining them many to many, dependencies between
@@ -286,3 +286,78 @@ items, and sub-tasks.
 the API the database is bound to. The update check keeps its last result under
 `$XDG_STATE_HOME/projects/`, which defaults to `~/.local/state/projects/`. The config file and the repo
 registry are read and never written.
+
+## The API — the same rules over HTTP, on Postgres
+
+`projects-api` serves projects, items, dependencies and tasks under `/api/v1`. It runs the rules the TUI
+runs, over a Postgres store instead of SQLite, so a rule behaves the same in both. The one exception is
+the ban on a project named for a repo, which reads a registry file this server does not hold.
+
+```text
+projects-api
+    |
+    v
+api/routes      decode, call, encode
+    |
+    v
+service.Service every rule, shared with the TUI
+    |
+    v
+store/postgres  pgx, goose migrations, a row trigger writing audit_trail
+```
+
+Every setting comes from the environment:
+
+| Variable | Default | |
+| -------- | ------- | |
+| `OIDC_ISSUER` | required | The provider whose RFC 9068 access tokens the API accepts |
+| `PUBLIC_URL` | unset | The address clients reach the API at. Set, it serves RFC 9728 metadata naming the issuer |
+| `POSTGRES_HOST` | required | |
+| `POSTGRES_PORT` | `5432` | |
+| `POSTGRES_USERNAME` | required | |
+| `POSTGRES_PASSWORD` | required | |
+| `POSTGRES_DB` | required | |
+| `PORT` | `8000` | Where it listens |
+
+`projects-api migrate` brings the schema up to date, adds any new kind or status, and exits. It reads
+only the `POSTGRES_` settings. With no argument, `projects-api` serves, and it never migrates on its own.
+Two pods starting together would race, and a bad migration would crash-loop what is serving.
+
+```bash
+docker run --rm --env-file settings.env ghcr.io/datapointchris/projects:latest projects-api migrate
+docker run --rm --env-file settings.env -p 8000:8000 ghcr.io/datapointchris/projects:latest
+```
+
+`/health` answers for the process. `/ready` answers 503 while Postgres or the identity provider does
+not. A request that outlasts `requestDeadline` in `api/routes/routes.go`, as when Postgres stops
+answering, answers 503. TERM stops new requests and lets the ones in flight finish. It exits zero if
+they finish inside `drainTimeout` in `api/main.go`, and non-zero if one outlasts it. Logs are one JSON
+object per line on stdout, and each request's line names its caller, its `X-Request-ID` and its
+`traceparent`.
+
+**A client's id says who it is.** A token from a client whose id starts `projects-cli-` acts as the person
+who logged in, and reaches every route. One starting `projects-svc-` is a service, and reaches only what
+its scopes list in `routes.ServiceScopes`. `projects.items.read` is the read scope. A client with neither
+prefix answers 401, whatever it holds, so moving a caller onto this API takes a client of its own.
+
+**`{id}` takes more than an id.** A project answers to its UUID or its name, and an item to its UUID or
+its number. A name holding a slash is reached by escaping it, as `/api/v1/projects/web%2Fapi`.
+
+**A row's every field is always sent: an empty value as `null`, and an empty list as `[]`.** In a `PATCH`, a field left out stays as it is,
+and a field sent as `null` clears it. A field that cannot be empty refuses `null` by name.
+
+A refusal is `{"error": <status phrase>, "message": <why>}`. A refused input adds `errors`, listing each
+field with its `loc` and `msg`. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
+`api/wire` holds the Go structs.
+
+**Each release publishes the image and its manifests under one version.** `ghcr.io/datapointchris/projects`
+is the image, and `ghcr.io/datapointchris/projects/manifests` is an OCI artifact holding `migrate/` and
+`app/`. Apply `migrate/` and wait for its Job before applying `app/`. Both are signed keylessly through
+Sigstore, and the release's notes name each by digest:
+
+```bash
+cosign verify --certificate-identity https://github.com/datapointchris/projects/.github/workflows/release.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/datapointchris/projects:latest
+```
+
+`deploy/app/api.yaml` lists what a cluster supplies around those manifests.

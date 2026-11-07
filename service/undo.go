@@ -208,13 +208,18 @@ func undoItemPosition(ctx context.Context, tx store.Operations, entry model.Undo
 	if entry.PreviousState == nil {
 		return fmt.Errorf("item reorder undo entry %d has no previous state", entry.ID)
 	}
-	var prev membershipRecord
+	var prev itemPositionRecord
 	if err := json.Unmarshal([]byte(*entry.PreviousState), &prev); err != nil {
 		return fmt.Errorf("unmarshaling previous item position: %w", err)
 	}
 
 	if err := tx.UpdateItemPosition(ctx, prev.toModel()); err != nil {
 		return fmt.Errorf("restoring item position: %w", err)
+	}
+	for _, sibling := range prev.Siblings {
+		if err := tx.UpdateItemPosition(ctx, sibling.toModel()); err != nil {
+			return fmt.Errorf("restoring a sibling's position: %w", err)
+		}
 	}
 
 	result.Detail = &model.UndoDetail{
@@ -321,11 +326,13 @@ type itemSnapshot struct {
 	Tasks        []taskRecord       `json:"tasks"`
 }
 
-// projectSnapshot is the project equivalent. Memberships cascade off a
-// project delete; the items on the other end of them do not.
+// projectSnapshot is the project equivalent. Memberships cascade off a project
+// delete, and the items on the other end of them stay unless the project was the
+// last to hold them. Orphans are those.
 type projectSnapshot struct {
 	Project     projectRecord      `json:"project"`
 	Memberships []membershipRecord `json:"memberships"`
+	Orphans     []itemSnapshot     `json:"orphans,omitempty"`
 }
 
 func captureItem(ctx context.Context, reader store.Operations, id string) (*itemSnapshot, error) {
@@ -356,19 +363,24 @@ func captureItem(ctx context.Context, reader store.Operations, id string) (*item
 	}, nil
 }
 
-func captureProject(ctx context.Context, reader store.Operations, id string) (*projectSnapshot, error) {
+func captureProject(ctx context.Context, reader store.Operations, id string, orphanIDs []string) (*projectSnapshot, error) {
 	project, err := reader.GetProject(ctx, id)
 	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
-		}
 		return nil, fmt.Errorf("getting project for delete: %w", err)
 	}
 	memberships, err := reader.ListProjectMemberships(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("capturing project memberships: %w", err)
 	}
-	return &projectSnapshot{Project: projectRecordOf(project), Memberships: membershipRecordsOf(memberships)}, nil
+	snapshot := &projectSnapshot{Project: projectRecordOf(project), Memberships: membershipRecordsOf(memberships)}
+	for _, orphanID := range orphanIDs {
+		orphan, err := captureItem(ctx, reader, orphanID)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.Orphans = append(snapshot.Orphans, *orphan)
+	}
+	return snapshot, nil
 }
 
 // decodeItemSnapshot accepts either shape of previous_state: the snapshot
@@ -404,6 +416,10 @@ func restoreItemSnapshot(ctx context.Context, tx store.Operations, snapshot *ite
 	if err := tx.RestoreItem(ctx, snapshot.Item.toModel()); err != nil {
 		return fmt.Errorf("recreating deleted item: %w", err)
 	}
+	return restoreWhatCascadedOffItem(ctx, tx, snapshot)
+}
+
+func restoreWhatCascadedOffItem(ctx context.Context, tx store.Operations, snapshot *itemSnapshot) error {
 	for _, membership := range snapshot.Memberships {
 		if err := tx.RestoreMembership(ctx, membership.toModel()); err != nil {
 			return fmt.Errorf("restoring item membership: %w", err)
@@ -422,9 +438,21 @@ func restoreItemSnapshot(ctx context.Context, tx store.Operations, snapshot *ite
 	return nil
 }
 
+// restoreProjectSnapshot puts every row back before any child, because one orphan
+// may depend on another.
 func restoreProjectSnapshot(ctx context.Context, tx store.Operations, snapshot *projectSnapshot) error {
 	if err := tx.RestoreProject(ctx, snapshot.Project.toModel()); err != nil {
 		return fmt.Errorf("recreating deleted project: %w", err)
+	}
+	for i := range snapshot.Orphans {
+		if err := tx.RestoreItem(ctx, snapshot.Orphans[i].Item.toModel()); err != nil {
+			return fmt.Errorf("recreating the project's finished item: %w", err)
+		}
+	}
+	for i := range snapshot.Orphans {
+		if err := restoreWhatCascadedOffItem(ctx, tx, &snapshot.Orphans[i]); err != nil {
+			return err
+		}
 	}
 	for _, membership := range snapshot.Memberships {
 		if err := tx.RestoreMembership(ctx, membership.toModel()); err != nil {

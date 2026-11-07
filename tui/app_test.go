@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	goSync "sync"
@@ -117,6 +118,50 @@ func runeKey(r rune) tea.KeyPressMsg {
 func pressKey(t *testing.T, app *App, key string) {
 	t.Helper()
 	send(t, app, runeKey([]rune(key)[0]))
+}
+
+// A position counts every member of a project and this list hides the archived
+// ones, so a drop has to count them or it lands that many rows too high.
+func TestAMovedItemLandsWhereItIsDroppedBelowAnArchivedOne(t *testing.T) {
+	app := newTestApp(t, 80, 24, "archived", "bravo", "charlie", "delta")
+	pressKey(t, app, "x")
+
+	visibleTitles := func() []string {
+		titles := make([]string, len(app.items))
+		for i, item := range app.items {
+			titles[i] = item.Title
+		}
+		return titles
+	}
+	move := func(keys string, want ...string) {
+		t.Helper()
+		pressKey(t, app, "m")
+		for _, key := range keys {
+			pressKey(t, app, string(key))
+		}
+		send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
+		if got := visibleTitles(); !slices.Equal(got, want) {
+			t.Errorf("after moving with %q the list reads %v, want %v", keys, got, want)
+		}
+	}
+
+	move("j", "charlie", "bravo", "delta")
+	move("k", "bravo", "charlie", "delta")
+	move("G", "charlie", "delta", "bravo")
+	move("g", "bravo", "charlie", "delta")
+}
+
+// A database written by the single-row reorder holds ties, and a tied row can sit
+// below the drop while sharing a position with the row above it.
+func TestADropBelowATiedRowLandsUnderIt(t *testing.T) {
+	member := func(id string, position int) model.ProjectItemInProject {
+		return model.ProjectItemInProject{ProjectItem: model.ProjectItem{ID: id}, Position: position}
+	}
+	members := []model.ProjectItemInProject{member("a", 0), member("b", 1), member("c", 1), member("d", 2)}
+
+	if got := positionBelow(members, "d", "b"); got != 2 {
+		t.Errorf("dropping d under b landed at %d, want 2", got)
+	}
 }
 
 // The add-task prompt is an overlay, so it shows in a window too short for the
@@ -322,11 +367,11 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 			})
 		case "/api/v1/project-items":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItem{
-				{ID: "item-1", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			})
-		case "/api/v1/project-items/item-1":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
 			_ = json.NewEncoder(w).Encode(model.ProjectItemDetail{
-				ProjectItem: model.ProjectItem{ID: "item-1", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				Projects:    []model.Project{{ID: "proj-1", Name: "Remote"}},
 			})
 		default:
@@ -367,7 +412,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	// An item that only ever existed on the server has to land in the TUI
 	// without the user asking for it.
-	if _, err := app.backend.GetItem("item-1"); err != nil {
+	if _, err := app.backend.GetItem("01900000-0000-7000-8000-00000000a001"); err != nil {
 		t.Fatalf("background pull did not bring the remote item local: %v", err)
 	}
 	found := false
@@ -680,8 +725,8 @@ func TestProjectPaneShowsOpenAndDoneCounts(t *testing.T) {
 	if projects[0].ItemCount != 3 || projects[0].CompletedCount != 1 {
 		t.Fatalf("counts = %d items / %d done, want 3/1", projects[0].ItemCount, projects[0].CompletedCount)
 	}
-	if got := projects[0].OpenCount(); got != 2 {
-		t.Errorf("OpenCount() = %d, want 2", got)
+	if got := projects[0].OpenCount; got != 2 {
+		t.Errorf("OpenCount = %d, want 2", got)
 	}
 
 	send(t, app, fetchProjectsCmd(app.backend, app.projectStatusFilter())())

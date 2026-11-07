@@ -32,3 +32,166 @@ jobs:
       # the previous version and exits 0, so the installer reports the machine
       # converged while leaving the old binary in place.
       prime-module-proxy: true
+
+  api-publish:
+    name: Publish the API image and its manifests
+    needs: release
+    # The version is empty on a push that cut no release.
+    if: needs.release.outputs.version != ''
+    runs-on: ubuntu-26.04
+    # A stalled download fails the job here rather than at Actions' six-hour default.
+    timeout-minutes: 30
+    permissions:
+      # The release's notes gain what a deployment pins.
+      contents: write
+      packages: write
+      # The OIDC token cosign trades for a signing certificate naming this workflow.
+      id-token: write
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      IMAGE: ghcr.io/${{ github.repository }}
+      MANIFESTS: ghcr.io/${{ github.repository }}/manifests
+    # A named bash runs with pipefail.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      # SHA-pinned because they are third-party, the major tag moves, and the
+      # login action is handed a token with packages: write.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A version already on ghcr is never rebuilt, so one tag names one image,
+      # and :latest moves only to the newest version. Only "not found" builds:
+      # any other error fails the step, so a transient one never republishes a
+      # version under a new digest.
+      - name: Decide what to publish
+        id: publish
+        run: |
+          newest=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n 1)
+          [ -n "$newest" ] || { echo "origin lists no v* tag, though this run tagged v$VERSION" >&2; exit 1; }
+          if [ "$newest" = "$VERSION" ]; then
+            echo "latest=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >>"$GITHUB_OUTPUT"
+          fi
+          if answer=$(docker buildx imagetools inspect "$IMAGE:$VERSION" 2>&1 >/dev/null); then
+            echo "::notice::$IMAGE:$VERSION is already published"
+            echo "build=false" >>"$GITHUB_OUTPUT"
+          elif grep -q ': not found$' <<<"$answer"; then
+            echo "build=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "$answer" >&2
+            exit 1
+          fi
+
+      # The version for a deployment to pin, :sha-<short> for a person to
+      # trace, and :latest for `docker run`. A manifest names the digest.
+      - name: Resolve the tags
+        if: steps.publish.outputs.build == 'true'
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ steps.publish.outputs.latest == 'true' }}
+
+      # The provenance and SBOM attestations ride in the image's index, so the
+      # digest a manifest pins carries them.
+      - name: Build and push
+        if: steps.publish.outputs.build == 'true'
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: PROJECTS_VERSION=${{ env.VERSION }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A re-run that built nothing reads the published version's digest.
+      - name: Name the image by its digest
+        id: image
+        env:
+          BUILT: ${{ steps.build.outputs.digest }}
+        run: |
+          pinned=$BUILT
+          if [ -z "$pinned" ]; then
+            pinned=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          fi
+          [[ $pinned == sha256:* ]] || { echo "no digest for $IMAGE:$VERSION: '$pinned'" >&2; exit 1; }
+          echo "ref=$IMAGE@$pinned" >>"$GITHUB_OUTPUT"
+          echo "Image \`$IMAGE@$pinned\`" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Install flux, kustomize and cosign
+        run: |
+          release/install-tools "$RUNNER_TEMP/bin" flux kustomize cosign
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+
+      # Pushed as manifests:<version>. --reproducible makes a re-run send the
+      # same bytes for the same digest. The source and revision travel in the
+      # artifact, and Flux reports them beside what it applied.
+      - name: Push the manifests
+        id: manifests
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          work=$RUNNER_TEMP/manifests
+          release/pin-manifests --image "$IMAGE_REF" --version "$VERSION" --out "$work"
+          pushed=$(flux push artifact "oci://$MANIFESTS:$VERSION" --path="$work" \
+            --source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --revision="$VERSION@sha1:$GITHUB_SHA" \
+            --reproducible --output=json | jq -r .digest)
+          [[ $pushed == sha256:* ]] || { echo "flux push named no digest: '$pushed'" >&2; exit 1; }
+          echo "ref=$MANIFESTS@$pushed" >>"$GITHUB_OUTPUT"
+          echo "Manifests \`$MANIFESTS:$VERSION\` as \`$MANIFESTS@$pushed\`" >>"$GITHUB_STEP_SUMMARY"
+
+      # Keyless, so the signing certificate names this workflow on this ref and
+      # no key exists to keep. A deployment verifies the artifact against that
+      # identity before applying it. The verify proves the pair the release
+      # notes print is the one a consumer can check. A re-run signs again, and
+      # either signature verifies.
+      - name: Sign the image and the manifests
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
+        run: |
+          cosign sign --yes "$IMAGE_REF"
+          cosign sign --yes "$MANIFESTS_REF"
+          cosign verify --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$IMAGE_REF" "$MANIFESTS_REF" >/dev/null
+
+      # A re-run finds the section already written, and leaves it.
+      - name: Name what was published in the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
+        run: |
+          notes=$RUNNER_TEMP/notes.md
+          gh release view "v$VERSION" --json body --jq .body >"$notes"
+          if ! grep -q '^## Published$' "$notes"; then
+            {
+              echo
+              echo '## Published'
+              echo
+              echo "- Image: \`$IMAGE_REF\`"
+              echo "- Manifests: \`$MANIFESTS_REF\`, with \`migrate/\` to apply before \`app/\`"
+            } >>"$notes"
+            gh release edit "v$VERSION" --notes-file "$notes"
+          fi

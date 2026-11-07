@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Copies deploy/ with the image pinned and the version labeled in every kustomize path, and builds each.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: pin-manifests --image <name@sha256:...> --version <version> --out <directory>
+
+Copies deploy/ into <directory>, which must be empty or absent. In each
+kustomize path under it, names the image projects as --image, and labels every
+object and pod template app.kubernetes.io/version: --version. Then builds each
+path, so one that will not build fails here, and prints the paths, one a line.
+
+The release pushes <directory> as the manifests artifact. validate.yml checks
+each path it prints.
+EOF
+}
+
+die() {
+  printf 'pin-manifests: %s\n' "$*" >&2
+  exit 1
+}
+
+usage_error() {
+  printf 'pin-manifests: %s\n\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+if [ $# -eq 0 ]; then
+  usage
+  exit 0
+fi
+
+image='' version='' out=''
+while [ $# -gt 0 ]; do
+  case $1 in
+    --image | --version | --out)
+      [ $# -ge 2 ] || usage_error "$1 needs a value"
+      printf -v "${1#--}" '%s' "$2"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) usage_error "unknown argument $1" ;;
+  esac
+done
+for name in image version out; do
+  [ -n "${!name}" ] || usage_error "--$name is required"
+done
+[[ $image == *@sha256:* ]] || usage_error "--image names no digest: $image"
+
+deploy=$(cd "$(dirname "${BASH_SOURCE[0]}")/../deploy" && pwd)
+mkdir -p "$out"
+[ -z "$(find "$out" -mindepth 1 -print -quit)" ] || die "$out is not empty"
+cp -R "$deploy/." "$out/"
+
+shopt -s nullglob
+kustomizations=("$out"/*/kustomization.yaml)
+[ ${#kustomizations[@]} -gt 0 ] || die "deploy/ holds no kustomize path"
+for kustomization in "${kustomizations[@]}"; do
+  path=$(dirname "$kustomization")
+  (
+    cd "$path"
+    kustomize edit set image "projects=$image"
+    kustomize edit add label --without-selector --include-templates "app.kubernetes.io/version:$version"
+  )
+  kustomize build "$path" >/dev/null
+  echo "$path"
+done

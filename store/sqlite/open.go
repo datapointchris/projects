@@ -15,6 +15,9 @@ var schema string
 //go:embed indexes.sql
 var indexes string
 
+//go:embed lookup_rows.sql
+var lookupRows string
+
 // Pragmas ride in the DSN rather than being executed after the open, because
 // PRAGMA is per-connection and database/sql hands out a pool. Running
 // `PRAGMA foreign_keys=ON` through db.Exec sets it on whichever single
@@ -49,6 +52,11 @@ func Open(path string) (*sql.DB, error) {
 	if _, err := db.Exec(indexes); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("creating indexes: %w", err)
+	}
+
+	if _, err := db.Exec(lookupRows); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("seeding lookup tables: %w", err)
 	}
 
 	return db, nil
@@ -86,6 +94,45 @@ func migrate(db *sql.DB) error {
 	}
 	if err := migrateProjectStatus(db); err != nil {
 		return err
+	}
+	return migrateKindAndCompletedAt(db)
+}
+
+// migrateKindAndCompletedAt adds the lookup tables and the columns a database from
+// before them lacks. A completed_at stays null, because the time an item was
+// finished before the column existed is unknown.
+func migrateKindAndCompletedAt(db *sql.DB) error {
+	const lookups = `
+CREATE TABLE IF NOT EXISTS project_kinds (name TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
+	if _, err := db.Exec(lookups); err != nil {
+		return fmt.Errorf("creating lookup tables: %w", err)
+	}
+	columns := []struct{ table, column, definition string }{
+		{"projects", "kind", "TEXT NOT NULL DEFAULT 'life'"},
+		{"project_items", "completed_at", "TEXT"},
+		{"project_item_tasks", "completed_at", "TEXT"},
+	}
+	for _, c := range columns {
+		// Tasks arrived with the schema rather than through a migration, so a
+		// database old enough may not have the table at all.
+		var name string
+		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", c.table).Scan(&name)
+		if err == sql.ErrNoRows {
+			continue
+		} else if err != nil {
+			return fmt.Errorf("checking %s: %w", c.table, err)
+		}
+		err = db.QueryRow("SELECT name FROM pragma_table_info(?) WHERE name = ?", c.table, c.column).Scan(&name)
+		if err == nil {
+			continue
+		}
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("checking %s.%s: %w", c.table, c.column, err)
+		}
+		if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.definition)); err != nil {
+			return fmt.Errorf("adding %s.%s: %w", c.table, c.column, err)
+		}
 	}
 	return nil
 }

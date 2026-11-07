@@ -1,0 +1,16 @@
+# The schema migration, applied and finished before app/ rolls out the same
+# release. Its own path, because one apply of both would start the API beside
+# the Job rather than after it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - migration.yaml
+# The same labels and image as app/, which the release sets the same way.
+labels:
+  - pairs:
+      app.kubernetes.io/name: projects
+      app.kubernetes.io/part-of: projects
+      app.kubernetes.io/managed-by: kustomize
+    includeTemplates: true
+images:
+  - name: projects

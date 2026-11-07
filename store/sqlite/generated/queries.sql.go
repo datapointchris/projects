@@ -26,17 +26,17 @@ func (q *Queries) AddDependency(ctx context.Context, arg AddDependencyParams) er
 
 const addItemToProject = `-- name: AddItemToProject :exec
 INSERT INTO project_item_memberships (item_id, project_id, position)
-VALUES (?, ?, (SELECT COALESCE(MAX(m.position), 0) + 1 FROM project_item_memberships m WHERE m.project_id = ?))
+VALUES (?, ?, ?)
 `
 
 type AddItemToProjectParams struct {
-	ItemID      string
-	ProjectID   string
-	ProjectID_2 string
+	ItemID    string
+	ProjectID string
+	Position  int64
 }
 
 func (q *Queries) AddItemToProject(ctx context.Context, arg AddItemToProjectParams) error {
-	_, err := q.db.ExecContext(ctx, addItemToProject, arg.ItemID, arg.ProjectID, arg.ProjectID_2)
+	_, err := q.db.ExecContext(ctx, addItemToProject, arg.ItemID, arg.ProjectID, arg.Position)
 	return err
 }
 
@@ -91,7 +91,7 @@ func (q *Queries) CountUndoLogs(ctx context.Context) (int64, error) {
 const createItem = `-- name: CreateItem :one
 INSERT INTO project_items (id, number, title, notes, repo)
 VALUES (?, ?, ?, ?, ?)
-RETURNING id, number, title, notes, repo, completed, archived, created_at, updated_at
+RETURNING id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at
 `
 
 type CreateItemParams struct {
@@ -118,6 +118,7 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Project
 		&i.Notes,
 		&i.Repo,
 		&i.Completed,
+		&i.CompletedAt,
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -126,24 +127,39 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Project
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (id, name, description, position)
-VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM projects))
-RETURNING id, name, description, status, status_reason, closed_at, position, created_at
+INSERT INTO projects (id, name, description, kind, status, status_reason, closed_at, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, name, description, kind, status, status_reason, closed_at, position, created_at
 `
 
 type CreateProjectParams struct {
-	ID          string
-	Name        string
-	Description sql.NullString
+	ID           string
+	Name         string
+	Description  sql.NullString
+	Kind         string
+	Status       string
+	StatusReason sql.NullString
+	ClosedAt     sql.NullString
+	Position     int64
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, createProject, arg.ID, arg.Name, arg.Description)
+	row := q.db.QueryRowContext(ctx, createProject,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Kind,
+		arg.Status,
+		arg.StatusReason,
+		arg.ClosedAt,
+		arg.Position,
+	)
 	var i Project
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Description,
+		&i.Kind,
 		&i.Status,
 		&i.StatusReason,
 		&i.ClosedAt,
@@ -155,15 +171,15 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO project_item_tasks (id, item_id, title, position)
-VALUES (?, ?, ?, (SELECT COALESCE(MAX(t.position), 0) + 1 FROM project_item_tasks t WHERE t.item_id = ?))
-RETURNING id, item_id, title, completed, position, created_at
+VALUES (?, ?, ?, ?)
+RETURNING id, item_id, title, completed, completed_at, position, created_at
 `
 
 type CreateTaskParams struct {
 	ID       string
 	ItemID   string
 	Title    string
-	ItemID_2 string
+	Position int64
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (ProjectItemTask, error) {
@@ -171,7 +187,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Project
 		arg.ID,
 		arg.ItemID,
 		arg.Title,
-		arg.ItemID_2,
+		arg.Position,
 	)
 	var i ProjectItemTask
 	err := row.Scan(
@@ -179,6 +195,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Project
 		&i.ItemID,
 		&i.Title,
 		&i.Completed,
+		&i.CompletedAt,
 		&i.Position,
 		&i.CreatedAt,
 	)
@@ -279,7 +296,7 @@ func (q *Queries) DeleteUndoLog(ctx context.Context, id int64) error {
 }
 
 const getAllDependencies = `-- name: GetAllDependencies :many
-SELECT item_id, depends_on_id FROM project_item_dependencies
+SELECT item_id, depends_on_id FROM project_item_dependencies ORDER BY item_id, depends_on_id
 `
 
 func (q *Queries) GetAllDependencies(ctx context.Context) ([]ProjectItemDependency, error) {
@@ -305,48 +322,10 @@ func (q *Queries) GetAllDependencies(ctx context.Context) ([]ProjectItemDependen
 	return items, nil
 }
 
-const getBlockers = `-- name: GetBlockers :many
-SELECT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.archived, pi.created_at, pi.updated_at
-FROM project_items pi
-INNER JOIN project_item_dependencies d ON pi.id = d.depends_on_id
-WHERE d.item_id = ? AND pi.completed = 0
-`
-
-func (q *Queries) GetBlockers(ctx context.Context, itemID string) ([]ProjectItem, error) {
-	rows, err := q.db.QueryContext(ctx, getBlockers, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProjectItem
-	for rows.Next() {
-		var i ProjectItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.Number,
-			&i.Title,
-			&i.Notes,
-			&i.Repo,
-			&i.Completed,
-			&i.Archived,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getDependenciesInvolvingItem = `-- name: GetDependenciesInvolvingItem :many
-SELECT item_id, depends_on_id FROM project_item_dependencies WHERE item_id = ? OR depends_on_id = ?
+SELECT item_id, depends_on_id FROM project_item_dependencies
+WHERE item_id = ? OR depends_on_id = ?
+ORDER BY item_id, depends_on_id
 `
 
 type GetDependenciesInvolvingItemParams struct {
@@ -379,35 +358,8 @@ func (q *Queries) GetDependenciesInvolvingItem(ctx context.Context, arg GetDepen
 	return items, nil
 }
 
-const getDependencyIDs = `-- name: GetDependencyIDs :many
-SELECT depends_on_id FROM project_item_dependencies WHERE item_id = ?
-`
-
-func (q *Queries) GetDependencyIDs(ctx context.Context, itemID string) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, getDependencyIDs, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var depends_on_id string
-		if err := rows.Scan(&depends_on_id); err != nil {
-			return nil, err
-		}
-		items = append(items, depends_on_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getItem = `-- name: GetItem :one
-SELECT id, number, title, notes, repo, completed, archived, created_at, updated_at FROM project_items WHERE id = ?
+SELECT id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at FROM project_items WHERE id = ?
 `
 
 func (q *Queries) GetItem(ctx context.Context, id string) (ProjectItem, error) {
@@ -420,6 +372,29 @@ func (q *Queries) GetItem(ctx context.Context, id string) (ProjectItem, error) {
 		&i.Notes,
 		&i.Repo,
 		&i.Completed,
+		&i.CompletedAt,
+		&i.Archived,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getItemByNumber = `-- name: GetItemByNumber :one
+SELECT id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at FROM project_items WHERE number = ?
+`
+
+func (q *Queries) GetItemByNumber(ctx context.Context, number sql.NullInt64) (ProjectItem, error) {
+	row := q.db.QueryRowContext(ctx, getItemByNumber, number)
+	var i ProjectItem
+	err := row.Scan(
+		&i.ID,
+		&i.Number,
+		&i.Title,
+		&i.Notes,
+		&i.Repo,
+		&i.Completed,
+		&i.CompletedAt,
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -428,7 +403,7 @@ func (q *Queries) GetItem(ctx context.Context, id string) (ProjectItem, error) {
 }
 
 const getItemMemberships = `-- name: GetItemMemberships :many
-SELECT item_id, project_id, position FROM project_item_memberships WHERE item_id = ?
+SELECT item_id, project_id, position FROM project_item_memberships WHERE item_id = ? ORDER BY project_id
 `
 
 func (q *Queries) GetItemMemberships(ctx context.Context, itemID string) ([]ProjectItemMembership, error) {
@@ -455,11 +430,11 @@ func (q *Queries) GetItemMemberships(ctx context.Context, itemID string) ([]Proj
 }
 
 const getItemProjects = `-- name: GetItemProjects :many
-SELECT p.id, p.name, p.description, p.status, p.status_reason, p.closed_at, p.position, p.created_at
+SELECT p.id, p.name, p.description, p.kind, p.status, p.status_reason, p.closed_at, p.position, p.created_at
 FROM projects p
 INNER JOIN project_item_memberships m ON p.id = m.project_id
 WHERE m.item_id = ?
-ORDER BY p.name
+ORDER BY p.position, p.created_at, p.id
 `
 
 func (q *Queries) GetItemProjects(ctx context.Context, itemID string) ([]Project, error) {
@@ -475,6 +450,7 @@ func (q *Queries) GetItemProjects(ctx context.Context, itemID string) ([]Project
 			&i.ID,
 			&i.Name,
 			&i.Description,
+			&i.Kind,
 			&i.Status,
 			&i.StatusReason,
 			&i.ClosedAt,
@@ -549,7 +525,7 @@ func (q *Queries) GetOldestPendingSync(ctx context.Context) (PendingSync, error)
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, name, description, status, status_reason, closed_at, position, created_at FROM projects WHERE id = ?
+SELECT id, name, description, kind, status, status_reason, closed_at, position, created_at FROM projects WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
@@ -559,6 +535,7 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 		&i.ID,
 		&i.Name,
 		&i.Description,
+		&i.Kind,
 		&i.Status,
 		&i.StatusReason,
 		&i.ClosedAt,
@@ -569,7 +546,7 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 }
 
 const getProjectMemberships = `-- name: GetProjectMemberships :many
-SELECT item_id, project_id, position FROM project_item_memberships WHERE project_id = ?
+SELECT item_id, project_id, position FROM project_item_memberships WHERE project_id = ? ORDER BY position, item_id
 `
 
 func (q *Queries) GetProjectMemberships(ctx context.Context, projectID string) ([]ProjectItemMembership, error) {
@@ -595,50 +572,6 @@ func (q *Queries) GetProjectMemberships(ctx context.Context, projectID string) (
 	return items, nil
 }
 
-const getProjectWithItemCount = `-- name: GetProjectWithItemCount :one
-SELECT
-    p.id, p.name, p.description, p.status, p.status_reason, p.closed_at, p.position, p.created_at,
-    CAST(COALESCE(SUM(CASE WHEN pi.completed = 1 THEN 1 ELSE 0 END), 0) AS INTEGER)
-        AS completed_count,
-    COUNT(pi.id) AS item_count
-FROM projects p
-LEFT JOIN project_item_memberships m ON p.id = m.project_id
-LEFT JOIN project_items pi ON m.item_id = pi.id AND pi.archived = 0
-WHERE p.id = ?
-GROUP BY p.id
-`
-
-type GetProjectWithItemCountRow struct {
-	ID             string
-	Name           string
-	Description    sql.NullString
-	Status         string
-	StatusReason   sql.NullString
-	ClosedAt       sql.NullString
-	Position       int64
-	CreatedAt      string
-	CompletedCount int64
-	ItemCount      int64
-}
-
-func (q *Queries) GetProjectWithItemCount(ctx context.Context, id string) (GetProjectWithItemCountRow, error) {
-	row := q.db.QueryRowContext(ctx, getProjectWithItemCount, id)
-	var i GetProjectWithItemCountRow
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Status,
-		&i.StatusReason,
-		&i.ClosedAt,
-		&i.Position,
-		&i.CreatedAt,
-		&i.CompletedCount,
-		&i.ItemCount,
-	)
-	return i, err
-}
-
 const getSyncOrigin = `-- name: GetSyncOrigin :one
 SELECT api_url FROM sync_origin WHERE id = 1
 `
@@ -651,7 +584,7 @@ func (q *Queries) GetSyncOrigin(ctx context.Context) (string, error) {
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, item_id, title, completed, position, created_at FROM project_item_tasks WHERE id = ?
+SELECT id, item_id, title, completed, completed_at, position, created_at FROM project_item_tasks WHERE id = ?
 `
 
 func (q *Queries) GetTask(ctx context.Context, id string) (ProjectItemTask, error) {
@@ -662,6 +595,7 @@ func (q *Queries) GetTask(ctx context.Context, id string) (ProjectItemTask, erro
 		&i.ItemID,
 		&i.Title,
 		&i.Completed,
+		&i.CompletedAt,
 		&i.Position,
 		&i.CreatedAt,
 	)
@@ -730,7 +664,7 @@ func (q *Queries) InsertUndoLog(ctx context.Context, arg InsertUndoLogParams) er
 }
 
 const listAllItemsRaw = `-- name: ListAllItemsRaw :many
-SELECT id, number, title, notes, repo, completed, archived, created_at, updated_at FROM project_items ORDER BY created_at DESC
+SELECT id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at FROM project_items ORDER BY created_at DESC
 `
 
 func (q *Queries) ListAllItemsRaw(ctx context.Context) ([]ProjectItem, error) {
@@ -749,6 +683,7 @@ func (q *Queries) ListAllItemsRaw(ctx context.Context) ([]ProjectItem, error) {
 			&i.Notes,
 			&i.Repo,
 			&i.Completed,
+			&i.CompletedAt,
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -767,7 +702,7 @@ func (q *Queries) ListAllItemsRaw(ctx context.Context) ([]ProjectItem, error) {
 }
 
 const listAllMemberships = `-- name: ListAllMemberships :many
-SELECT item_id, project_id, position FROM project_item_memberships
+SELECT item_id, project_id, position FROM project_item_memberships ORDER BY project_id, item_id
 `
 
 func (q *Queries) ListAllMemberships(ctx context.Context) ([]ProjectItemMembership, error) {
@@ -794,7 +729,7 @@ func (q *Queries) ListAllMemberships(ctx context.Context) ([]ProjectItemMembersh
 }
 
 const listAllProjectsRaw = `-- name: ListAllProjectsRaw :many
-SELECT id, name, description, status, status_reason, closed_at, position, created_at FROM projects ORDER BY position, name
+SELECT id, name, description, kind, status, status_reason, closed_at, position, created_at FROM projects ORDER BY position, name
 `
 
 func (q *Queries) ListAllProjectsRaw(ctx context.Context) ([]Project, error) {
@@ -810,6 +745,7 @@ func (q *Queries) ListAllProjectsRaw(ctx context.Context) ([]Project, error) {
 			&i.ID,
 			&i.Name,
 			&i.Description,
+			&i.Kind,
 			&i.Status,
 			&i.StatusReason,
 			&i.ClosedAt,
@@ -830,7 +766,7 @@ func (q *Queries) ListAllProjectsRaw(ctx context.Context) ([]Project, error) {
 }
 
 const listAllTasks = `-- name: ListAllTasks :many
-SELECT id, item_id, title, completed, position, created_at FROM project_item_tasks ORDER BY item_id, position
+SELECT id, item_id, title, completed, completed_at, position, created_at FROM project_item_tasks ORDER BY item_id, position, created_at
 `
 
 func (q *Queries) ListAllTasks(ctx context.Context) ([]ProjectItemTask, error) {
@@ -847,6 +783,7 @@ func (q *Queries) ListAllTasks(ctx context.Context) ([]ProjectItemTask, error) {
 			&i.ItemID,
 			&i.Title,
 			&i.Completed,
+			&i.CompletedAt,
 			&i.Position,
 			&i.CreatedAt,
 		); err != nil {
@@ -863,69 +800,15 @@ func (q *Queries) ListAllTasks(ctx context.Context) ([]ProjectItemTask, error) {
 	return items, nil
 }
 
-const listArchivedItems = `-- name: ListArchivedItems :many
-SELECT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.archived, pi.created_at, pi.updated_at, m.position AS membership_position
-FROM project_items pi
-INNER JOIN project_item_memberships m ON pi.id = m.item_id
-WHERE m.project_id = ? AND pi.archived = 1
-ORDER BY pi.updated_at DESC
-`
-
-type ListArchivedItemsRow struct {
-	ID                 string
-	Number             sql.NullInt64
-	Title              string
-	Notes              sql.NullString
-	Repo               sql.NullString
-	Completed          int64
-	Archived           int64
-	CreatedAt          string
-	UpdatedAt          string
-	MembershipPosition int64
-}
-
-func (q *Queries) ListArchivedItems(ctx context.Context, projectID string) ([]ListArchivedItemsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listArchivedItems, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListArchivedItemsRow
-	for rows.Next() {
-		var i ListArchivedItemsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Number,
-			&i.Title,
-			&i.Notes,
-			&i.Repo,
-			&i.Completed,
-			&i.Archived,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.MembershipPosition,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listBlockedItems = `-- name: ListBlockedItems :many
-SELECT DISTINCT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.archived, pi.created_at, pi.updated_at
+SELECT DISTINCT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.completed_at, pi.archived, pi.created_at, pi.updated_at
 FROM project_items pi
 INNER JOIN project_item_dependencies d ON pi.id = d.item_id
 INNER JOIN project_items blocker ON d.depends_on_id = blocker.id
 WHERE blocker.completed = 0
   AND pi.completed = 0
   AND pi.archived = 0
+ORDER BY pi.created_at DESC, pi.id ASC
 `
 
 func (q *Queries) ListBlockedItems(ctx context.Context) ([]ProjectItem, error) {
@@ -944,6 +827,7 @@ func (q *Queries) ListBlockedItems(ctx context.Context) ([]ProjectItem, error) {
 			&i.Notes,
 			&i.Repo,
 			&i.Completed,
+			&i.CompletedAt,
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -961,38 +845,23 @@ func (q *Queries) ListBlockedItems(ctx context.Context) ([]ProjectItem, error) {
 	return items, nil
 }
 
-const listItemsByProject = `-- name: ListItemsByProject :many
-SELECT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.archived, pi.created_at, pi.updated_at, m.position AS membership_position,
-    (SELECT COUNT(*) FROM project_item_memberships m2 WHERE m2.item_id = pi.id) AS project_count
+const listDependencyItems = `-- name: ListDependencyItems :many
+SELECT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.completed_at, pi.archived, pi.created_at, pi.updated_at
 FROM project_items pi
-INNER JOIN project_item_memberships m ON pi.id = m.item_id
-WHERE m.project_id = ? AND pi.archived = 0
-ORDER BY m.position, pi.created_at
+INNER JOIN project_item_dependencies d ON pi.id = d.depends_on_id
+WHERE d.item_id = ?
+ORDER BY pi.number, pi.id
 `
 
-type ListItemsByProjectRow struct {
-	ID                 string
-	Number             sql.NullInt64
-	Title              string
-	Notes              sql.NullString
-	Repo               sql.NullString
-	Completed          int64
-	Archived           int64
-	CreatedAt          string
-	UpdatedAt          string
-	MembershipPosition int64
-	ProjectCount       int64
-}
-
-func (q *Queries) ListItemsByProject(ctx context.Context, projectID string) ([]ListItemsByProjectRow, error) {
-	rows, err := q.db.QueryContext(ctx, listItemsByProject, projectID)
+func (q *Queries) ListDependencyItems(ctx context.Context, itemID string) ([]ProjectItem, error) {
+	rows, err := q.db.QueryContext(ctx, listDependencyItems, itemID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListItemsByProjectRow
+	var items []ProjectItem
 	for rows.Next() {
-		var i ListItemsByProjectRow
+		var i ProjectItem
 		if err := rows.Scan(
 			&i.ID,
 			&i.Number,
@@ -1000,6 +869,65 @@ func (q *Queries) ListItemsByProject(ctx context.Context, projectID string) ([]L
 			&i.Notes,
 			&i.Repo,
 			&i.Completed,
+			&i.CompletedAt,
+			&i.Archived,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemsInProject = `-- name: ListItemsInProject :many
+SELECT pi.id, pi.number, pi.title, pi.notes, pi.repo, pi.completed, pi.completed_at, pi.archived, pi.created_at, pi.updated_at, m.position AS membership_position,
+    (SELECT COUNT(*) FROM project_item_memberships m2 WHERE m2.item_id = pi.id) AS project_count
+FROM project_items pi
+INNER JOIN project_item_memberships m ON pi.id = m.item_id
+WHERE m.project_id = ?
+ORDER BY m.position, pi.created_at, pi.id
+`
+
+type ListItemsInProjectRow struct {
+	ID                 string
+	Number             sql.NullInt64
+	Title              string
+	Notes              sql.NullString
+	Repo               sql.NullString
+	Completed          int64
+	CompletedAt        sql.NullString
+	Archived           int64
+	CreatedAt          string
+	UpdatedAt          string
+	MembershipPosition int64
+	ProjectCount       int64
+}
+
+func (q *Queries) ListItemsInProject(ctx context.Context, projectID string) ([]ListItemsInProjectRow, error) {
+	rows, err := q.db.QueryContext(ctx, listItemsInProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListItemsInProjectRow
+	for rows.Next() {
+		var i ListItemsInProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.Title,
+			&i.Notes,
+			&i.Repo,
+			&i.Completed,
+			&i.CompletedAt,
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1082,67 +1010,34 @@ func (q *Queries) ListPendingSyncEntityIDsAfter(ctx context.Context, id int64) (
 	return items, nil
 }
 
-const listProjectsWithItemCount = `-- name: ListProjectsWithItemCount :many
-SELECT
-    p.id, p.name, p.description, p.status, p.status_reason, p.closed_at, p.position, p.created_at,
-    CAST(COALESCE(SUM(CASE WHEN pi.completed = 1 THEN 1 ELSE 0 END), 0) AS INTEGER)
-        AS completed_count,
-    COUNT(pi.id) AS item_count
-FROM projects p
-LEFT JOIN project_item_memberships m ON p.id = m.project_id
-LEFT JOIN project_items pi ON m.item_id = pi.id AND pi.archived = 0
-WHERE CAST(?1 AS TEXT) = 'all' OR p.status = CAST(?1 AS TEXT)
-GROUP BY p.id
-ORDER BY
-    CASE p.status WHEN 'active' THEN 0 WHEN 'someday' THEN 1 ELSE 2 END,
-    p.closed_at DESC, p.position ASC, p.name ASC
+const listProjectItemFacts = `-- name: ListProjectItemFacts :many
+SELECT m.project_id, pi.completed, pi.archived, pi.repo
+FROM project_item_memberships m
+INNER JOIN project_items pi ON m.item_id = pi.id
 `
 
-type ListProjectsWithItemCountRow struct {
-	ID             string
-	Name           string
-	Description    sql.NullString
-	Status         string
-	StatusReason   sql.NullString
-	ClosedAt       sql.NullString
-	Position       int64
-	CreatedAt      string
-	CompletedCount int64
-	ItemCount      int64
+type ListProjectItemFactsRow struct {
+	ProjectID string
+	Completed int64
+	Archived  int64
+	Repo      sql.NullString
 }
 
-// Terminal projects are hidden unless asked for: closing a project is what takes
-// it out of the list, so an unfiltered default would make completing one do
-// nothing visible. Named parameter so the filter reads as a status rather than
-// a bare `?`, and so sqlfluff sees a bind rather than an unqualified column.
-//
-// The completed split rides along with the total rather than being a second
-// query: the pane draws both numbers on every row, so asking twice would mean a
-// query per project.
-//
-// The order is active, then someday, then closed. A someday project has no
-// closed_at, so ordering on closed_at alone would mix it in among the active
-// ones.
-func (q *Queries) ListProjectsWithItemCount(ctx context.Context, statusFilter string) ([]ListProjectsWithItemCountRow, error) {
-	rows, err := q.db.QueryContext(ctx, listProjectsWithItemCount, statusFilter)
+// One row per membership, which the rule adding them up reads whole.
+func (q *Queries) ListProjectItemFacts(ctx context.Context) ([]ListProjectItemFactsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectItemFacts)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListProjectsWithItemCountRow
+	var items []ListProjectItemFactsRow
 	for rows.Next() {
-		var i ListProjectsWithItemCountRow
+		var i ListProjectItemFactsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.Status,
-			&i.StatusReason,
-			&i.ClosedAt,
-			&i.Position,
-			&i.CreatedAt,
-			&i.CompletedCount,
-			&i.ItemCount,
+			&i.ProjectID,
+			&i.Completed,
+			&i.Archived,
+			&i.Repo,
 		); err != nil {
 			return nil, err
 		}
@@ -1157,8 +1052,62 @@ func (q *Queries) ListProjectsWithItemCount(ctx context.Context, statusFilter st
 	return items, nil
 }
 
+const listProjectKinds = `-- name: ListProjectKinds :many
+SELECT name FROM project_kinds ORDER BY name
+`
+
+func (q *Queries) ListProjectKinds(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectKinds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectStatuses = `-- name: ListProjectStatuses :many
+SELECT name FROM project_statuses ORDER BY name
+`
+
+func (q *Queries) ListProjectStatuses(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectStatuses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksByItem = `-- name: ListTasksByItem :many
-SELECT id, item_id, title, completed, position, created_at FROM project_item_tasks
+SELECT id, item_id, title, completed, completed_at, position, created_at FROM project_item_tasks
 WHERE item_id = ?
 ORDER BY position, created_at
 `
@@ -1177,6 +1126,7 @@ func (q *Queries) ListTasksByItem(ctx context.Context, itemID string) ([]Project
 			&i.ItemID,
 			&i.Title,
 			&i.Completed,
+			&i.CompletedAt,
 			&i.Position,
 			&i.CreatedAt,
 		); err != nil {
@@ -1246,6 +1196,49 @@ func (q *Queries) RemoveItemFromProject(ctx context.Context, arg RemoveItemFromP
 	return err
 }
 
+const restoreItem = `-- name: RestoreItem :exec
+INSERT INTO project_items (id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    number = excluded.number,
+    title = excluded.title,
+    notes = excluded.notes,
+    repo = excluded.repo,
+    completed = excluded.completed,
+    completed_at = excluded.completed_at,
+    archived = excluded.archived,
+    updated_at = excluded.updated_at
+`
+
+type RestoreItemParams struct {
+	ID          string
+	Number      sql.NullInt64
+	Title       string
+	Notes       sql.NullString
+	Repo        sql.NullString
+	Completed   int64
+	CompletedAt sql.NullString
+	Archived    int64
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+func (q *Queries) RestoreItem(ctx context.Context, arg RestoreItemParams) error {
+	_, err := q.db.ExecContext(ctx, restoreItem,
+		arg.ID,
+		arg.Number,
+		arg.Title,
+		arg.Notes,
+		arg.Repo,
+		arg.Completed,
+		arg.CompletedAt,
+		arg.Archived,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const restoreMembership = `-- name: RestoreMembership :exec
 INSERT OR IGNORE INTO project_item_memberships (item_id, project_id, position)
 VALUES (?, ?, ?)
@@ -1265,11 +1258,85 @@ func (q *Queries) RestoreMembership(ctx context.Context, arg RestoreMembershipPa
 	return err
 }
 
+const restoreProject = `-- name: RestoreProject :exec
+
+INSERT INTO projects (id, name, description, kind, status, status_reason, closed_at, position, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    name = excluded.name,
+    description = excluded.description,
+    kind = excluded.kind,
+    status = excluded.status,
+    status_reason = excluded.status_reason,
+    closed_at = excluded.closed_at,
+    position = excluded.position
+`
+
+type RestoreProjectParams struct {
+	ID           string
+	Name         string
+	Description  sql.NullString
+	Kind         string
+	Status       string
+	StatusReason sql.NullString
+	ClosedAt     sql.NullString
+	Position     int64
+	CreatedAt    string
+}
+
+// Undo: a restore carries each column a pull leaves alone.
+func (q *Queries) RestoreProject(ctx context.Context, arg RestoreProjectParams) error {
+	_, err := q.db.ExecContext(ctx, restoreProject,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.Kind,
+		arg.Status,
+		arg.StatusReason,
+		arg.ClosedAt,
+		arg.Position,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const restoreTask = `-- name: RestoreTask :exec
+INSERT INTO project_item_tasks (id, item_id, title, completed, completed_at, position, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    title = excluded.title,
+    completed = excluded.completed,
+    completed_at = excluded.completed_at,
+    position = excluded.position
+`
+
+type RestoreTaskParams struct {
+	ID          string
+	ItemID      string
+	Title       string
+	Completed   int64
+	CompletedAt sql.NullString
+	Position    int64
+	CreatedAt   string
+}
+
+func (q *Queries) RestoreTask(ctx context.Context, arg RestoreTaskParams) error {
+	_, err := q.db.ExecContext(ctx, restoreTask,
+		arg.ID,
+		arg.ItemID,
+		arg.Title,
+		arg.Completed,
+		arg.CompletedAt,
+		arg.Position,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const searchItems = `-- name: SearchItems :many
-SELECT id, number, title, notes, repo, completed, archived, created_at, updated_at FROM project_items
-WHERE (title LIKE '%' || ? || '%' OR notes LIKE '%' || ? || '%')
-  AND archived = 0
-ORDER BY created_at DESC
+SELECT id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at FROM project_items
+WHERE title LIKE '%' || ? || '%' OR notes LIKE '%' || ? || '%'
+ORDER BY created_at DESC, id ASC
 `
 
 type SearchItemsParams struct {
@@ -1293,6 +1360,7 @@ func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]Pro
 			&i.Notes,
 			&i.Repo,
 			&i.Completed,
+			&i.CompletedAt,
 			&i.Archived,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1324,43 +1392,6 @@ func (q *Queries) SetItemNumber(ctx context.Context, arg SetItemNumberParams) er
 	return err
 }
 
-const setProjectStatus = `-- name: SetProjectStatus :one
-UPDATE projects
-SET status = ?,
-    status_reason = ?,
-    closed_at = ?
-WHERE id = ?
-RETURNING id, name, description, status, status_reason, closed_at, position, created_at
-`
-
-type SetProjectStatusParams struct {
-	Status       string
-	StatusReason sql.NullString
-	ClosedAt     sql.NullString
-	ID           string
-}
-
-func (q *Queries) SetProjectStatus(ctx context.Context, arg SetProjectStatusParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, setProjectStatus,
-		arg.Status,
-		arg.StatusReason,
-		arg.ClosedAt,
-		arg.ID,
-	)
-	var i Project
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Status,
-		&i.StatusReason,
-		&i.ClosedAt,
-		&i.Position,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const setSyncOrigin = `-- name: SetSyncOrigin :exec
 INSERT INTO sync_origin (id, api_url, adopted_at)
 VALUES (1, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -1382,19 +1413,21 @@ SET title = ?,
     notes = ?,
     repo = ?,
     completed = ?,
+    completed_at = ?,
     archived = ?,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = ?
-RETURNING id, number, title, notes, repo, completed, archived, created_at, updated_at
+RETURNING id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at
 `
 
 type UpdateItemParams struct {
-	Title     string
-	Notes     sql.NullString
-	Repo      sql.NullString
-	Completed int64
-	Archived  int64
-	ID        string
+	Title       string
+	Notes       sql.NullString
+	Repo        sql.NullString
+	Completed   int64
+	CompletedAt sql.NullString
+	Archived    int64
+	ID          string
 }
 
 func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (ProjectItem, error) {
@@ -1403,6 +1436,7 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (Project
 		arg.Notes,
 		arg.Repo,
 		arg.Completed,
+		arg.CompletedAt,
 		arg.Archived,
 		arg.ID,
 	)
@@ -1414,6 +1448,7 @@ func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (Project
 		&i.Notes,
 		&i.Repo,
 		&i.Completed,
+		&i.CompletedAt,
 		&i.Archived,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -1454,22 +1489,34 @@ const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET name = ?,
     description = ?,
+    kind = ?,
+    status = ?,
+    status_reason = ?,
+    closed_at = ?,
     position = ?
 WHERE id = ?
-RETURNING id, name, description, status, status_reason, closed_at, position, created_at
+RETURNING id, name, description, kind, status, status_reason, closed_at, position, created_at
 `
 
 type UpdateProjectParams struct {
-	Name        string
-	Description sql.NullString
-	Position    int64
-	ID          string
+	Name         string
+	Description  sql.NullString
+	Kind         string
+	Status       string
+	StatusReason sql.NullString
+	ClosedAt     sql.NullString
+	Position     int64
+	ID           string
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
 	row := q.db.QueryRowContext(ctx, updateProject,
 		arg.Name,
 		arg.Description,
+		arg.Kind,
+		arg.Status,
+		arg.StatusReason,
+		arg.ClosedAt,
 		arg.Position,
 		arg.ID,
 	)
@@ -1478,6 +1525,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.ID,
 		&i.Name,
 		&i.Description,
+		&i.Kind,
 		&i.Status,
 		&i.StatusReason,
 		&i.ClosedAt,
@@ -1505,22 +1553,25 @@ const updateTask = `-- name: UpdateTask :one
 UPDATE project_item_tasks
 SET title = ?,
     completed = ?,
+    completed_at = ?,
     position = ?
 WHERE id = ?
-RETURNING id, item_id, title, completed, position, created_at
+RETURNING id, item_id, title, completed, completed_at, position, created_at
 `
 
 type UpdateTaskParams struct {
-	Title     string
-	Completed int64
-	Position  int64
-	ID        string
+	Title       string
+	Completed   int64
+	CompletedAt sql.NullString
+	Position    int64
+	ID          string
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (ProjectItemTask, error) {
 	row := q.db.QueryRowContext(ctx, updateTask,
 		arg.Title,
 		arg.Completed,
+		arg.CompletedAt,
 		arg.Position,
 		arg.ID,
 	)
@@ -1530,6 +1581,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Project
 		&i.ItemID,
 		&i.Title,
 		&i.Completed,
+		&i.CompletedAt,
 		&i.Position,
 		&i.CreatedAt,
 	)

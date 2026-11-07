@@ -22,47 +22,23 @@ func parseTime(s string) time.Time {
 	return time.Time{}
 }
 
-// projectFields is what every project-shaped row has in common. sqlc generates a
-// distinct struct per query, so without this the same eight-field mapping is
-// written three times and only two of them get updated when a column is added.
-type projectFields struct {
-	ID           string
-	Name         string
-	Description  sql.NullString
-	Status       string
-	StatusReason sql.NullString
-	ClosedAt     sql.NullString
-	Position     int64
-	CreatedAt    string
-}
-
-func toModelProjectFields(f projectFields) model.Project {
-	proj := model.Project{
-		ID:        f.ID,
-		Name:      f.Name,
-		Status:    f.Status,
-		Position:  int(f.Position),
-		CreatedAt: parseTime(f.CreatedAt),
-	}
-	if f.Description.Valid {
-		proj.Description = &f.Description.String
-	}
-	if f.StatusReason.Valid {
-		proj.StatusReason = &f.StatusReason.String
-	}
-	if f.ClosedAt.Valid {
-		closed := parseTime(f.ClosedAt.String)
-		proj.ClosedAt = &closed
-	}
-	return proj
-}
-
 func toModelProject(p generated.Project) model.Project {
-	return toModelProjectFields(projectFields{
-		ID: p.ID, Name: p.Name, Description: p.Description,
-		Status: p.Status, StatusReason: p.StatusReason, ClosedAt: p.ClosedAt,
-		Position: p.Position, CreatedAt: p.CreatedAt,
-	})
+	proj := model.Project{
+		ID:        p.ID,
+		Name:      p.Name,
+		Kind:      p.Kind,
+		Status:    p.Status,
+		Position:  int(p.Position),
+		CreatedAt: parseTime(p.CreatedAt),
+	}
+	if p.Description.Valid {
+		proj.Description = &p.Description.String
+	}
+	if p.StatusReason.Valid {
+		proj.StatusReason = &p.StatusReason.String
+	}
+	proj.ClosedAt = nullTimeToPointer(p.ClosedAt)
+	return proj
 }
 
 func toModelProjects(ps []generated.Project) []model.Project {
@@ -73,39 +49,16 @@ func toModelProjects(ps []generated.Project) []model.Project {
 	return out
 }
 
-func toModelProjectWithItemCount(row generated.ListProjectsWithItemCountRow) model.ProjectWithItemCount {
-	return model.ProjectWithItemCount{
-		Project: toModelProjectFields(projectFields{
-			ID: row.ID, Name: row.Name, Description: row.Description,
-			Status: row.Status, StatusReason: row.StatusReason, ClosedAt: row.ClosedAt,
-			Position: row.Position, CreatedAt: row.CreatedAt,
-		}),
-		ItemCount:      int(row.ItemCount),
-		CompletedCount: int(row.CompletedCount),
-	}
-}
-
-func toModelProjectWithItemCountFromGet(row generated.GetProjectWithItemCountRow) model.ProjectWithItemCount {
-	return model.ProjectWithItemCount{
-		Project: toModelProjectFields(projectFields{
-			ID: row.ID, Name: row.Name, Description: row.Description,
-			Status: row.Status, StatusReason: row.StatusReason, ClosedAt: row.ClosedAt,
-			Position: row.Position, CreatedAt: row.CreatedAt,
-		}),
-		ItemCount:      int(row.ItemCount),
-		CompletedCount: int(row.CompletedCount),
-	}
-}
-
 func toModelProjectItem(pi generated.ProjectItem) model.ProjectItem {
 	item := model.ProjectItem{
-		ID:        pi.ID,
-		Number:    nullInt64ToIntPtr(pi.Number),
-		Title:     pi.Title,
-		Completed: pi.Completed != 0,
-		Archived:  pi.Archived != 0,
-		CreatedAt: parseTime(pi.CreatedAt),
-		UpdatedAt: parseTime(pi.UpdatedAt),
+		ID:          pi.ID,
+		Number:      nullInt64ToIntPtr(pi.Number),
+		Title:       pi.Title,
+		Completed:   pi.Completed != 0,
+		CompletedAt: nullTimeToPointer(pi.CompletedAt),
+		Archived:    pi.Archived != 0,
+		CreatedAt:   parseTime(pi.CreatedAt),
+		UpdatedAt:   parseTime(pi.UpdatedAt),
 	}
 	if pi.Notes.Valid {
 		item.Notes = &pi.Notes.String
@@ -124,60 +77,36 @@ func toModelProjectItems(pis []generated.ProjectItem) []model.ProjectItem {
 	return out
 }
 
-func toModelProjectItemInProject(row generated.ListItemsByProjectRow) model.ProjectItemInProject {
-	item := model.ProjectItem{
-		ID:        row.ID,
-		Number:    nullInt64ToIntPtr(row.Number),
-		Title:     row.Title,
-		Completed: row.Completed != 0,
-		Archived:  row.Archived != 0,
-		CreatedAt: parseTime(row.CreatedAt),
-		UpdatedAt: parseTime(row.UpdatedAt),
-	}
-	if row.Notes.Valid {
-		item.Notes = &row.Notes.String
-	}
-	if row.Repo.Valid {
-		item.Repo = &row.Repo.String
-	}
+func toModelProjectItemInProject(row generated.ListItemsInProjectRow) model.ProjectItemInProject {
 	return model.ProjectItemInProject{
-		ProjectItem:  item,
+		ProjectItem: toModelProjectItem(generated.ProjectItem{
+			ID: row.ID, Number: row.Number, Title: row.Title, Notes: row.Notes, Repo: row.Repo,
+			Completed: row.Completed, CompletedAt: row.CompletedAt, Archived: row.Archived,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}),
 		Position:     int(row.MembershipPosition),
 		ProjectCount: int(row.ProjectCount),
 	}
 }
 
-func toModelProjectItemInProjectFromArchived(row generated.ListArchivedItemsRow) model.ProjectItemInProject {
-	item := model.ProjectItem{
-		ID:        row.ID,
-		Number:    nullInt64ToIntPtr(row.Number),
-		Title:     row.Title,
-		Completed: row.Completed != 0,
-		Archived:  row.Archived != 0,
-		CreatedAt: parseTime(row.CreatedAt),
-		UpdatedAt: parseTime(row.UpdatedAt),
-	}
-	if row.Notes.Valid {
-		item.Notes = &row.Notes.String
-	}
-	if row.Repo.Valid {
-		item.Repo = &row.Repo.String
-	}
-	return model.ProjectItemInProject{
-		ProjectItem: item,
-		Position:    int(row.MembershipPosition),
+func toModelProjectItemTask(t generated.ProjectItemTask) model.ProjectItemTask {
+	return model.ProjectItemTask{
+		ID:          t.ID,
+		ItemID:      t.ItemID,
+		Title:       t.Title,
+		Completed:   t.Completed != 0,
+		CompletedAt: nullTimeToPointer(t.CompletedAt),
+		Position:    int(t.Position),
+		CreatedAt:   parseTime(t.CreatedAt),
 	}
 }
 
-func toModelProjectItemTask(t generated.ProjectItemTask) model.ProjectItemTask {
-	return model.ProjectItemTask{
-		ID:        t.ID,
-		ItemID:    t.ItemID,
-		Title:     t.Title,
-		Completed: t.Completed != 0,
-		Position:  int(t.Position),
-		CreatedAt: parseTime(t.CreatedAt),
+func nullTimeToPointer(s sql.NullString) *time.Time {
+	if !s.Valid {
+		return nil
 	}
+	parsed := parseTime(s.String)
+	return &parsed
 }
 
 func toNullString(s *string) sql.NullString {

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:project:v1",
+  "title": "project",
+  "type": "object",
+  "description": "One project. A field added is not a new version, and a field reshaped or removed is.",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "description",
+    "kind",
+    "status",
+    "status_reason",
+    "closed_at",
+    "position",
+    "created_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "description": "One of the names in the project_kinds table."
+    },
+    "status": {
+      "type": "string",
+      "description": "One of the names in the project_statuses table."
+    },
+    "status_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "closed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "position": {
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

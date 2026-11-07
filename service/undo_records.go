@@ -26,6 +26,7 @@ type projectRecord struct {
 	ID           string
 	Name         string
 	Description  nullableText
+	Kind         string
 	Status       string
 	StatusReason nullableText
 	ClosedAt     nullableText
@@ -34,15 +35,16 @@ type projectRecord struct {
 }
 
 type itemRecord struct {
-	ID        string
-	Number    nullableInt
-	Title     string
-	Notes     nullableText
-	Repo      nullableText
-	Completed int64
-	Archived  int64
-	CreatedAt string
-	UpdatedAt string
+	ID          string
+	Number      nullableInt
+	Title       string
+	Notes       nullableText
+	Repo        nullableText
+	Completed   int64
+	CompletedAt nullableText
+	Archived    int64
+	CreatedAt   string
+	UpdatedAt   string
 }
 
 type membershipRecord struct {
@@ -51,18 +53,27 @@ type membershipRecord struct {
 	Position  int64
 }
 
+// itemPositionRecord is an item's place before a reorder, and every sibling's,
+// because the reorder renumbered the whole project. An older entry has no Siblings
+// and reverses the one position.
+type itemPositionRecord struct {
+	membershipRecord
+	Siblings []membershipRecord `json:",omitempty"`
+}
+
 type dependencyRecord struct {
 	ItemID      string
 	DependsOnID string
 }
 
 type taskRecord struct {
-	ID        string
-	ItemID    string
-	Title     string
-	Completed int64
-	Position  int64
-	CreatedAt string
+	ID          string
+	ItemID      string
+	Title       string
+	Completed   int64
+	CompletedAt nullableText
+	Position    int64
+	CreatedAt   string
 }
 
 func projectRecordOf(p model.Project) projectRecord {
@@ -70,6 +81,7 @@ func projectRecordOf(p model.Project) projectRecord {
 		ID:           p.ID,
 		Name:         p.Name,
 		Description:  textOf(p.Description),
+		Kind:         p.Kind,
 		Status:       p.Status,
 		StatusReason: textOf(p.StatusReason),
 		ClosedAt:     timeTextOf(p.ClosedAt),
@@ -78,11 +90,18 @@ func projectRecordOf(p model.Project) projectRecord {
 	}
 }
 
+// toModel reads an older entry, written before projects had a kind, as the kind a
+// project takes when nothing names one.
 func (r projectRecord) toModel() model.Project {
+	kind := r.Kind
+	if kind == "" {
+		kind = model.KindLife
+	}
 	return model.Project{
 		ID:           r.ID,
 		Name:         r.Name,
 		Description:  r.Description.pointer(),
+		Kind:         kind,
 		Status:       r.Status,
 		StatusReason: r.StatusReason.pointer(),
 		ClosedAt:     r.ClosedAt.timePointer(),
@@ -93,14 +112,15 @@ func (r projectRecord) toModel() model.Project {
 
 func itemRecordOf(i model.ProjectItem) itemRecord {
 	record := itemRecord{
-		ID:        i.ID,
-		Title:     i.Title,
-		Notes:     textOf(i.Notes),
-		Repo:      textOf(i.Repo),
-		Completed: intOf(i.Completed),
-		Archived:  intOf(i.Archived),
-		CreatedAt: i.CreatedAt.Format(time.RFC3339Nano),
-		UpdatedAt: i.UpdatedAt.Format(time.RFC3339Nano),
+		ID:          i.ID,
+		Title:       i.Title,
+		Notes:       textOf(i.Notes),
+		Repo:        textOf(i.Repo),
+		Completed:   intOf(i.Completed),
+		CompletedAt: timeTextOf(i.CompletedAt),
+		Archived:    intOf(i.Archived),
+		CreatedAt:   i.CreatedAt.Format(time.RFC3339Nano),
+		UpdatedAt:   i.UpdatedAt.Format(time.RFC3339Nano),
 	}
 	if i.Number != nil {
 		record.Number = nullableInt{Int64: int64(*i.Number), Valid: true}
@@ -110,14 +130,15 @@ func itemRecordOf(i model.ProjectItem) itemRecord {
 
 func (r itemRecord) toModel() model.ProjectItem {
 	item := model.ProjectItem{
-		ID:        r.ID,
-		Title:     r.Title,
-		Notes:     r.Notes.pointer(),
-		Repo:      r.Repo.pointer(),
-		Completed: r.Completed != 0,
-		Archived:  r.Archived != 0,
-		CreatedAt: parseRecordTime(r.CreatedAt),
-		UpdatedAt: parseRecordTime(r.UpdatedAt),
+		ID:          r.ID,
+		Title:       r.Title,
+		Notes:       r.Notes.pointer(),
+		Repo:        r.Repo.pointer(),
+		Completed:   r.Completed != 0,
+		CompletedAt: r.CompletedAt.timePointer(),
+		Archived:    r.Archived != 0,
+		CreatedAt:   parseRecordTime(r.CreatedAt),
+		UpdatedAt:   parseRecordTime(r.UpdatedAt),
 	}
 	if r.Number.Valid {
 		number := int(r.Number.Int64)
@@ -136,23 +157,25 @@ func (r membershipRecord) toModel() model.Membership {
 
 func taskRecordOf(t model.ProjectItemTask) taskRecord {
 	return taskRecord{
-		ID:        t.ID,
-		ItemID:    t.ItemID,
-		Title:     t.Title,
-		Completed: intOf(t.Completed),
-		Position:  int64(t.Position),
-		CreatedAt: t.CreatedAt.Format(time.RFC3339Nano),
+		ID:          t.ID,
+		ItemID:      t.ItemID,
+		Title:       t.Title,
+		Completed:   intOf(t.Completed),
+		CompletedAt: timeTextOf(t.CompletedAt),
+		Position:    int64(t.Position),
+		CreatedAt:   t.CreatedAt.Format(time.RFC3339Nano),
 	}
 }
 
 func (r taskRecord) toModel() model.ProjectItemTask {
 	return model.ProjectItemTask{
-		ID:        r.ID,
-		ItemID:    r.ItemID,
-		Title:     r.Title,
-		Completed: r.Completed != 0,
-		Position:  int(r.Position),
-		CreatedAt: parseRecordTime(r.CreatedAt),
+		ID:          r.ID,
+		ItemID:      r.ItemID,
+		Title:       r.Title,
+		Completed:   r.Completed != 0,
+		CompletedAt: r.CompletedAt.timePointer(),
+		Position:    int(r.Position),
+		CreatedAt:   parseRecordTime(r.CreatedAt),
 	}
 }
 

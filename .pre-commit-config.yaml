@@ -40,7 +40,7 @@ repos:
     hooks:
       # --unsafe parses instead of safe_load'ing. Every mkdocs-material repo
       # carries `!!python/name:material.extensions.emoji.twemoji`, which
-      # safe_load can never construct — five repos fail this hook without it.
+      # safe_load can never construct — a repo carrying that tag fails this hook without it.
       # The alternative is excluding mkdocs.yml, which checks strictly less.
       - id: check-yaml
         args: [--unsafe]
@@ -114,8 +114,8 @@ repos:
   # The guard distinguishes "this repo has no tests" from "this repo has tests
   # and bats is missing". Only the first is allowed to pass: a bare `bats
   # tests/` under language: system would be the second hook here to report
-  # success because its tool was absent. The first hid seven shellcheck
-  # findings behind a green run.
+  # success because its tool was absent. The first hid shellcheck findings
+  # behind a green run.
   #
   # The unset clears every variable git reads to find a repository. A commit
   # from a linked worktree exports GIT_DIR and GIT_INDEX_FILE into each hook,
@@ -286,6 +286,35 @@ repos:
         files: ^store/sqlite/.*\.(sql|yaml)$
         pass_filenames: false
         stages: [pre-commit]
+      - id: sqlc-diff-postgres
+        name: sqlc generated code for Postgres is current
+        entry: bash -c 'cd store/postgres && go tool sqlc diff'
+        language: system
+        files: ^store/postgres/.*\.(sql|yaml)$
+        pass_filenames: false
+        stages: [pre-commit]
+
+# generated:docker - Docker
+  #
+  # hadolint-py installs hadolint's own release binary through pip and checks
+  # its sha256, so the hook needs no Docker daemon and no system package. Its
+  # tag is the hadolint release it installs.
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.14.0
+    hooks:
+      # DL3018 is DL3008's apk counterpart — the same "pin every package
+      # version" rule, for an Alpine base rather than a Debian one. Ignoring one
+      # and enforcing the other only means the Debian images pass and the Alpine
+      # ones do not; pinning a package version in either breaks on the next base
+      # image bump.
+      #
+      # The exclude is not about rules. hadolint matches on the Dockerfile name,
+      # and BuildKit's per-file ignore list is named <dockerfile>.dockerignore,
+      # so a repo using one gets a file whose name hadolint reads as a
+      # Dockerfile. It then parses an ignore list and fails on its first glob.
+      - id: hadolint
+        args: ["--ignore", "DL3008", "--ignore", "DL3018", "--ignore", "DL4006"]
+        exclude: '\.dockerignore$'
 
 # generated:github-actions - GitHub Actions
   - repo: https://github.com/jdx/jactionlint
@@ -302,3 +331,17 @@ repos:
     hooks:
       - id: sqlfluff-lint
         args: [--dialect, "sqlite", --config, .sqlfluff]
+
+# > custom:after:sql - Postgres SQL lints in its own dialect
+  # .sqlfluffignore keeps the generated SQLite hook off store/postgres. This one
+  # reads only that directory, in the dialect it is written in. It is a local hook so
+  # its id differs from the generated hook's, which a second hook of that id would
+  # replace.
+  - repo: local
+    hooks:
+      - id: sqlfluff-lint-postgres
+        name: sqlfluff-lint (Postgres)
+        language: python
+        additional_dependencies: ["sqlfluff==4.2.2"]
+        entry: sqlfluff lint --dialect postgres --config .sqlfluff --disregard-sqlfluffignores --disable-progress-bar
+        files: ^store/postgres/.*\.sql$

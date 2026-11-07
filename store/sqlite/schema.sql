@@ -1,5 +1,15 @@
 -- Schema definition for sqlc
 
+-- Lookup tables. lookup_rows.sql holds their rows, and
+-- TestEachStoreHoldsTheKnownKindsAndStatuses holds those to model's lists.
+CREATE TABLE project_kinds (
+    name TEXT PRIMARY KEY
+);
+
+CREATE TABLE project_statuses (
+    name TEXT PRIMARY KEY
+);
+
 CREATE TABLE projects (
     id TEXT PRIMARY KEY,
     -- Unique among ACTIVE projects only, via the partial index in indexes.sql.
@@ -8,11 +18,13 @@ CREATE TABLE projects (
     -- that shared one.
     name TEXT NOT NULL,
     description TEXT,
-    -- active | done | dropped. A project is a finite effort, so completing it
-    -- is what hides it — there is no separate archived flag the way items have
-    -- one. `dropped` requires a reason, which is what stops it reading as
-    -- deferred. No CHECK against a lookup table: the API validates the value
-    -- and this database mirrors what it is told.
+    -- A name in project_kinds, checked by the rule that writes it.
+    kind TEXT NOT NULL DEFAULT 'life',
+    -- active | someday | completed | dropped. A project is a finite effort, so
+    -- completing it is what hides it — there is no separate archived flag the way
+    -- items have one. `dropped` requires a reason, which is what stops it reading
+    -- as deferred. A name in project_statuses, checked by the rule that writes it
+    -- rather than by a CHECK, so a pull mirrors what a server tells it.
     status TEXT NOT NULL DEFAULT 'active',
     status_reason TEXT,
     closed_at TEXT,
@@ -22,10 +34,10 @@ CREATE TABLE projects (
 
 CREATE TABLE project_items (
     id TEXT PRIMARY KEY,
-    -- The handle: short enough to type, unlike the UUID key. Assigned by the
-    -- ichrisbirch API when sync is on, and locally when it is off and this
-    -- database is the only authority. Null in the window between creating an
-    -- item offline and the push that earns it a number.
+    -- The handle: short enough to type, unlike the UUID key. Assigned by the API
+    -- when sync is on, and locally when it is off and this database is the only
+    -- authority. Null in the window between creating an item offline and the push
+    -- that earns it a number.
     number INTEGER,
     title TEXT NOT NULL,
     notes TEXT,
@@ -33,6 +45,9 @@ CREATE TABLE project_items (
     -- all — home projects, things to sell, errands.
     repo TEXT,
     completed INTEGER NOT NULL DEFAULT 0,
+    -- Null where the completion time is unknown: never finished, finished before
+    -- this column existed, or finished on a server a pull mirrors.
+    completed_at TEXT,
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -57,6 +72,7 @@ CREATE TABLE project_item_tasks (
     item_id TEXT NOT NULL REFERENCES project_items(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     completed INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT,
     position INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

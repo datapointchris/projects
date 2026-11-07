@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -804,13 +806,51 @@ func searchNavigateCmd(b backend.Backend, itemID string) tea.Cmd {
 	}
 }
 
-func reorderItemCmd(b backend.Backend, itemID, projectID string, newPos int) tea.Cmd {
+// reorderItemCmd lands an item just below above, or first with no row above it. A
+// position counts every member of the project, so the archived rows this list hides
+// count toward it.
+func reorderItemCmd(b backend.Backend, itemID, projectID string, above *model.ProjectItemInProject) tea.Cmd {
 	return func() tea.Msg {
-		if err := b.ReorderItem(itemID, projectID, newPos); err != nil {
+		position := 0
+		if above != nil {
+			unarchived, err := b.ListItemsByProject(projectID)
+			if err != nil {
+				return errMsg{err}
+			}
+			archived, err := b.ListArchived(projectID)
+			if err != nil {
+				return errMsg{err}
+			}
+			position = positionBelow(slices.Concat(unarchived, archived), itemID, above.ID)
+		}
+		if err := b.ReorderItem(itemID, projectID, position); err != nil {
 			return errMsg{err}
 		}
 		return itemReorderedMsg{}
 	}
+}
+
+// positionBelow counts the members ahead of a drop, in the order a store lists them,
+// because a row tied on position with aboveID can sit on either side of it.
+func positionBelow(members []model.ProjectItemInProject, itemID, aboveID string) int {
+	slices.SortStableFunc(members, func(a, b model.ProjectItemInProject) int {
+		return cmp.Or(
+			cmp.Compare(a.Position, b.Position),
+			a.CreatedAt.Compare(b.CreatedAt),
+			strings.Compare(a.ID, b.ID),
+		)
+	})
+	position := 0
+	for _, member := range members {
+		if member.ID == itemID {
+			continue
+		}
+		position++
+		if member.ID == aboveID {
+			break
+		}
+	}
+	return position
 }
 
 func reorderProjectCmd(b backend.Backend, projectID string, newPos int) tea.Cmd {
@@ -2025,7 +2065,11 @@ func (m *App) handleMoveKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.appMode = modeNormal
 		item := m.items[m.moveItemPos]
 		projectID := m.projects[m.projectCursor].ID
-		return m, reorderItemCmd(m.backend, item.ID, projectID, m.moveItemPos)
+		var above *model.ProjectItemInProject
+		if m.moveItemPos > 0 {
+			above = &m.items[m.moveItemPos-1]
+		}
+		return m, reorderItemCmd(m.backend, item.ID, projectID, above)
 
 	case "esc":
 		m.appMode = modeNormal
@@ -2725,13 +2769,13 @@ func (m *App) projectPaneWidth() int {
 	// Account for "All" entry
 	totalItems, totalDone := 0, 0
 	for _, p := range m.projects {
-		totalItems += p.ItemCount
+		totalItems += p.UnarchivedCount()
 		totalDone += p.CompletedCount
 	}
 	maxName := lipgloss.Width("> All ") + projectCountsWidth(totalItems-totalDone, totalDone)
 	for _, p := range m.projects {
 		// "> name ○open ✓done" — 2 prefix + name + space + counts
-		w := lipgloss.Width("> "+m.projectRowLabel(p)+" ") + projectCountsWidth(p.OpenCount(), p.CompletedCount)
+		w := lipgloss.Width("> "+m.projectRowLabel(p)+" ") + projectCountsWidth(p.OpenCount, p.CompletedCount)
 		if w > maxName {
 			maxName = w
 		}
@@ -2800,7 +2844,7 @@ func (m *App) renderProjectPane(width, height int) string {
 			// "All" entry
 			totalItems, totalDone := 0, 0
 			for _, p := range m.projects {
-				totalItems += p.ItemCount
+				totalItems += p.UnarchivedCount()
 				totalDone += p.CompletedCount
 			}
 			isCursor := m.showingAll
@@ -2845,7 +2889,7 @@ func (m *App) renderProjectPane(width, height int) string {
 			case isSelected:
 				style = projectMultiSelectedStyle
 			}
-			lines = append(lines, row(prefix, name, p.OpenCount(), p.CompletedCount, style))
+			lines = append(lines, row(prefix, name, p.OpenCount, p.CompletedCount, style))
 		}
 	}
 

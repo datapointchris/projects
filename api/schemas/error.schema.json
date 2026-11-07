@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:error:v1",
+  "title": "error",
+  "type": "object",
+  "description": "Every refusal. message always says why in one string. errors lists each refused input on a validation 422. A field added is not a new version, and a field reshaped or removed is.",
+  "required": [
+    "error",
+    "message"
+  ],
+  "properties": {
+    "error": {
+      "type": "string",
+      "description": "The status's standard phrase."
+    },
+    "message": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string",
+      "description": "A stable name for a refusal from authentication."
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "loc",
+          "msg"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "loc": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "input": {},
+          "ctx": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
