@@ -1,4 +1,4 @@
-package backend
+package service
 
 import (
 	"context"
@@ -9,14 +9,15 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/graph"
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/repos"
 	"github.com/datapointchris/projects/store/sqlite/generated"
 )
 
-// LocalBackend provides direct SQLite access for local mode.
-type LocalBackend struct {
+// Service holds every rule about projects, items, memberships, dependencies, tasks and undo.
+type Service struct {
 	db *sql.DB
 	q  *generated.Queries
 	// assignsItemNumbers is set when nothing upstream will hand one out, which
@@ -27,8 +28,8 @@ type LocalBackend struct {
 	repoRegistryPath string
 }
 
-// LocalOption configures a LocalBackend at construction.
-type LocalOption func(*LocalBackend)
+// Option configures a Service at construction.
+type Option func(*Service)
 
 // AssigningItemNumbers makes this database the authority for item numbers.
 //
@@ -37,8 +38,8 @@ type LocalOption func(*LocalBackend)
 // will ever number. With sync on the server assigns instead, because a number
 // guessed locally and a number assigned upstream would disagree and the handle
 // would change under a user who had already written it down.
-func AssigningItemNumbers() LocalOption {
-	return func(b *LocalBackend) { b.assignsItemNumbers = true }
+func AssigningItemNumbers() Option {
+	return func(s *Service) { s.assignsItemNumbers = true }
 }
 
 // RefusingRepoNames bans naming a project after a repo, reading the registry at
@@ -52,23 +53,23 @@ func AssigningItemNumbers() LocalOption {
 // It lives on the backend because every create and rename passes through here,
 // whichever surface asked for it. Loaded lazily, so a session that never names
 // a project does not pay to read the registry.
-func RefusingRepoNames(path string) LocalOption {
-	return func(b *LocalBackend) { b.repoRegistryPath = path }
+func RefusingRepoNames(path string) Option {
+	return func(s *Service) { s.repoRegistryPath = path }
 }
 
-// NewLocalBackend creates a backend that operates directly on a local SQLite database.
-func NewLocalBackend(db *sql.DB, opts ...LocalOption) *LocalBackend {
-	b := &LocalBackend{db: db, q: generated.New(db)}
+// New creates a service over a local SQLite database.
+func New(db *sql.DB, opts ...Option) *Service {
+	s := &Service{db: db, q: generated.New(db)}
 	for _, opt := range opts {
-		opt(b)
+		opt(s)
 	}
-	return b
+	return s
 }
 
-// Compile-time check that LocalBackend implements Backend.
-var _ Backend = (*LocalBackend)(nil)
+// Compile-time check that Service implements Backend.
+var _ backend.Backend = (*Service)(nil)
 
-func (b *LocalBackend) ctx() context.Context {
+func (s *Service) ctx() context.Context {
 	return context.Background()
 }
 
@@ -81,11 +82,11 @@ func newID() string {
 // refuseRepoName rejects a project name the repo registry knows. A missing
 // registry bans nothing: refusing to create a project on a machine without one
 // is worse than a project named after a repo.
-func (b *LocalBackend) refuseRepoName(name string) error {
-	if b.repoRegistryPath == "" {
+func (s *Service) refuseRepoName(name string) error {
+	if s.repoRegistryPath == "" {
 		return nil
 	}
-	registry, err := repos.Load(b.repoRegistryPath)
+	registry, err := repos.Load(s.repoRegistryPath)
 	if err != nil {
 		return err
 	}
@@ -96,8 +97,8 @@ func (b *LocalBackend) refuseRepoName(name string) error {
 }
 
 // ListProjectsByStatus takes a status name or model.StatusAll.
-func (b *LocalBackend) ListProjectsByStatus(status string) ([]model.ProjectWithItemCount, error) {
-	rows, err := b.q.ListProjectsWithItemCount(b.ctx(), status)
+func (s *Service) ListProjectsByStatus(status string) ([]model.ProjectWithItemCount, error) {
+	rows, err := s.q.ListProjectsWithItemCount(s.ctx(), status)
 	if err != nil {
 		return nil, fmt.Errorf("listing projects: %w", err)
 	}
@@ -108,8 +109,8 @@ func (b *LocalBackend) ListProjectsByStatus(status string) ([]model.ProjectWithI
 	return out, nil
 }
 
-func (b *LocalBackend) GetProject(id string) (*model.ProjectWithItemCount, error) {
-	row, err := b.q.GetProjectWithItemCount(b.ctx(), id)
+func (s *Service) GetProject(id string) (*model.ProjectWithItemCount, error) {
+	row, err := s.q.GetProjectWithItemCount(s.ctx(), id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
@@ -120,17 +121,17 @@ func (b *LocalBackend) GetProject(id string) (*model.ProjectWithItemCount, error
 	return &result, nil
 }
 
-func (b *LocalBackend) CreateProject(input model.CreateProject) (*model.Project, error) {
-	ctx := b.ctx()
-	if err := b.refuseRepoName(input.Name); err != nil {
+func (s *Service) CreateProject(input model.CreateProject) (*model.Project, error) {
+	ctx := s.ctx()
+	if err := s.refuseRepoName(input.Name); err != nil {
 		return nil, err
 	}
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning create project transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	p, err := qtx.CreateProject(ctx, generated.CreateProjectParams{
 		ID:          newID(),
@@ -143,7 +144,7 @@ func (b *LocalBackend) CreateProject(input model.CreateProject) (*model.Project,
 		}
 		return nil, fmt.Errorf("creating project: %w", err)
 	}
-	if err := b.logUndo(qtx, "create", "project", p.ID, nil); err != nil {
+	if err := s.logUndo(qtx, "create", "project", p.ID, nil); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -153,10 +154,10 @@ func (b *LocalBackend) CreateProject(input model.CreateProject) (*model.Project,
 	return &result, nil
 }
 
-func (b *LocalBackend) UpdateProject(id string, input model.UpdateProject) (*model.Project, error) {
-	ctx := b.ctx()
+func (s *Service) UpdateProject(id string, input model.UpdateProject) (*model.Project, error) {
+	ctx := s.ctx()
 
-	current, err := b.q.GetProject(ctx, id)
+	current, err := s.q.GetProject(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
@@ -172,7 +173,7 @@ func (b *LocalBackend) UpdateProject(id string, input model.UpdateProject) (*mod
 	}
 	if input.Name != nil {
 		// Checked on rename too: a ban one `edit` walks around is decoration.
-		if err := b.refuseRepoName(*input.Name); err != nil {
+		if err := s.refuseRepoName(*input.Name); err != nil {
 			return nil, err
 		}
 		params.Name = *input.Name
@@ -184,18 +185,18 @@ func (b *LocalBackend) UpdateProject(id string, input model.UpdateProject) (*mod
 		params.Position = int64(*input.Position)
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning update project transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	p, err := qtx.UpdateProject(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("updating project: %w", err)
 	}
-	if err := b.logUndo(qtx, "update", "project", id, current); err != nil {
+	if err := s.logUndo(qtx, "update", "project", id, current); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -210,13 +211,13 @@ func (b *LocalBackend) UpdateProject(id string, input model.UpdateProject) (*mod
 // ignored when reopening — the closing timestamp and the reason are
 // consequences of the transition, derived in the statement rather than handed
 // in, so an active project can never carry either.
-func (b *LocalBackend) SetProjectStatus(id, status string, reason *string) (*model.Project, error) {
-	ctx := b.ctx()
+func (s *Service) SetProjectStatus(id, status string, reason *string) (*model.Project, error) {
+	ctx := s.ctx()
 	if status == model.StatusDropped && (reason == nil || strings.TrimSpace(*reason) == "") {
 		return nil, model.ErrDropReasonRequired
 	}
 
-	current, err := b.q.GetProject(ctx, id)
+	current, err := s.q.GetProject(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
@@ -224,12 +225,12 @@ func (b *LocalBackend) SetProjectStatus(id, status string, reason *string) (*mod
 		return nil, fmt.Errorf("getting project for status change: %w", err)
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning project status transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	p, err := qtx.SetProjectStatus(ctx, generated.SetProjectStatusParams{
 		NewStatus: status,
@@ -244,7 +245,7 @@ func (b *LocalBackend) SetProjectStatus(id, status string, reason *string) (*mod
 		}
 		return nil, fmt.Errorf("setting project status: %w", err)
 	}
-	if err := b.logUndo(qtx, "update", "project", id, current); err != nil {
+	if err := s.logUndo(qtx, "update", "project", id, current); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -254,24 +255,24 @@ func (b *LocalBackend) SetProjectStatus(id, status string, reason *string) (*mod
 	return &result, nil
 }
 
-func (b *LocalBackend) DeleteProject(id string) error {
-	ctx := b.ctx()
-	snapshot, err := captureProject(ctx, b.q, id)
+func (s *Service) DeleteProject(id string) error {
+	ctx := s.ctx()
+	snapshot, err := captureProject(ctx, s.q, id)
 	if err != nil {
 		return err
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning delete project transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	if err := qtx.DeleteProject(ctx, id); err != nil {
 		return fmt.Errorf("deleting project: %w", err)
 	}
-	if err := b.logUndo(qtx, "delete", "project", id, snapshot); err != nil {
+	if err := s.logUndo(qtx, "delete", "project", id, snapshot); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -280,9 +281,9 @@ func (b *LocalBackend) DeleteProject(id string) error {
 	return nil
 }
 
-func (b *LocalBackend) ReorderProject(projectID string, newPosition int) error {
-	ctx := b.ctx()
-	current, err := b.q.GetProject(ctx, projectID)
+func (s *Service) ReorderProject(projectID string, newPosition int) error {
+	ctx := s.ctx()
+	current, err := s.q.GetProject(ctx, projectID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("project %q: %w", projectID, model.ErrNotFound)
@@ -290,29 +291,29 @@ func (b *LocalBackend) ReorderProject(projectID string, newPosition int) error {
 		return fmt.Errorf("getting project for reorder: %w", err)
 	}
 
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.UpdateProjectPosition(ctx, generated.UpdateProjectPositionParams{
 			ID:       projectID,
 			Position: int64(newPosition),
 		}); err != nil {
 			return fmt.Errorf("reordering project: %w", err)
 		}
-		return b.logUndo(qtx, "update", "project_position", projectID, current)
+		return s.logUndo(qtx, "update", "project_position", projectID, current)
 	})
 }
 
 // --- Items ---
 
-func (b *LocalBackend) ListAllItemsIncludingArchived() ([]model.ProjectItem, error) {
-	items, err := b.q.ListAllItemsRaw(b.ctx())
+func (s *Service) ListAllItemsIncludingArchived() ([]model.ProjectItem, error) {
+	items, err := s.q.ListAllItemsRaw(s.ctx())
 	if err != nil {
 		return nil, fmt.Errorf("listing all items: %w", err)
 	}
 	return toModelProjectItems(items), nil
 }
 
-func (b *LocalBackend) ListItemsByProject(projectID string) ([]model.ProjectItemInProject, error) {
-	rows, err := b.q.ListItemsByProject(b.ctx(), projectID)
+func (s *Service) ListItemsByProject(projectID string) ([]model.ProjectItemInProject, error) {
+	rows, err := s.q.ListItemsByProject(s.ctx(), projectID)
 	if err != nil {
 		return nil, fmt.Errorf("listing items by project: %w", err)
 	}
@@ -323,8 +324,8 @@ func (b *LocalBackend) ListItemsByProject(projectID string) ([]model.ProjectItem
 	return out, nil
 }
 
-func (b *LocalBackend) GetItem(id string) (*model.ProjectItemDetail, error) {
-	pi, err := b.q.GetItem(b.ctx(), id)
+func (s *Service) GetItem(id string) (*model.ProjectItemDetail, error) {
+	pi, err := s.q.GetItem(s.ctx(), id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("item %q: %w", id, model.ErrNotFound)
@@ -333,12 +334,12 @@ func (b *LocalBackend) GetItem(id string) (*model.ProjectItemDetail, error) {
 	}
 	result := toModelProjectItem(pi)
 
-	ps, err := b.q.GetItemProjects(b.ctx(), id)
+	ps, err := s.q.GetItemProjects(s.ctx(), id)
 	if err != nil {
 		return nil, fmt.Errorf("getting item projects: %w", err)
 	}
 
-	depIDs, err := b.q.GetDependencyIDs(b.ctx(), id)
+	depIDs, err := s.q.GetDependencyIDs(s.ctx(), id)
 	if err != nil {
 		return nil, fmt.Errorf("getting dependency IDs: %w", err)
 	}
@@ -353,22 +354,22 @@ func (b *LocalBackend) GetItem(id string) (*model.ProjectItemDetail, error) {
 	}, nil
 }
 
-func (b *LocalBackend) CreateItem(input model.CreateProjectItem) (*model.ProjectItemDetail, error) {
+func (s *Service) CreateItem(input model.CreateProjectItem) (*model.ProjectItemDetail, error) {
 	if len(input.ProjectIDs) == 0 {
 		return nil, model.ErrLastProject
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	qtx := b.q.WithTx(tx)
-	ctx := b.ctx()
+	qtx := s.q.WithTx(tx)
+	ctx := s.ctx()
 
 	number := sql.NullInt64{}
-	if b.assignsItemNumbers {
+	if s.assignsItemNumbers {
 		next, err := qtx.NextItemNumber(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("allocating item number: %w", err)
@@ -398,7 +399,7 @@ func (b *LocalBackend) CreateItem(input model.CreateProjectItem) (*model.Project
 		}
 	}
 
-	if err := b.logUndo(qtx, "create", "item", pi.ID, nil); err != nil {
+	if err := s.logUndo(qtx, "create", "item", pi.ID, nil); err != nil {
 		return nil, err
 	}
 
@@ -406,13 +407,13 @@ func (b *LocalBackend) CreateItem(input model.CreateProjectItem) (*model.Project
 		return nil, fmt.Errorf("committing transaction: %w", err)
 	}
 
-	return b.GetItem(pi.ID)
+	return s.GetItem(pi.ID)
 }
 
-func (b *LocalBackend) UpdateItem(id string, input model.UpdateProjectItem) (*model.ProjectItem, error) {
-	ctx := b.ctx()
+func (s *Service) UpdateItem(id string, input model.UpdateProjectItem) (*model.ProjectItem, error) {
+	ctx := s.ctx()
 
-	current, err := b.q.GetItem(ctx, id)
+	current, err := s.q.GetItem(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("item %q: %w", id, model.ErrNotFound)
@@ -420,13 +421,13 @@ func (b *LocalBackend) UpdateItem(id string, input model.UpdateProjectItem) (*mo
 		return nil, fmt.Errorf("getting item for update: %w", err)
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	params := generated.UpdateItemParams{
 		Title:     current.Title,
@@ -457,7 +458,7 @@ func (b *LocalBackend) UpdateItem(id string, input model.UpdateProjectItem) (*mo
 		return nil, fmt.Errorf("updating item: %w", err)
 	}
 
-	if err := b.logUndo(qtx, "update", "item", id, current); err != nil {
+	if err := s.logUndo(qtx, "update", "item", id, current); err != nil {
 		return nil, err
 	}
 
@@ -469,22 +470,22 @@ func (b *LocalBackend) UpdateItem(id string, input model.UpdateProjectItem) (*mo
 	return &result, nil
 }
 
-func (b *LocalBackend) DeleteItem(id string) error {
-	ctx := b.ctx()
-	snapshot, err := captureItem(ctx, b.q, id)
+func (s *Service) DeleteItem(id string) error {
+	ctx := s.ctx()
+	snapshot, err := captureItem(ctx, s.q, id)
 	if err != nil {
 		return err
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
-	if err := b.logUndo(qtx, "delete", "item", id, snapshot); err != nil {
+	if err := s.logUndo(qtx, "delete", "item", id, snapshot); err != nil {
 		return err
 	}
 
@@ -495,9 +496,9 @@ func (b *LocalBackend) DeleteItem(id string) error {
 	return tx.Commit()
 }
 
-func (b *LocalBackend) ReorderItem(itemID, projectID string, newPosition int) error {
-	ctx := b.ctx()
-	current, err := b.q.GetMembership(ctx, generated.GetMembershipParams{
+func (s *Service) ReorderItem(itemID, projectID string, newPosition int) error {
+	ctx := s.ctx()
+	current, err := s.q.GetMembership(ctx, generated.GetMembershipParams{
 		ItemID:    itemID,
 		ProjectID: projectID,
 	})
@@ -510,7 +511,7 @@ func (b *LocalBackend) ReorderItem(itemID, projectID string, newPosition int) er
 		return fmt.Errorf("getting membership for reorder: %w", err)
 	}
 
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.UpdateItemPosition(ctx, generated.UpdateItemPositionParams{
 			ItemID:    itemID,
 			ProjectID: projectID,
@@ -518,15 +519,15 @@ func (b *LocalBackend) ReorderItem(itemID, projectID string, newPosition int) er
 		}); err != nil {
 			return fmt.Errorf("reordering item: %w", err)
 		}
-		return b.logUndo(qtx, "update", "item_position", itemID, current)
+		return s.logUndo(qtx, "update", "item_position", itemID, current)
 	})
 }
 
 // --- Multi-project membership ---
 
-func (b *LocalBackend) AddToProject(itemID, projectID string) error {
-	ctx := b.ctx()
-	return b.inTx(func(qtx *generated.Queries) error {
+func (s *Service) AddToProject(itemID, projectID string) error {
+	ctx := s.ctx()
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.AddItemToProject(ctx, generated.AddItemToProjectParams{
 			ItemID:      itemID,
 			ProjectID:   projectID,
@@ -534,16 +535,16 @@ func (b *LocalBackend) AddToProject(itemID, projectID string) error {
 		}); err != nil {
 			return fmt.Errorf("adding item to project: %w", err)
 		}
-		return b.logUndo(qtx, "create", "membership", itemID, generated.ProjectItemMembership{
+		return s.logUndo(qtx, "create", "membership", itemID, generated.ProjectItemMembership{
 			ItemID:    itemID,
 			ProjectID: projectID,
 		})
 	})
 }
 
-func (b *LocalBackend) RemoveFromProject(itemID, projectID string) error {
-	ctx := b.ctx()
-	projects, err := b.q.GetItemProjects(ctx, itemID)
+func (s *Service) RemoveFromProject(itemID, projectID string) error {
+	ctx := s.ctx()
+	projects, err := s.q.GetItemProjects(ctx, itemID)
 	if err != nil {
 		return fmt.Errorf("checking project count: %w", err)
 	}
@@ -551,7 +552,7 @@ func (b *LocalBackend) RemoveFromProject(itemID, projectID string) error {
 		return model.ErrLastProject
 	}
 
-	current, err := b.q.GetMembership(ctx, generated.GetMembershipParams{
+	current, err := s.q.GetMembership(ctx, generated.GetMembershipParams{
 		ItemID:    itemID,
 		ProjectID: projectID,
 	})
@@ -562,19 +563,19 @@ func (b *LocalBackend) RemoveFromProject(itemID, projectID string) error {
 		return fmt.Errorf("getting membership for remove: %w", err)
 	}
 
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.RemoveItemFromProject(ctx, generated.RemoveItemFromProjectParams{
 			ItemID:    itemID,
 			ProjectID: projectID,
 		}); err != nil {
 			return fmt.Errorf("removing item from project: %w", err)
 		}
-		return b.logUndo(qtx, "delete", "membership", itemID, current)
+		return s.logUndo(qtx, "delete", "membership", itemID, current)
 	})
 }
 
-func (b *LocalBackend) GetItemProjects(itemID string) ([]model.Project, error) {
-	ps, err := b.q.GetItemProjects(b.ctx(), itemID)
+func (s *Service) GetItemProjects(itemID string) ([]model.Project, error) {
+	ps, err := s.q.GetItemProjects(s.ctx(), itemID)
 	if err != nil {
 		return nil, fmt.Errorf("getting item projects: %w", err)
 	}
@@ -583,10 +584,10 @@ func (b *LocalBackend) GetItemProjects(itemID string) ([]model.Project, error) {
 
 // --- Dependencies ---
 
-func (b *LocalBackend) AddDependency(itemID, dependsOn string) error {
-	ctx := b.ctx()
+func (s *Service) AddDependency(itemID, dependsOn string) error {
+	ctx := s.ctx()
 
-	deps, err := b.q.GetAllDependencies(ctx)
+	deps, err := s.q.GetAllDependencies(ctx)
 	if err != nil {
 		return fmt.Errorf("getting dependencies for cycle check: %w", err)
 	}
@@ -601,35 +602,35 @@ func (b *LocalBackend) AddDependency(itemID, dependsOn string) error {
 	}
 
 	edge := generated.ProjectItemDependency{ItemID: itemID, DependsOnID: dependsOn}
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.AddDependency(ctx, generated.AddDependencyParams(edge)); err != nil {
 			return fmt.Errorf("adding dependency: %w", err)
 		}
-		return b.logUndo(qtx, "create", "dependency", itemID, edge)
+		return s.logUndo(qtx, "create", "dependency", itemID, edge)
 	})
 }
 
-func (b *LocalBackend) RemoveDependency(itemID, dependsOn string) error {
-	ctx := b.ctx()
+func (s *Service) RemoveDependency(itemID, dependsOn string) error {
+	ctx := s.ctx()
 	edge := generated.ProjectItemDependency{ItemID: itemID, DependsOnID: dependsOn}
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.RemoveDependency(ctx, generated.RemoveDependencyParams(edge)); err != nil {
 			return fmt.Errorf("removing dependency: %w", err)
 		}
-		return b.logUndo(qtx, "delete", "dependency", itemID, edge)
+		return s.logUndo(qtx, "delete", "dependency", itemID, edge)
 	})
 }
 
-func (b *LocalBackend) GetBlockers(itemID string) ([]model.ProjectItem, error) {
-	items, err := b.q.GetBlockers(b.ctx(), itemID)
+func (s *Service) GetBlockers(itemID string) ([]model.ProjectItem, error) {
+	items, err := s.q.GetBlockers(s.ctx(), itemID)
 	if err != nil {
 		return nil, fmt.Errorf("getting blockers: %w", err)
 	}
 	return toModelProjectItems(items), nil
 }
 
-func (b *LocalBackend) ListDependencies() ([]model.Dependency, error) {
-	rows, err := b.q.GetAllDependencies(b.ctx())
+func (s *Service) ListDependencies() ([]model.Dependency, error) {
+	rows, err := s.q.GetAllDependencies(s.ctx())
 	if err != nil {
 		return nil, fmt.Errorf("listing dependencies: %w", err)
 	}
@@ -640,8 +641,8 @@ func (b *LocalBackend) ListDependencies() ([]model.Dependency, error) {
 	return out, nil
 }
 
-func (b *LocalBackend) ListMemberships() ([]model.Membership, error) {
-	rows, err := b.q.ListAllMemberships(b.ctx())
+func (s *Service) ListMemberships() ([]model.Membership, error) {
+	rows, err := s.q.ListAllMemberships(s.ctx())
 	if err != nil {
 		return nil, fmt.Errorf("listing memberships: %w", err)
 	}
@@ -654,8 +655,8 @@ func (b *LocalBackend) ListMemberships() ([]model.Membership, error) {
 
 // --- Tasks ---
 
-func (b *LocalBackend) ListTasks(itemID string) ([]model.ProjectItemTask, error) {
-	rows, err := b.q.ListTasksByItem(b.ctx(), itemID)
+func (s *Service) ListTasks(itemID string) ([]model.ProjectItemTask, error) {
+	rows, err := s.q.ListTasksByItem(s.ctx(), itemID)
 	if err != nil {
 		return nil, fmt.Errorf("listing tasks: %w", err)
 	}
@@ -666,12 +667,12 @@ func (b *LocalBackend) ListTasks(itemID string) ([]model.ProjectItemTask, error)
 	return out, nil
 }
 
-func (b *LocalBackend) CreateTask(itemID string, input model.CreateProjectItemTask) (*model.ProjectItemTask, error) {
-	ctx := b.ctx()
+func (s *Service) CreateTask(itemID string, input model.CreateProjectItemTask) (*model.ProjectItemTask, error) {
+	ctx := s.ctx()
 	id := newID()
 
 	var created generated.ProjectItemTask
-	err := b.inTx(func(qtx *generated.Queries) error {
+	err := s.inTx(func(qtx *generated.Queries) error {
 		t, err := qtx.CreateTask(ctx, generated.CreateTaskParams{
 			ID:       id,
 			ItemID:   itemID,
@@ -684,7 +685,7 @@ func (b *LocalBackend) CreateTask(itemID string, input model.CreateProjectItemTa
 		created = t
 		// The row, not nil: undoing a task create still has to know which item
 		// owned it so the reversal can be pushed.
-		return b.logUndo(qtx, "create", "task", id, t)
+		return s.logUndo(qtx, "create", "task", id, t)
 	})
 	if err != nil {
 		return nil, err
@@ -694,10 +695,10 @@ func (b *LocalBackend) CreateTask(itemID string, input model.CreateProjectItemTa
 	return &result, nil
 }
 
-func (b *LocalBackend) UpdateTask(itemID, taskID string, input model.UpdateProjectItemTask) (*model.ProjectItemTask, error) {
-	ctx := b.ctx()
+func (s *Service) UpdateTask(itemID, taskID string, input model.UpdateProjectItemTask) (*model.ProjectItemTask, error) {
+	ctx := s.ctx()
 
-	current, err := b.q.GetTask(ctx, taskID)
+	current, err := s.q.GetTask(ctx, taskID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
@@ -722,13 +723,13 @@ func (b *LocalBackend) UpdateTask(itemID, taskID string, input model.UpdateProje
 	}
 
 	var updated generated.ProjectItemTask
-	err = b.inTx(func(qtx *generated.Queries) error {
+	err = s.inTx(func(qtx *generated.Queries) error {
 		t, err := qtx.UpdateTask(ctx, params)
 		if err != nil {
 			return fmt.Errorf("updating task: %w", err)
 		}
 		updated = t
-		return b.logUndo(qtx, "update", "task", taskID, current)
+		return s.logUndo(qtx, "update", "task", taskID, current)
 	})
 	if err != nil {
 		return nil, err
@@ -738,9 +739,9 @@ func (b *LocalBackend) UpdateTask(itemID, taskID string, input model.UpdateProje
 	return &result, nil
 }
 
-func (b *LocalBackend) DeleteTask(itemID, taskID string) error {
-	ctx := b.ctx()
-	current, err := b.q.GetTask(ctx, taskID)
+func (s *Service) DeleteTask(itemID, taskID string) error {
+	ctx := s.ctx()
+	current, err := s.q.GetTask(ctx, taskID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
@@ -748,19 +749,19 @@ func (b *LocalBackend) DeleteTask(itemID, taskID string) error {
 		return fmt.Errorf("getting task for delete: %w", err)
 	}
 
-	return b.inTx(func(qtx *generated.Queries) error {
+	return s.inTx(func(qtx *generated.Queries) error {
 		if err := qtx.DeleteTask(ctx, taskID); err != nil {
 			return fmt.Errorf("deleting task: %w", err)
 		}
-		return b.logUndo(qtx, "delete", "task", taskID, current)
+		return s.logUndo(qtx, "delete", "task", taskID, current)
 	})
 }
 
 // --- Search ---
 
-func (b *LocalBackend) Search(query string) ([]model.ProjectItem, error) {
+func (s *Service) Search(query string) ([]model.ProjectItem, error) {
 	q := sql.NullString{String: query, Valid: true}
-	items, err := b.q.SearchItems(b.ctx(), generated.SearchItemsParams{
+	items, err := s.q.SearchItems(s.ctx(), generated.SearchItemsParams{
 		Column1: q,
 		Column2: q,
 	})
@@ -772,16 +773,16 @@ func (b *LocalBackend) Search(query string) ([]model.ProjectItem, error) {
 
 // --- Filters ---
 
-func (b *LocalBackend) ListBlocked() ([]model.ProjectItem, error) {
-	items, err := b.q.ListBlockedItems(b.ctx())
+func (s *Service) ListBlocked() ([]model.ProjectItem, error) {
+	items, err := s.q.ListBlockedItems(s.ctx())
 	if err != nil {
 		return nil, fmt.Errorf("listing blocked: %w", err)
 	}
 	return toModelProjectItems(items), nil
 }
 
-func (b *LocalBackend) ListArchived(projectID string) ([]model.ProjectItemInProject, error) {
-	rows, err := b.q.ListArchivedItems(b.ctx(), projectID)
+func (s *Service) ListArchived(projectID string) ([]model.ProjectItemInProject, error) {
+	rows, err := s.q.ListArchivedItems(s.ctx(), projectID)
 	if err != nil {
 		return nil, fmt.Errorf("listing archived: %w", err)
 	}
@@ -794,9 +795,9 @@ func (b *LocalBackend) ListArchived(projectID string) ([]model.ProjectItemInProj
 
 // --- Undo ---
 
-func (b *LocalBackend) Undo() (*model.UndoResult, error) {
-	ctx := b.ctx()
-	entry, err := b.q.GetLatestUndoLog(ctx)
+func (s *Service) Undo() (*model.UndoResult, error) {
+	ctx := s.ctx()
+	entry, err := s.q.GetLatestUndoLog(ctx)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, model.ErrNothingToUndo
@@ -804,13 +805,13 @@ func (b *LocalBackend) Undo() (*model.UndoResult, error) {
 		return nil, fmt.Errorf("getting undo log: %w", err)
 	}
 
-	tx, err := b.db.Begin()
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("beginning undo transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	qtx := b.q.WithTx(tx)
+	qtx := s.q.WithTx(tx)
 
 	result := &model.UndoResult{
 		Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, shortEntityID(entry.EntityID)),
@@ -1103,8 +1104,8 @@ func shortEntityID(id string) string {
 	return id
 }
 
-func (b *LocalBackend) CanUndo() (bool, error) {
-	count, err := b.q.CountUndoLogs(b.ctx())
+func (s *Service) CanUndo() (bool, error) {
+	count, err := s.q.CountUndoLogs(s.ctx())
 	if err != nil {
 		return false, fmt.Errorf("counting undo logs: %w", err)
 	}
@@ -1241,20 +1242,20 @@ func restoreProjectSnapshot(ctx context.Context, qtx *generated.Queries, snapsho
 // inTx runs fn inside a transaction so a mutation and its undo-log entry
 // commit together. Split apart, a failure between them leaves either an undo
 // entry for a change that never happened or a change nothing can reverse.
-func (b *LocalBackend) inTx(fn func(qtx *generated.Queries) error) error {
-	tx, err := b.db.Begin()
+func (s *Service) inTx(fn func(qtx *generated.Queries) error) error {
+	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := fn(b.q.WithTx(tx)); err != nil {
+	if err := fn(s.q.WithTx(tx)); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func (b *LocalBackend) logUndo(qtx *generated.Queries, action, entityType string, entityID string, previousState any) error {
+func (s *Service) logUndo(qtx *generated.Queries, action, entityType string, entityID string, previousState any) error {
 	var prevJSON sql.NullString
 	if previousState != nil {
 		data, err := json.Marshal(previousState)
@@ -1263,7 +1264,7 @@ func (b *LocalBackend) logUndo(qtx *generated.Queries, action, entityType string
 		}
 		prevJSON = sql.NullString{String: string(data), Valid: true}
 	}
-	return qtx.InsertUndoLog(b.ctx(), generated.InsertUndoLogParams{
+	return qtx.InsertUndoLog(s.ctx(), generated.InsertUndoLogParams{
 		Action:        action,
 		EntityType:    entityType,
 		EntityID:      entityID,

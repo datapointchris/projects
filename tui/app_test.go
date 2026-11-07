@@ -14,8 +14,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
@@ -45,7 +45,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 
 	// AssigningItemNumbers because the harness passes a nil sync engine, which
 	// is the sync-off case: nothing upstream will number these items.
-	b := backend.NewLocalBackend(database, backend.AssigningItemNumbers())
+	b := service.New(database, service.AssigningItemNumbers())
 	project, err := b.CreateProject(model.CreateProject{Name: "work"})
 	if err != nil {
 		t.Fatalf("creating project: %v", err)
@@ -344,7 +344,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	engine := sync.New(database, ts.URL, "")
 	t.Cleanup(engine.Stop)
-	app := NewApp(backend.NewLocalBackend(database), engine, ":memory:", 20*time.Millisecond)
+	app := NewApp(service.New(database), engine, ":memory:", 20*time.Millisecond)
 	send(t, app, tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	countHits := func() int {

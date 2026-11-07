@@ -1,4 +1,4 @@
-package backend
+package service
 
 import (
 	"encoding/json"
@@ -9,17 +9,17 @@ import (
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
-func newTestBackend(t *testing.T) *LocalBackend {
+func newTestBackend(t *testing.T) *Service {
 	t.Helper()
 	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	return NewLocalBackend(database)
+	return New(database)
 }
 
-func mustCreateProject(t *testing.T, b *LocalBackend, name string) *model.Project {
+func mustCreateProject(t *testing.T, b *Service, name string) *model.Project {
 	t.Helper()
 	p, err := b.CreateProject(model.CreateProject{Name: name})
 	if err != nil {
@@ -28,7 +28,7 @@ func mustCreateProject(t *testing.T, b *LocalBackend, name string) *model.Projec
 	return p
 }
 
-func mustCreateItem(t *testing.T, b *LocalBackend, input model.CreateProjectItem) *model.ProjectItemDetail {
+func mustCreateItem(t *testing.T, b *Service, input model.CreateProjectItem) *model.ProjectItemDetail {
 	t.Helper()
 	item, err := b.CreateItem(input)
 	if err != nil {

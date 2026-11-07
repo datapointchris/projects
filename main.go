@@ -17,6 +17,7 @@ import (
 	"github.com/datapointchris/projects/cli"
 	"github.com/datapointchris/projects/config"
 	"github.com/datapointchris/projects/repos"
+	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 	"github.com/datapointchris/projects/tui"
@@ -43,8 +44,8 @@ func main() {
 
 // localOnlyBackend is the backend with sync off, where this database is the
 // authority that numbers items.
-func localOnlyBackend(d *sql.DB, reposRegistryPath string) *backend.LocalBackend {
-	return backend.NewLocalBackend(d, backend.AssigningItemNumbers(), backend.RefusingRepoNames(reposRegistryPath))
+func localOnlyBackend(d *sql.DB, reposRegistryPath string) *service.Service {
+	return service.New(d, service.AssigningItemNumbers(), service.RefusingRepoNames(reposRegistryPath))
 }
 
 // needsBackend reports whether a command reads or writes the tool's own data.
@@ -115,7 +116,7 @@ func rootCmd() *cobra.Command {
 			database = d
 
 			if cfg.Sync.Enabled {
-				local := backend.NewLocalBackend(d, backend.RefusingRepoNames(repos.DefaultPath()))
+				local := service.New(d, service.RefusingRepoNames(repos.DefaultPath()))
 				syncEngine = sync.New(d, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
 				syncEngine.Start()
 				b = sync.NewSyncBackend(local, syncEngine)

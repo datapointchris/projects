@@ -1,4 +1,4 @@
-package backend
+package service
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
-func mustSetStatus(t *testing.T, b *LocalBackend, id, status string, reason *string) *model.Project {
+func mustSetStatus(t *testing.T, b *Service, id, status string, reason *string) *model.Project {
 	t.Helper()
 	p, err := b.SetProjectStatus(id, status, reason)
 	if err != nil {
@@ -269,7 +269,7 @@ func ptr(s string) *string { return &s }
 
 // --- The repo-named-project ban ---
 
-func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
+func backendRefusingRepos(t *testing.T, names ...string) *Service {
 	t.Helper()
 	entries := make([]string, len(names))
 	for i, name := range names {
@@ -284,7 +284,7 @@ func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	return NewLocalBackend(database, RefusingRepoNames(path))
+	return New(database, RefusingRepoNames(path))
 }
 
 func TestAProjectCannotBeNamedAfterARepo(t *testing.T) {

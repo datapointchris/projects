@@ -8,8 +8,8 @@ import (
 
 	"github.com/datapointchris/tuidrive"
 
-	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
@@ -105,7 +105,7 @@ func seedFixtureDatabase(t *testing.T, path string) {
 // fixtureSeeder ends the test on the first write the backend refuses.
 type fixtureSeeder struct {
 	t       *testing.T
-	backend *backend.LocalBackend
+	backend *service.Service
 }
 
 func (s fixtureSeeder) project(name, description string) string {
