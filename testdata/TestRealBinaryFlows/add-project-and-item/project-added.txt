@@ -27,4 +27,4 @@
 ┃                                      ┃│                                                        │
 ┃                                      ┃│                                                        │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────╯
-  Project created                                                         [?]help  LOCAL todoui.db
+  Project created                                                       [?]help  LOCAL projects.db

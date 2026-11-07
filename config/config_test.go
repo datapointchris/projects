@@ -10,9 +10,9 @@ import (
 func TestLoad_Defaults(t *testing.T) {
 	// No config file, no env vars — should use defaults
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("TODOUI_SYNC", "")
-	t.Setenv("TODOUI_SYNC_URL", "")
-	t.Setenv("TODOUI_DB", "")
+	t.Setenv("PROJECTS_SYNC", "")
+	t.Setenv("PROJECTS_SYNC_URL", "")
+	t.Setenv("PROJECTS_DB", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -28,9 +28,9 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
-	t.Setenv("TODOUI_DB", "/tmp/test.db")
-	t.Setenv("TODOUI_SYNC", "true")
-	t.Setenv("TODOUI_SYNC_URL", "https://example.com")
+	t.Setenv("PROJECTS_DB", "/tmp/test.db")
+	t.Setenv("PROJECTS_SYNC", "true")
+	t.Setenv("PROJECTS_SYNC_URL", "https://example.com")
 
 	cfg, err := Load()
 	if err != nil {
@@ -50,8 +50,8 @@ func TestLoad_EnvOverrides(t *testing.T) {
 
 func TestLoad_SyncEnabledWithoutURL(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("TODOUI_SYNC", "true")
-	t.Setenv("TODOUI_SYNC_URL", "")
+	t.Setenv("PROJECTS_SYNC", "true")
+	t.Setenv("PROJECTS_SYNC_URL", "")
 
 	_, err := Load()
 	if err == nil {
@@ -63,7 +63,7 @@ func TestDefaultDBPath_XDGOverride(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "/custom/data")
 
 	got := defaultDBPath()
-	want := "/custom/data/todoui/todoui.db"
+	want := "/custom/data/projects/projects.db"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -73,7 +73,7 @@ func TestDefaultDBPath_XDGOverride(t *testing.T) {
 // mean no automatic sync at all.
 func TestLoad_SyncIntervalDefault(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("TODOUI_SYNC_INTERVAL", "")
+	t.Setenv("PROJECTS_SYNC_INTERVAL", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -86,7 +86,7 @@ func TestLoad_SyncIntervalDefault(t *testing.T) {
 
 func TestLoad_SyncIntervalFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("TODOUI_SYNC_INTERVAL", "45s")
+	t.Setenv("PROJECTS_SYNC_INTERVAL", "45s")
 
 	cfg, err := Load()
 	if err != nil {
@@ -117,7 +117,7 @@ func TestReposRegistryIsReadFromTheConfigFile(t *testing.T) {
 	}
 }
 
-// A machine keeping its registry where todoui expects it holds no config at
+// A machine keeping its registry where the tool expects it holds no config at
 // all, so an absent or unreadable file answers "" rather than failing.
 func TestConfiguredReposRegistryIsEmptyWithoutAConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -131,15 +131,15 @@ func TestConfiguredReposRegistryIsEmptyWithoutAConfig(t *testing.T) {
 	}
 }
 
-// writeConfig points $XDG_CONFIG_HOME at a directory holding body as todoui's
+// writeConfig points $XDG_CONFIG_HOME at a directory holding body as the tool's
 // config file.
 func writeConfig(t *testing.T, body string) {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "todoui"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "projects"), 0o755); err != nil {
 		t.Fatalf("creating config directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "todoui", "config.toml"), []byte(body), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "projects", "config.toml"), []byte(body), 0o600); err != nil {
 		t.Fatalf("writing config: %v", err)
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir)
@@ -149,8 +149,8 @@ const syncedConfig = "[sync]\nenabled = true\napi_url = \"https://api.example\"\
 
 func TestTheTokenCommandIsReadFromTheConfigFile(t *testing.T) {
 	writeConfig(t, syncedConfig)
-	t.Setenv("TODOUI_SYNC_URL", "")
-	t.Setenv("TODOUI_SYNC_TOKEN_COMMAND", "")
+	t.Setenv("PROJECTS_SYNC_URL", "")
+	t.Setenv("PROJECTS_SYNC_TOKEN_COMMAND", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -165,8 +165,8 @@ func TestTheTokenCommandIsReadFromTheConfigFile(t *testing.T) {
 // the file's URL, and must not hand its token to that one.
 func TestAURLFromTheEnvironmentTakesNoTokenCommandFromTheFile(t *testing.T) {
 	writeConfig(t, syncedConfig)
-	t.Setenv("TODOUI_SYNC_URL", "https://dev.example")
-	t.Setenv("TODOUI_SYNC_TOKEN_COMMAND", "")
+	t.Setenv("PROJECTS_SYNC_URL", "https://dev.example")
+	t.Setenv("PROJECTS_SYNC_TOKEN_COMMAND", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -176,7 +176,7 @@ func TestAURLFromTheEnvironmentTakesNoTokenCommandFromTheFile(t *testing.T) {
 		t.Errorf("token command %q paired with the environment's URL, want none", cfg.Sync.TokenCommand)
 	}
 
-	t.Setenv("TODOUI_SYNC_TOKEN_COMMAND", "print-token --for dev")
+	t.Setenv("PROJECTS_SYNC_TOKEN_COMMAND", "print-token --for dev")
 	cfg, err = Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -190,8 +190,8 @@ func TestAURLFromTheEnvironmentTakesNoTokenCommandFromTheFile(t *testing.T) {
 // token would read as the API refusing a good one.
 func TestABlankTokenCommandIsRefused(t *testing.T) {
 	writeConfig(t, "[sync]\nenabled = true\napi_url = \"https://api.example\"\ntoken_command = \"   \"\n")
-	t.Setenv("TODOUI_SYNC_URL", "")
-	t.Setenv("TODOUI_SYNC_TOKEN_COMMAND", "")
+	t.Setenv("PROJECTS_SYNC_URL", "")
+	t.Setenv("PROJECTS_SYNC_TOKEN_COMMAND", "")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("a blank token_command loaded")
@@ -204,7 +204,7 @@ func TestLoad_SyncIntervalIsFloored(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	for _, given := range []string{"0s", "-5m", "1s"} {
-		t.Setenv("TODOUI_SYNC_INTERVAL", given)
+		t.Setenv("PROJECTS_SYNC_INTERVAL", given)
 		cfg, err := Load()
 		if err != nil {
 			t.Fatalf("Load(%s): %v", given, err)

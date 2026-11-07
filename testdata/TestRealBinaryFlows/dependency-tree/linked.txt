@@ -27,4 +27,4 @@
 │                                      │┃                                                        ┃
 │                                      │┃                                                        ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Dependency linked                                                       [?]help  LOCAL todoui.db
+  Dependency linked                                                     [?]help  LOCAL projects.db

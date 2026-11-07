@@ -12,7 +12,7 @@ import (
 	gosync "sync"
 	"time"
 
-	"github.com/datapointchris/todoui/db/generated"
+	"github.com/datapointchris/projects/db/generated"
 )
 
 // apiPrefix is the API version every path and decoder here is written against.

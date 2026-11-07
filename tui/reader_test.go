@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/model"
 )
 
 // longNote is about ten thousand characters of the markdown a real note holds.

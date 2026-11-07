@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/db"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/db"
 )
 
 // The layout bugs that reached a human all needed content no fixture had:
@@ -21,14 +21,14 @@ import (
 //
 // It skips without a database rather than shipping a fixture, because a fixture
 // is exactly the synthetic content that missed these in the first place. Set
-// TODOUI_DB to run it; .envrc already points it at the dev database.
+// PROJECTS_DB to run it; .envrc already points it at the dev database.
 func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
-	path := os.Getenv("TODOUI_DB")
+	path := os.Getenv("PROJECTS_DB")
 	if path == "" {
-		t.Skip("TODOUI_DB is not set: nothing real to walk")
+		t.Skip("PROJECTS_DB is not set: nothing real to walk")
 	}
 	if _, err := os.Stat(path); err != nil {
-		t.Skipf("TODOUI_DB=%s is not readable: %v", path, err)
+		t.Skipf("PROJECTS_DB=%s is not readable: %v", path, err)
 	}
 
 	database, err := db.Open(path)

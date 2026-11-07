@@ -12,7 +12,7 @@ import (
 	goSync "sync"
 	"testing"
 
-	"github.com/datapointchris/todoui/sync"
+	"github.com/datapointchris/projects/sync"
 )
 
 // seenRequest is one request as the API received it.

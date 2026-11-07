@@ -30,7 +30,7 @@ func (e *OriginMismatch) Error() string {
 	return fmt.Sprintf(
 		"this database belongs to %s but sync is configured for %s — "+
 			"reconciling would delete everything the other API has never seen. "+
-			"Run `todoui sync --adopt` if the move is deliberate",
+			"Run `projects sync --adopt` if the move is deliberate",
 		e.Recorded, e.Configured)
 }
 
@@ -54,7 +54,7 @@ func (e *OriginUnclaimed) Error() string {
 	return fmt.Sprintf(
 		"this database holds %d projects and %d items and has synced before, but has no record of "+
 			"which API it belongs to — reconciling against %s would delete everything that API has "+
-			"never seen. Run `todoui sync --adopt` to bind it",
+			"never seen. Run `projects sync --adopt` to bind it",
 		e.Projects, e.Items, e.Configured)
 }
 
@@ -121,7 +121,7 @@ func (e *Engine) checkOrigin(ctx context.Context) (adopt bool, err error) {
 }
 
 // AdoptOrigin binds this database to the engine's API, overwriting whatever it
-// was bound to. It is what `todoui sync --adopt` calls: the one place the
+// was bound to. It is what `projects sync --adopt` calls: the one place the
 // pairing can change, and only because someone said so.
 func (e *Engine) AdoptOrigin(ctx context.Context) error {
 	return e.q.SetSyncOrigin(ctx, normalizeAPIURL(e.apiURL))
@@ -149,7 +149,7 @@ func (e *SweepRefused) Error() string {
 	return fmt.Sprintf(
 		"refusing to delete %d of %d %s in one pull — the API returned almost nothing this database has, "+
 			"which is a truncated response or the wrong API far more often than it is a real deletion. "+
-			"Run `todoui sync --force` if it is genuinely what happened",
+			"Run `projects sync --force` if it is genuinely what happened",
 		e.Deleting, e.Local, e.Entity)
 }
 

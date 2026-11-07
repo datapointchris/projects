@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/datapointchris/todoui/model"
+import "github.com/datapointchris/projects/model"
 
 // ItemNode is an item joined to the one fact a drawing needs beyond the item
 // itself: the projects it is filed under, which is what says when a dependency

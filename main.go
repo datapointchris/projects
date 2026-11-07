@@ -13,16 +13,20 @@ import (
 	"github.com/datapointchris/goselfupdate/autoupdate"
 	"github.com/spf13/cobra"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/cli"
-	"github.com/datapointchris/todoui/config"
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/repos"
-	"github.com/datapointchris/todoui/sync"
-	"github.com/datapointchris/todoui/tui"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/cli"
+	"github.com/datapointchris/projects/config"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/repos"
+	"github.com/datapointchris/projects/sync"
+	"github.com/datapointchris/projects/tui"
 )
 
 func main() {
+	if refusal := config.RetiredVariableRefusal(); refusal != "" {
+		fmt.Fprintf(os.Stderr, "error: %s\n", refusal)
+		os.Exit(2)
+	}
 	autoConfig := autoupdate.Config{Update: cli.UpdateConfig()}
 	if err := goclikit.Execute(context.Background(), rootCmd(), autoConfig); err != nil {
 		if !errors.Is(err, goclikit.ErrReported) {
@@ -43,7 +47,7 @@ func localOnlyBackend(d *sql.DB, reposRegistryPath string) *backend.LocalBackend
 	return backend.NewLocalBackend(d, backend.AssigningItemNumbers(), backend.RefusingRepoNames(reposRegistryPath))
 }
 
-// needsBackend reports whether a command reads or writes todoui's own data.
+// needsBackend reports whether a command reads or writes the tool's own data.
 //
 // PersistentPreRunE opens the database and runs migrations, and cobra runs it
 // for the shell-completion callback like any other command — so every TAB press
@@ -52,7 +56,7 @@ func localOnlyBackend(d *sql.DB, reposRegistryPath string) *backend.LocalBackend
 // tree, and `update` replaces the binary. None of them has anything to read.
 //
 // The ancestry is walked rather than only the leaf, because `completion` owns a
-// subcommand per shell: `todoui completion zsh` has leaf name "zsh".
+// subcommand per shell: `projects completion zsh` has leaf name "zsh".
 //
 // `--help` never reaches here at all — cobra answers the flag before running
 // this — which is why the list names the command and not the flag.
@@ -74,24 +78,30 @@ func rootCmd() *cobra.Command {
 	var cfg *config.Config
 
 	root := &cobra.Command{
-		Use:   "todoui",
+		Use:   "projects",
 		Short: "Personal project organization",
 		Long: "Personal project organization.\n\n" +
-			"Run `todoui` to open the TUI, where everything happens. With sync enabled it\n" +
+			"Run `projects` to open the TUI, where everything happens. With sync enabled it\n" +
 			"pushes each edit as you make it and pulls in the background on every interval,\n" +
 			"so it never needs a sync by hand.\n\n" +
-			"Reach for `todoui sync` when you want the API's state now rather than at the\n" +
+			"Reach for `projects sync` when you want the API's state now rather than at the\n" +
 			"next interval, or need --adopt or --force: it pushes anything queued, then pulls.",
-		Example: "  todoui         open the TUI, syncing in the background when sync is enabled\n" +
-			"  todoui sync    push queued edits and pull now, without waiting for the interval",
+		Example: "  projects         open the TUI, syncing in the background when sync is enabled\n" +
+			"  projects sync    push queued edits and pull now, without waiting for the interval",
 		Version: cli.Version(),
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			if !needsBackend(cmd) {
 				return nil
 			}
+			if err := config.RefuseConfigUnderFormerName(); err != nil {
+				return err
+			}
 			var err error
 			cfg, err = config.Load()
 			if err != nil {
+				return err
+			}
+			if err := config.MoveDataUnderFormerName(cfg.Local.DBPath); err != nil {
 				return err
 			}
 
@@ -140,13 +150,13 @@ func rootCmd() *cobra.Command {
 			"A pull deletes everything the server did not return, so the database is bound to\n" +
 			"the API it was first pulled from and refuses to reconcile against any other.\n" +
 			"--adopt rebinds it; --force allows a pull that would delete most of what is here.",
-		Example: "  todoui sync            push queued edits, then pull from the API now\n" +
-			"  todoui sync --adopt    bind this database to the configured API, then sync\n" +
-			"  todoui sync --force    sync even when the pull would delete most local rows",
+		Example: "  projects sync            push queued edits, then pull from the API now\n" +
+			"  projects sync --adopt    bind this database to the configured API, then sync\n" +
+			"  projects sync --force    sync even when the pull would delete most local rows",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if syncEngine == nil {
-				return fmt.Errorf("sync is disabled — enable it in ~/.config/todoui/config.toml")
+				return fmt.Errorf("sync is disabled — enable it in ~/.config/projects/config.toml")
 			}
 			// Named on the way in, not after: --adopt rewrites which API owns
 			// this database, and doing that silently is the mistake the binding

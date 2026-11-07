@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/datapointchris/todoui/db/generated"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/db/generated"
+	"github.com/datapointchris/projects/model"
 )
 
 // Pull fetches all data from the remote API and reconciles it with the local database.
@@ -30,10 +30,10 @@ func (e *Engine) Pull(ctx context.Context) error {
 // is not a guard.
 type PullOptions struct {
 	// Adopt binds the database to this API before reconciling, which is the
-	// only way the pairing ever changes. `todoui sync --adopt`.
+	// only way the pairing ever changes. `projects sync --adopt`.
 	Adopt bool
 	// AllowLargeSweep permits a pull that would delete most of what is here.
-	// `todoui sync --force`.
+	// `projects sync --force`.
 	AllowLargeSweep bool
 }
 

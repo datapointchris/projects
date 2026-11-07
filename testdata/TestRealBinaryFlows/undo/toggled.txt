@@ -27,4 +27,4 @@
 │                                      │┃                                                        ┃
 │                                      │┃                                                        ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Marked incomplete                                                       [?]help  LOCAL todoui.db
+  Marked incomplete                                                     [?]help  LOCAL projects.db

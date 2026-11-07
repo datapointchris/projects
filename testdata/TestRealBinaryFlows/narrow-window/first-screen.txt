@@ -11,4 +11,4 @@
 ┃                  ┃│     └─ blocked by: S… (3)│
 ┃                  ┃│                          │
 ┗━━━━━━━━━━━━━━━━━━┛╰──────────────────────────╯
-  [a]dd project …       [?]help  LOCAL todoui.db
+  [a]dd project …     [?]help  LOCAL projects.db

@@ -16,11 +16,11 @@ type Config struct {
 	Local LocalConfig `mapstructure:"local"`
 	Sync  SyncConfig  `mapstructure:"sync"`
 
-	// ReposRegistry names a registry maintained outside todoui's data directory,
+	// ReposRegistry names a registry maintained outside the tool's data directory,
 	// which is how a machine sharing one between tools declares it. Empty, or no
-	// config file at all, leaves todoui's own data directory as the answer.
+	// config file at all, leaves the tool's own data directory as the answer.
 	//
-	// The field is the config layer alone. $TODOUI_REPOS_REGISTRY above it and
+	// The field is the config layer alone. $PROJECTS_REPOS_REGISTRY above it and
 	// the data directory below it are composed by repos.DefaultPath, so the whole
 	// resolution order reads in one place rather than half here and half there.
 	ReposRegistry string `mapstructure:"repos_registry"`
@@ -37,7 +37,7 @@ type SyncConfig struct {
 	// wants.
 	TokenCommand string `mapstructure:"token_command"`
 
-	// Interval is the longest todoui will go without reconciling: the TUI's
+	// Interval is the longest the tool will go without reconciling: the TUI's
 	// background pull period.
 	Interval time.Duration `mapstructure:"interval"`
 }
@@ -64,20 +64,20 @@ func Load() (*Config, error) {
 	}
 
 	// Env var overrides
-	v.SetEnvPrefix("TODOUI")
-	_ = v.BindEnv("local.db_path", "TODOUI_DB")
-	_ = v.BindEnv("sync.enabled", "TODOUI_SYNC")
-	_ = v.BindEnv("sync.api_url", "TODOUI_SYNC_URL")
-	_ = v.BindEnv("sync.token_command", "TODOUI_SYNC_TOKEN_COMMAND")
-	_ = v.BindEnv("sync.interval", "TODOUI_SYNC_INTERVAL")
+	v.SetEnvPrefix("PROJECTS")
+	_ = v.BindEnv("local.db_path", "PROJECTS_DB")
+	_ = v.BindEnv("sync.enabled", "PROJECTS_SYNC")
+	_ = v.BindEnv("sync.api_url", "PROJECTS_SYNC_URL")
+	_ = v.BindEnv("sync.token_command", "PROJECTS_SYNC_TOKEN_COMMAND")
+	_ = v.BindEnv("sync.interval", "PROJECTS_SYNC_INTERVAL")
 
-	// ErrorUnused, so a key todoui does not read is refused rather than dropped.
+	// ErrorUnused, so a key the tool does not read is refused rather than dropped.
 	// viper decodes the merged settings map, and every default set above maps to a
 	// field below, so the only keys this can reject are ones the file supplied and
 	// the struct has no home for.
 	//
 	// Without it a misspelled key and an unset one are the same answer. A config
-	// naming its registry under a key todoui does not read would fall back to the
+	// naming its registry under a key the tool does not read would fall back to the
 	// data directory, find no registry there, and lift the ban with nothing
 	// reporting why.
 	var cfg Config
@@ -88,16 +88,16 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.Sync.Enabled && cfg.Sync.APIURL == "" {
-		return nil, fmt.Errorf("sync.api_url is required when sync is enabled (set in config or TODOUI_SYNC_URL)")
+		return nil, fmt.Errorf("sync.api_url is required when sync is enabled (set in config or PROJECTS_SYNC_URL)")
 	}
 
 	// A token command answers for the URL beside it. A URL from the environment
 	// names an API the config file does not describe, so the file's command
 	// never pairs with it: a dev .envrc overriding the URL would otherwise send a
-	// production token to the dev API. TODOUI_SYNC_TOKEN_COMMAND is then the only
+	// production token to the dev API. PROJECTS_SYNC_TOKEN_COMMAND is then the only
 	// source, and unset means no token.
-	if os.Getenv("TODOUI_SYNC_URL") != "" {
-		cfg.Sync.TokenCommand = os.Getenv("TODOUI_SYNC_TOKEN_COMMAND")
+	if os.Getenv("PROJECTS_SYNC_URL") != "" {
+		cfg.Sync.TokenCommand = os.Getenv("PROJECTS_SYNC_TOKEN_COMMAND")
 	}
 	if cfg.Sync.TokenCommand != "" && strings.TrimSpace(cfg.Sync.TokenCommand) == "" {
 		return nil, fmt.Errorf("sync.token_command names no command")
@@ -116,15 +116,15 @@ func Load() (*Config, error) {
 // anything shorter is a self-inflicted denial of service on the API.
 const minSyncInterval = 15 * time.Second
 
-// newViper points a fresh viper at todoui's config file. Shared by both readers
+// newViper points a fresh viper at the tool's config file. Shared by both readers
 // here so they cannot drift on where that file is.
 //
-// Config file: $XDG_CONFIG_HOME/todoui/config.toml or ~/.config/todoui/config.toml.
+// Config file: $XDG_CONFIG_HOME/projects/config.toml or ~/.config/projects/config.toml.
 // Use XDG explicitly rather than Go's UserConfigDir, which returns
 // ~/Library/Application Support on macOS — not where CLI tools put config.
 func newViper() *viper.Viper {
 	v := viper.New()
-	v.AddConfigPath(filepath.Join(userConfigDir(), "todoui"))
+	v.AddConfigPath(filepath.Join(userConfigDir(), toolName))
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 	return v
@@ -132,7 +132,7 @@ func newViper() *viper.Viper {
 
 // ConfiguredReposRegistry is the repos_registry key with a leading ~ expanded,
 // and "" for every way reading it can fail. Absent config is one of those ways
-// and is not an error: a machine keeping its registry where todoui expects it
+// and is not an error: a machine keeping its registry where the tool expects it
 // should not have to hold a file saying so.
 //
 // A read of its own rather than a field off Load's result, because Load
@@ -167,8 +167,13 @@ func ExpandTilde(path string) string {
 	return filepath.Join(home, path[2:])
 }
 
+const (
+	toolName      = "projects"
+	defaultDBFile = toolName + ".db"
+)
+
 func defaultDBPath() string {
-	return filepath.Join(userDataDir(), "todoui", "todoui.db")
+	return filepath.Join(DataDir(), defaultDBFile)
 }
 
 // userConfigDir returns $XDG_CONFIG_HOME or ~/.config.
@@ -183,11 +188,10 @@ func userConfigDir() string {
 	return filepath.Join(home, ".config")
 }
 
-// UserDataDir returns the XDG data directory ($XDG_DATA_HOME or ~/.local/share).
-// Exported so every package resolving a data path uses one resolver rather than
-// its own copy of the env-var-then-fallback shape.
-func UserDataDir() string {
-	return userDataDir()
+// DataDir is the tool's directory under the XDG data home, which every package
+// resolving a data path asks for.
+func DataDir() string {
+	return filepath.Join(userDataDir(), toolName)
 }
 
 // userDataDir returns the XDG data directory ($XDG_DATA_HOME or ~/.local/share).

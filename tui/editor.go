@@ -10,8 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/model"
 )
 
 // editTarget names what an editor session writes back to: an item's notes or a
@@ -82,7 +82,7 @@ func projectDescriptionFileName(p model.Project) string {
 // text. The app sits in modeExternalEdit meanwhile, which keeps the background
 // pull from rewriting the row the save is about to update.
 func (m *App) openInEditor(target editTarget, fileName, text string) tea.Cmd {
-	dir, err := os.MkdirTemp("", "todoui-")
+	dir, err := os.MkdirTemp("", "projects-")
 	if err != nil {
 		return m.flash("Cannot open the editor: " + err.Error())
 	}

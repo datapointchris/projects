@@ -14,10 +14,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
-	"github.com/datapointchris/todoui/sync"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/sync"
 )
 
 // newTestApp returns an app already showing one project's items, sized to
@@ -219,7 +219,7 @@ func TestCreatedTaskAppearsAsRow(t *testing.T) {
 // The auto-pull timer re-arms itself from its own message. A tick that returns
 // no command ends background sync for the rest of the session, so the skipped
 // ticks have to re-arm too — otherwise opening one modal at the wrong moment
-// silently reverts todoui to manual syncing.
+// silently reverts the tool to manual syncing.
 func TestSyncTickRearmsEvenWhenItSkipsThePull(t *testing.T) {
 	app := newTestApp(t, 80, 24, "Alpha")
 
@@ -306,7 +306,7 @@ func TestAutomaticPullFailureDoesNotHijackTheStatusBar(t *testing.T) {
 // End-to-end for the background timer: a tick in normal mode must actually
 // reconcile with the server and re-arm, and a tick in a modal must do neither
 // the pull nor lose the timer. This is the behavior that removes the need to
-// drop out of the TUI and run `todoui sync` by hand.
+// drop out of the TUI and run `projects sync` by hand.
 func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 	var mu goSync.Mutex
 	var hits int

@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/datapointchris/todoui/config"
+	"github.com/datapointchris/projects/config"
 )
 
 type registryFile struct {
@@ -26,8 +26,8 @@ type Registry struct {
 	names map[string]bool
 }
 
-// DefaultPath is where this machine keeps the registry: $TODOUI_REPOS_REGISTRY,
-// then repos_registry in todoui's config, then todoui's own data directory per
+// DefaultPath is where this machine keeps the registry: $PROJECTS_REPOS_REGISTRY,
+// then repos_registry in the tool's config, then the tool's own data directory per
 // the XDG split.
 //
 // The last rung is the compiled default and names nothing outside this tool's
@@ -45,15 +45,15 @@ type Registry struct {
 //     exactly the unattended runs it exists to serve.
 //
 // The config file reaches every process. The one variable read carries
-// todoui's own prefix, so no other tool's vocabulary is compiled into it.
+// the tool's own prefix, so no other tool's vocabulary is compiled into it.
 func DefaultPath() string {
-	if p := os.Getenv("TODOUI_REPOS_REGISTRY"); p != "" {
+	if p := os.Getenv("PROJECTS_REPOS_REGISTRY"); p != "" {
 		return config.ExpandTilde(p)
 	}
 	if declared := config.ConfiguredReposRegistry(); declared != "" {
 		return declared
 	}
-	return filepath.Join(config.UserDataDir(), "todoui", "repos.json")
+	return filepath.Join(config.DataDir(), "repos.json")
 }
 
 // Load reads the registry at path. A missing file is not an error: it yields a
@@ -83,7 +83,7 @@ func (r *Registry) Available() bool {
 }
 
 // Knows reports whether name is a registered repo. Case- and
-// space-insensitive, because "Todoui " names the same thing "todoui" does and a
+// space-insensitive, because "Projects " names the same thing "projects" does and a
 // ban a capital letter walks around is decoration.
 func (r *Registry) Knows(name string) bool {
 	if !r.Available() {

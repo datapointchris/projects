@@ -21,7 +21,7 @@ func TestMissingRegistryBansNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a missing registry must not be an error, got %v", err)
 	}
-	if registry.Knows("todoui") {
+	if registry.Knows("projects") {
 		t.Error("a missing registry must not ban anything")
 	}
 }
@@ -32,7 +32,7 @@ func TestMalformedRegistryIsAnError(t *testing.T) {
 	}
 }
 
-// withConfig points $XDG_CONFIG_HOME at a directory holding body as todoui's
+// withConfig points $XDG_CONFIG_HOME at a directory holding body as the tool's
 // config, or at an empty one when body is "". Every DefaultPath test needs it:
 // the machine running the test maintains a real config, and without the
 // redirect the middle rung answers from that instead of from the case at hand.
@@ -40,10 +40,10 @@ func withConfig(t *testing.T, body string) {
 	t.Helper()
 	dir := t.TempDir()
 	if body != "" {
-		if err := os.MkdirAll(filepath.Join(dir, "todoui"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(dir, "projects"), 0o755); err != nil {
 			t.Fatalf("creating config directory: %v", err)
 		}
-		path := filepath.Join(dir, "todoui", "config.toml")
+		path := filepath.Join(dir, "projects", "config.toml")
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatalf("writing config: %v", err)
 		}
@@ -54,10 +54,10 @@ func withConfig(t *testing.T, body string) {
 // The compiled default names nothing outside the tool's own XDG data directory,
 // which is what keeps a generic tool generic.
 func TestDefaultPathIsTheToolsOwnDataDirectory(t *testing.T) {
-	t.Setenv("TODOUI_REPOS_REGISTRY", "")
+	t.Setenv("PROJECTS_REPOS_REGISTRY", "")
 	withConfig(t, "")
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
-	if got, want := DefaultPath(), "/tmp/xdg/todoui/repos.json"; got != want {
+	if got, want := DefaultPath(), "/tmp/xdg/projects/repos.json"; got != want {
 		t.Errorf("DefaultPath() = %q, want %q", got, want)
 	}
 }
@@ -69,12 +69,12 @@ func TestDefaultPathResolvesInThreeRungs(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
 	withConfig(t, "repos_registry = \"/declared/repos.json\"\n")
 
-	t.Setenv("TODOUI_REPOS_REGISTRY", "")
+	t.Setenv("PROJECTS_REPOS_REGISTRY", "")
 	if got, want := DefaultPath(), "/declared/repos.json"; got != want {
 		t.Errorf("the config key must beat the data directory: got %q, want %q", got, want)
 	}
 
-	t.Setenv("TODOUI_REPOS_REGISTRY", "/from/env.json")
+	t.Setenv("PROJECTS_REPOS_REGISTRY", "/from/env.json")
 	if got, want := DefaultPath(), "/from/env.json"; got != want {
 		t.Errorf("the variable must beat the config key: got %q, want %q", got, want)
 	}
@@ -84,7 +84,7 @@ func TestDefaultPathResolvesInThreeRungs(t *testing.T) {
 // does not exist — which reads here as an empty registry that bans nothing
 // rather than as a bad path.
 func TestTheConfiguredPathExpandsALeadingTilde(t *testing.T) {
-	t.Setenv("TODOUI_REPOS_REGISTRY", "")
+	t.Setenv("PROJECTS_REPOS_REGISTRY", "")
 	withConfig(t, "repos_registry = \"~/registry/repos.json\"\n")
 
 	home, err := os.UserHomeDir()
@@ -97,18 +97,18 @@ func TestTheConfiguredPathExpandsALeadingTilde(t *testing.T) {
 }
 
 func TestKnowsIdentifiesARepoName(t *testing.T) {
-	path := writeRegistry(t, `{"repos":[{"name":"todoui"},{"name":"dotfiles"}]}`)
+	path := writeRegistry(t, `{"repos":[{"name":"projects"},{"name":"dotfiles"}]}`)
 	registry, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
-	for _, name := range []string{"todoui", "Todoui", "  dotfiles  ", "DOTFILES"} {
+	for _, name := range []string{"projects", "Projects", "  dotfiles  ", "DOTFILES"} {
 		if !registry.Knows(name) {
 			t.Errorf("Knows(%q) = false; a ban a capital letter walks around is decoration", name)
 		}
 	}
-	for _, name := range []string{"", "todoui sync improvements", "Extract xx from dotfiles"} {
+	for _, name := range []string{"", "projects sync improvements", "Extract xx from dotfiles"} {
 		if registry.Knows(name) {
 			t.Errorf("Knows(%q) = true; bounded work named after a repo is still bounded work", name)
 		}

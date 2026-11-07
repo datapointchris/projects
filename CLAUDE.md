@@ -1,7 +1,6 @@
-# todoui — Claude Code instructions
+# projects — Claude Code instructions
 
-The main package is at the module root — `go build .`, `go install github.com/datapointchris/todoui@latest`.
-Any path naming `./cmd/todoui` is stale.
+The main package is at the module root — `go build .`, `go install github.com/datapointchris/projects@latest`.
 
 ## How to run and test
 
@@ -14,9 +13,9 @@ long note.
 nothing run here touches production data. This is the whole file:
 
 ```bash
-export TODOUI_DB="$HOME/.local/share/todoui/dev.db"
-export TODOUI_SYNC=true
-export TODOUI_SYNC_URL="https://api.docker.localhost"
+export PROJECTS_DB="$HOME/.local/share/projects/dev.db"
+export PROJECTS_SYNC=true
+export PROJECTS_SYNC_URL="https://api.docker.localhost"
 ```
 
 The dev API needs no token, because its proxy injects the user header. The
@@ -38,8 +37,16 @@ Load it explicitly:
 ```bash
 direnv exec . go run .        # TUI against dev.db
 direnv exec . go run . sync   # one reconcile against the dev API
-direnv exec . env | rg '^TODOUI'   # nothing printed: no .envrc here
+direnv exec . env | rg '^PROJECTS'   # nothing printed: no .envrc here
 ```
+
+**The former name is handled in one file.** `config/former_name.go` refuses a retired variable that is
+still set, and a config still at the former path. It moves the old data directory on the first run
+that opens the default database. A run naming its database moves nothing, so a run from `.envrc` leaves
+the real data where it is. An `.envrc` still exporting the old names is refused rather than ignored,
+which keeps it from falling through to the production database. On a machine upgrading, run `projects`
+once on the default database before editing `.envrc`, so `dev.db` moves with the rest. The `MIGRATION`
+marker there says when the file retires.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -52,7 +59,7 @@ window size is reproducible here and invisible in a manual pass. It does not rep
 
 ## The flows drive the real binary
 
-`real_binary_flows_test.go` builds todoui and replays each `testdata/flows/*.keys` script against it
+`real_binary_flows_test.go` builds `projects` and replays each `testdata/flows/*.keys` script against it
 on a pty with [tuidrive](https://github.com/datapointchris/tuidrive), at a fixed size. Each frame a
 script names compares with `testdata/TestRealBinaryFlows/<flow>/<frame>.txt` and `.style`.
 
@@ -62,9 +69,9 @@ TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then r
 ```
 
 - **`seedFixtureDatabase` writes through `backend.LocalBackend`**, the path the TUI writes through, so
-  the fixture holds only what todoui's own rules allow. There is no stand-in of the sync API, and sync
-  stays off because no `TODOUI_SYNC` reaches the program.
-- **`TODOUI_DB` is relative, and the program's working directory is the test's temporary directory.**
+  the fixture holds only what the tool's own rules allow. There is no stand-in of the sync API, and sync
+  stays off because no `PROJECTS_SYNC` reaches the program.
+- **`PROJECTS_DB` is relative, and the program's working directory is the test's temporary directory.**
   The status bar prints the path, and the hints clip against its length. A relative path keeps every
   frame the same on every machine.
 - **A wait after a create names the row, not the hints.** A status flash holds the hints back for
@@ -77,15 +84,15 @@ To look at something while developing, write the keys to a script and replay it:
 
 ```bash
 D=$(mktemp -d)
-go build -o "$D/todoui" . && tuidrive run look.keys --out frames --dir "$D" --env TODOUI_DB=todoui.db -- "$D/todoui"
+go build -o "$D/projects" . && tuidrive run look.keys --out frames --dir "$D" --env PROJECTS_DB=projects.db -- "$D/projects"
 ```
 
-`tuidrive run --help` states what reaches the program and what `--out` writes. Always name `TODOUI_DB`
-under a temporary directory, whatever it says, because todoui with none opens the production database.
+`tuidrive run --help` states what reaches the program and what `--out` writes. Always name `PROJECTS_DB`
+under a temporary directory, whatever it says, because `projects` with none opens the production database.
 
-## todoui is a TUI; there is no item CLI
+## `projects` is a TUI; there is no item CLI
 
-todoui is driven through the TUI. Agents and scripts reach the same projects and items through
+`projects` is driven through the TUI. Agents and scripts reach the same projects and items through
 ichrisbirch's own CLI against the API. The subcommands here are `sync`, `update`, `version` and
 `completion`, and none of them reads or writes an item. A verb added here would be a second front
 door onto rows ichrisbirch's CLI already owns, spelled independently of it.
@@ -96,7 +103,7 @@ and stops there.
 The number is assigned by whichever database is the authority. With sync on that is the API, and
 `pushCreatedItem` writes the number from the create response into the local row, so the TUI shows
 it once the push lands rather than after the next pull. With sync off, `AssigningItemNumbers` makes
-todoui allocate `max+1` itself, which cannot collide because that database is a disjoint universe.
+`projects` allocate `max+1` itself, which cannot collide because that database is a disjoint universe.
 
 An item created while the API is unreachable has no number until its push lands, and shows its UUID
 tail until then (`itemHandle` in `tui/app.go`).
@@ -107,10 +114,10 @@ Creating a project refuses a name the repo registry knows, and so does a rename.
 The test is whether the thing ENDS, not whether the name reads like a verb
 phrase:
 
-    "todoui sync improvements"    OK — the sync improvements end
+    "projects sync improvements"    OK — the sync improvements end
     "Extract xx from dotfiles"    OK
     "Migrate neovim to vim.pack"  OK
-    "todoui"                      banned — names a thing that exists
+    "projects"                      banned — names a thing that exists
 
 The failure it prevents: a repo gets a project while it is being BUILT, which is
 finite and does complete. The repo then keeps existing, the next papercut has
@@ -168,8 +175,8 @@ a live one sharing its name.
 
 ## A database and its API are a pair — never mix a dev half with a prod half
 
-`.envrc` exports two coupled variables, `TODOUI_DB` and `TODOUI_SYNC_URL`, and
-`TODOUI_SYNC_TOKEN_COMMAND` where the dev API wants a token. They name one
+`.envrc` exports two coupled variables, `PROJECTS_DB` and `PROJECTS_SYNC_URL`, and
+`PROJECTS_SYNC_TOKEN_COMMAND` where the dev API wants a token. They name one
 environment. A URL from the environment never takes the config file's
 `token_command` (`config.Load`), so the dev URL cannot carry the production
 token. Overriding one of them names an environment that does not exist, and
@@ -202,9 +209,9 @@ ordinary days gets forced past by reflex and stops guarding anything.
 Neither override is reachable from the background timers. A guard something
 automatic can waive is not a guard.
 
-## Sync is automatic; `todoui sync` is a convenience, not a requirement
+## Sync is automatic; `projects sync` is a convenience, not a requirement
 
-`sync.interval` (default 2m, floored at 15s) is the single knob for how stale todoui may ever be,
+`sync.interval` (default 2m, floored at 15s) is the single knob for how stale `projects` may ever be,
 and it drives two loops:
 
 - **TUI** — `syncPullTickMsg` re-arms itself every interval, and always reschedules, even on the
@@ -248,5 +255,5 @@ this order:
 1. Delete the vN GitHub releases and their tags, remote and local.
 2. Tag a baseline on `main` above the offending commit, and push it. Without it
    the commit stays in the analyzed range and the next push cuts the major again.
-3. Confirm `go list -m github.com/datapointchris/todoui@latest` answers the v1 tag.
+3. Confirm `go list -m github.com/datapointchris/projects@latest` answers the v1 tag.
 4. Reinstall on every machine. Self-update will not recover a stranded binary.

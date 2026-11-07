@@ -27,4 +27,4 @@
 ┃                                      ┃│   ○ Day 21: walk the next neighborhood  31             │
 ┃                                      ┃│ 1/31                                                   │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────╯
-  [a]dd project [Enter]select [m]ove [Tab]items [T]ree [/]search          [?]help  LOCAL todoui.db
+  [a]dd project [Enter]select [m]ove [Tab]items [T]ree [/]search        [?]help  LOCAL projects.db

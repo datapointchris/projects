@@ -1,4 +1,4 @@
-# todoui
+# projects
 
 A terminal UI for organizing personal projects. It holds the projects, the items that make each one
 up, the dependencies between items, and the sub-tasks on each item. It reads and writes a local
@@ -6,61 +6,85 @@ SQLite database, so it works with no network at all. Sync to an
 [ichrisbirch](https://github.com/datapointchris/ichrisbirch) API server is optional, and runs in the
 background when it is on.
 
-todoui is the TUI and nothing more. Its subcommands are `sync`, `update`, `version` and
+`projects` is the TUI and nothing more. Its subcommands are `sync`, `update`, `version` and
 `completion`, and none of them reads or writes an item. Scripts and agents reach the same projects
 and items through ichrisbirch's own CLI, against the same API.
 
 ## Install
 
 ```bash
-go install github.com/datapointchris/todoui@latest   # the main package is the module root
-todoui update                                         # replace the binary with the latest release
+go install github.com/datapointchris/projects@latest   # the main package is the module root
+projects update                                         # replace the binary with the latest release
 ```
 
 Release archives for Linux and macOS, on amd64 and arm64, are on the
-[releases page](https://github.com/datapointchris/todoui/releases). `todoui update` replaces the
+[releases page](https://github.com/datapointchris/projects/releases). `projects update` replaces the
 running binary with one of them, verified against the release's published checksums. It needs no Go
 toolchain.
 
 To build from source:
 
 ```bash
-git clone https://github.com/datapointchris/todoui
-cd todoui
-go build -o todoui .
+git clone https://github.com/datapointchris/projects
+cd projects
+go build -o projects .
 ```
 
 A release build run in a terminal checks GitHub for a newer release at most once a day. It prints a
-line naming one and never installs it. `TODOUI_NO_AUTO_UPDATE`, set to any value, switches the check
+line naming one and never installs it. `PROJECTS_NO_AUTO_UPDATE`, set to any value, switches the check
 off.
 
 ## Starting from scratch
 
 ```bash
-go install github.com/datapointchris/todoui@latest  # the binary, and nothing else
-todoui version                                      # proves the install, and opens no database
-todoui                                              # creates ~/.local/share/todoui/todoui.db, opens the TUI
+go install github.com/datapointchris/projects@latest  # the binary, and nothing else
+projects version                                      # proves the install, and opens no database
+projects                                              # creates ~/.local/share/projects/projects.db, opens the TUI
 
-mkdir -p ~/.config/todoui                           # todoui reads its config and never writes one
-$EDITOR ~/.config/todoui/config.toml                # [sync] enabled, api_url, token_command
-todoui sync                                         # binds the database to that API, then pulls
-todoui                                              # the status bar reads SYNCED and the API's URL
+mkdir -p ~/.config/projects                           # projects reads its config and never writes one
+$EDITOR ~/.config/projects/config.toml                # [sync] enabled, api_url, token_command
+projects sync                                         # binds the database to that API, then pulls
+projects                                              # the status bar reads SYNCED and the API's URL
 ```
 
 The first three lines are the whole setup for local use. The right end of the status bar reads
-`LOCAL` and the database path, which shows todoui is running without sync. In the TUI, `a` adds a
+`LOCAL` and the database path, which shows `projects` is running without sync. In the TUI, `a` adds a
 project, `Tab` moves to the item pane, and `a` adds an item there. `q` quits.
 
 The second group is only for sync, and it comes before you add anything. Nothing written with sync
 off is queued for push. The first pull deletes it as rows the server never returned. The guard under
 [A database belongs to one API](#a-database-belongs-to-one-api-and-a-pull-that-would-empty-it-stops)
 stops that only once a pull would delete ten projects or ten items. To keep local work and sync as
-well, point `TODOUI_DB` or `db_path` at a second database for the synced one.
+well, point `PROJECTS_DB` or `db_path` at a second database for the synced one.
 
 `config.toml` takes the keys under
 [Configuration](#configuration--one-toml-file-every-key-overridable-from-the-environment). A key
-todoui does not read is an error rather than ignored, so a misspelled key never passes for an unset
+`projects` does not read is an error rather than ignored, so a misspelled key never passes for an unset
 one.
+
+## Coming from todoui — the first run moves the data, and the rest is by hand
+
+This tool was called `todoui`. Quit any running copy, delete the binary (`rm ~/go/bin/todoui`), then
+install this one. `todoui update` cannot cross the rename, because the release archive no longer holds
+a binary of that name. Deleting it matters: one run of an old `todoui` after the move creates a new
+empty database at the old path, and `projects` then stops until that file is gone.
+
+Move `~/.config/todoui/config.toml` to `~/.config/projects/config.toml` first. While only the old file
+exists, every run that opens a database stops with exit 1, naming both paths. Reading no config would
+turn sync off, and the next pull deletes what was written with it off.
+
+The first run that opens the default database moves everything in `$XDG_DATA_HOME/todoui` to
+`$XDG_DATA_HOME/projects`. `todoui.db` becomes `projects.db`, and its `-wal` and `-shm` files go with
+it, because the WAL can hold committed rows. `todoui.db` beside an existing `projects.db` stops the run
+with exit 1, naming both paths, and nothing moves. Any other file already at its destination stays
+behind under `todoui`.
+
+A run where `PROJECTS_DB` or `db_path` names another database moves nothing, so a machine that always
+names one moves any `repos.json` by hand. A database path inside `$XDG_DATA_HOME/todoui` stops the run,
+because the first default run moves that directory out from under it.
+
+A retired `TODOUI_*` variable set to a value stops every command with exit 2, naming the variable that
+replaced it. Ignoring `TODOUI_DB` would open the default database where the variable chose another.
 
 ## The TUI — projects on the left, their items on the right, every key one press away
 
@@ -80,7 +104,7 @@ project adds it to a selection. The item pane then shows the selected projects' 
 same way. An item belongs to one project or to several. `A` adds an item to more than one, and `p`
 changes which projects hold it. Each item carries a title, notes, a checklist of sub-tasks, and the
 items it waits on. The reader also names the repo the item is for. That tag is set through
-ichrisbirch and arrives with sync. todoui has no key that sets it.
+ichrisbirch and arrives with sync. `projects` has no key that sets it.
 
 `Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
 what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
@@ -103,7 +127,7 @@ filter.
 
 ## A project is bounded work, and its name is never a repo's
 
-A project is something that ends. `todoui sync improvements` ends, and `todoui` does not. A
+A project is something that ends. `projects sync improvements` ends, and `projects` does not. A
 project named after a repo becomes the bucket every later papercut falls into, because the repo
 keeps existing after the work is done. An item's repo tag carries that association instead. The tag
 crosses project boundaries and outlives any one project.
@@ -112,15 +136,15 @@ So creating a project refuses a name the repo registry holds, and so does renami
 is a JSON file with a `repos` array, and each entry's `name` is a banned project name:
 
 ```json
-{ "repos": [{ "name": "todoui" }] }
+{ "repos": [{ "name": "projects" }] }
 ```
 
-The match ignores case and surrounding spaces. todoui reads the first registry it finds, in this
+The match ignores case and surrounding spaces. `projects` reads the first registry it finds, in this
 order:
 
-1. `$TODOUI_REPOS_REGISTRY`
+1. `$PROJECTS_REPOS_REGISTRY`
 2. `repos_registry` in the config file
-3. `$XDG_DATA_HOME/todoui/repos.json`, which defaults to `~/.local/share/todoui/repos.json`
+3. `$XDG_DATA_HOME/projects/repos.json`, which defaults to `~/.local/share/projects/repos.json`
 
 A missing registry bans nothing. A registry that does not parse fails every create and rename with
 the parse error.
@@ -136,20 +160,20 @@ and here is why" does not.
 Closing a project does not touch its items, so an item left open shows the project closed with
 work unfinished.
 
-Only an active project holds its name. A completed `todoui sync improvements` frees the name for the
+Only an active project holds its name. A completed `projects sync improvements` frees the name for the
 next round of them.
 
 ## An item's handle is its number, and its key is a UUID
 
 An item shows its number, the same handle ichrisbirch prints. The number is not the primary key.
-todoui creates every id as a UUIDv7, so an item can be created offline and pushed without a round
+`projects` creates every id as a UUIDv7, so an item can be created offline and pushed without a round
 trip to claim one.
 
 With sync on, the number comes from the API's response to the create, and the TUI shows it once the
-push lands. With sync off, todoui allocates the next number itself. An item created while the API is
+push lands. With sync off, `projects` allocates the next number itself. An item created while the API is
 unreachable shows the last 8 characters of its id until its push lands and earns it a number.
 
-## Sync is automatic, and `todoui sync` is for now rather than for correctness
+## Sync is automatic, and `projects sync` is for now rather than for correctness
 
 With sync on, every edit is queued and pushed as you make it. The TUI pulls on launch, then again
 every `sync.interval` (default two minutes) for as long as it is open. A pull waits while a text
@@ -160,7 +184,7 @@ back, with no further edit to trigger it.
 
 The status bar names the API's URL beside one of `SYNCING...`, `PENDING (n)`, `SYNC ERR` or
 `SYNCED`. An unreachable API shows `SYNC ERR` and leaves the local data in place. `R` in the TUI or
-`todoui sync` forces a reconcile.
+`projects sync` forces a reconcile.
 
 A pull is two requests, because the item list embeds memberships, dependencies and sub-tasks.
 Against an API that does not embed them, it falls back to two more requests per item. Lower
@@ -169,9 +193,9 @@ Against an API that does not embed them, it falls back to two more requests per 
 ## A database belongs to one API, and a pull that would empty it stops
 
 ```bash
-todoui sync            # push anything queued, then pull, however recently the last pull ran
-todoui sync --adopt    # bind this database to the configured API, replacing the old binding
-todoui sync --force    # allow a pull that would delete most of the projects or items here
+projects sync            # push anything queued, then pull, however recently the last pull ran
+projects sync --adopt    # bind this database to the configured API, replacing the old binding
+projects sync --force    # allow a pull that would delete most of the projects or items here
 ```
 
 A pull deletes every local row the server did not return, so a database and its API are a pair.
@@ -193,7 +217,7 @@ Neither flag is reachable from the background timers.
 
 ## Configuration — one TOML file, every key overridable from the environment
 
-todoui reads `$XDG_CONFIG_HOME/todoui/config.toml`, else `~/.config/todoui/config.toml`, on macOS
+`projects` reads `$XDG_CONFIG_HOME/projects/config.toml`, else `~/.config/projects/config.toml`, on macOS
 as well as Linux. No config file is a valid configuration: a local database, with sync off.
 [config.example.toml](config.example.toml) is an annotated copy.
 
@@ -201,38 +225,38 @@ as well as Linux. No config file is a valid configuration: a local database, wit
 # repos_registry = "/path/to/repos.json"  # a bare key, so it sits above the first [section]
 
 [local]
-# db_path = "/custom/path/todoui.db"  # default: ~/.local/share/todoui/todoui.db
+# db_path = "/custom/path/projects.db"  # default: ~/.local/share/projects/projects.db
 
 [sync]
 enabled = false
-# api_url = "https://example.com"  # the server's host; todoui adds /api/v1
+# api_url = "https://example.com"  # the server's host; the tool adds /api/v1
 # token_command = "<cli> auth token"  # prints a bearer token for api_url
-# interval = "2m"  # longest todoui goes without reconciling; floored at 15s
+# interval = "2m"  # longest it goes without reconciling; floored at 15s
 ```
 
 `enabled = true` without an `api_url` is an error.
 
-`token_command` is how todoui authenticates to the API without holding a secret itself. It is split
+`token_command` is how `projects` authenticates to the API without holding a secret itself. It is split
 on spaces and run without a shell or stdin. Whatever it prints becomes the bearer token. A command
-that has not finished in 10 seconds fails. todoui keeps the token until the API refuses it, then
+that has not finished in 10 seconds fails. `projects` keeps the token until the API refuses it, then
 runs the command once more and retries once. A failing command's first line of stderr is what the
 status bar shows. Leave it unset for an API that needs no token, such as a dev stack that sets its
 own identity.
 
-The command belongs to the URL beside it. When `TODOUI_SYNC_URL` supplies the URL, the config
-file's `token_command` is ignored and `TODOUI_SYNC_TOKEN_COMMAND` is the only source. Overriding the
+The command belongs to the URL beside it. When `PROJECTS_SYNC_URL` supplies the URL, the config
+file's `token_command` is ignored and `PROJECTS_SYNC_TOKEN_COMMAND` is the only source. Overriding the
 URL never sends one API's token to another.
 
 Each variable overrides the key beside it:
 
 | Variable | Overrides |
 | -------- | --------- |
-| `TODOUI_DB` | `local.db_path` |
-| `TODOUI_SYNC` | `sync.enabled` (`true` or `false`) |
-| `TODOUI_SYNC_URL` | `sync.api_url` |
-| `TODOUI_SYNC_TOKEN_COMMAND` | `sync.token_command` |
-| `TODOUI_SYNC_INTERVAL` | `sync.interval`, as a duration such as `30s` or `5m` |
-| `TODOUI_REPOS_REGISTRY` | `repos_registry` |
+| `PROJECTS_DB` | `local.db_path` |
+| `PROJECTS_SYNC` | `sync.enabled` (`true` or `false`) |
+| `PROJECTS_SYNC_URL` | `sync.api_url` |
+| `PROJECTS_SYNC_TOKEN_COMMAND` | `sync.token_command` |
+| `PROJECTS_SYNC_INTERVAL` | `sync.interval`, as a duration such as `30s` or `5m` |
+| `PROJECTS_REPOS_REGISTRY` | `repos_registry` |
 
 ## Local-first — SQLite is the store, and sync is a layer over it
 
@@ -256,7 +280,7 @@ Backend interface
 The data model is projects, items, the memberships joining them many to many, dependencies between
 items, and sub-tasks.
 
-todoui writes two places. The database at `db_path` holds the data, the queue of pending pushes, and
+`projects` writes two places. The database at `db_path` holds the data, the queue of pending pushes, and
 the API the database is bound to. The update check keeps its last result under
-`$XDG_STATE_HOME/todoui/`, which defaults to `~/.local/state/todoui/`. The config file and the repo
+`$XDG_STATE_HOME/projects/`, which defaults to `~/.local/state/projects/`. The config file and the repo
 registry are read and never written.

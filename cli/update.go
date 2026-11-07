@@ -21,7 +21,7 @@ func Version() string {
 	return "dev"
 }
 
-// UpdateConfig describes where todoui's releases come from.
+// UpdateConfig describes where the tool's releases come from.
 //
 // Exported because main wires the same config into both halves: the `update`
 // command that installs a release, and the daily check that mentions one. Two
@@ -30,8 +30,8 @@ func Version() string {
 func UpdateConfig() goselfupdate.Config {
 	return goselfupdate.Config{
 		Owner:   "datapointchris",
-		Repo:    "todoui",
-		Binary:  "todoui",
+		Repo:    "projects",
+		Binary:  "projects",
 		Version: Version(),
 	}
 }
@@ -44,7 +44,7 @@ func VersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Short:   "Print the current version",
-		Example: "  todoui version    print the version of this binary, such as v1.4.0",
+		Example: "  projects version    print the version of this binary, such as v1.4.0",
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
 			cmd.Println(Version())

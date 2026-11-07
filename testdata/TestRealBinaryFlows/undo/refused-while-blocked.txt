@@ -27,4 +27,4 @@
 │                                      │┃                                                        ┃
 │                                      │┃                                                        ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Cannot complete: item has unresolved blockers                           [?]help  LOCAL todoui.db
+  Cannot complete: item has unresolved blockers                         [?]help  LOCAL projects.db

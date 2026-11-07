@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
 )
 
 func mustSetStatus(t *testing.T, b *LocalBackend, id, status string, reason *string) *model.Project {
@@ -288,9 +288,9 @@ func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
 }
 
 func TestAProjectCannotBeNamedAfterARepo(t *testing.T) {
-	b := backendRefusingRepos(t, "todoui", "dotfiles")
+	b := backendRefusingRepos(t, "projects", "dotfiles")
 
-	for _, name := range []string{"todoui", "Dotfiles"} {
+	for _, name := range []string{"projects", "Dotfiles"} {
 		_, err := b.CreateProject(model.CreateProject{Name: name})
 		if !errors.Is(err, model.ErrRepoNamedProject) {
 			t.Errorf("creating %q: got %v, want ErrRepoNamedProject", name, err)
@@ -300,9 +300,9 @@ func TestAProjectCannotBeNamedAfterARepo(t *testing.T) {
 
 func TestBoundedWorkNamingARepoIsAllowed(t *testing.T) {
 	// The test is whether the thing ENDS, not whether the repo name appears.
-	b := backendRefusingRepos(t, "todoui", "dotfiles")
+	b := backendRefusingRepos(t, "projects", "dotfiles")
 
-	for _, name := range []string{"todoui sync improvements", "Extract xx from dotfiles"} {
+	for _, name := range []string{"projects sync improvements", "Extract xx from dotfiles"} {
 		if _, err := b.CreateProject(model.CreateProject{Name: name}); err != nil {
 			t.Errorf("creating %q: %v", name, err)
 		}
@@ -311,13 +311,13 @@ func TestBoundedWorkNamingARepoIsAllowed(t *testing.T) {
 
 // A ban one `edit` walks around is decoration.
 func TestAProjectCannotBeRenamedToARepo(t *testing.T) {
-	b := backendRefusingRepos(t, "todoui")
-	p, err := b.CreateProject(model.CreateProject{Name: "todoui sync improvements"})
+	b := backendRefusingRepos(t, "projects")
+	p, err := b.CreateProject(model.CreateProject{Name: "projects sync improvements"})
 	if err != nil {
 		t.Fatalf("creating project: %v", err)
 	}
 
-	name := "todoui"
+	name := "projects"
 	_, err = b.UpdateProject(p.ID, model.UpdateProject{Name: &name})
 
 	if !errors.Is(err, model.ErrRepoNamedProject) {
@@ -330,7 +330,7 @@ func TestAProjectCannotBeRenamedToARepo(t *testing.T) {
 func TestWithoutARegistryNothingIsBanned(t *testing.T) {
 	b := newTestBackend(t)
 
-	if _, err := b.CreateProject(model.CreateProject{Name: "todoui"}); err != nil {
+	if _, err := b.CreateProject(model.CreateProject{Name: "projects"}); err != nil {
 		t.Errorf("a backend with no registry must ban nothing: %v", err)
 	}
 }

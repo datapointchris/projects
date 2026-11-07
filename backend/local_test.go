@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
 )
 
 func newTestBackend(t *testing.T) *LocalBackend {
@@ -625,7 +625,7 @@ func TestItemRepoRoundTripAndClear(t *testing.T) {
 	b := newTestBackend(t)
 	p := mustCreateProject(t, b, "tools")
 
-	repo := "todoui"
+	repo := "projects"
 	item, err := b.CreateItem(model.CreateProjectItem{
 		Title:      "fix the brief collision",
 		Repo:       &repo,
@@ -634,15 +634,15 @@ func TestItemRepoRoundTripAndClear(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating item: %v", err)
 	}
-	if item.Repo == nil || *item.Repo != "todoui" {
-		t.Fatalf("expected repo 'todoui', got %v", item.Repo)
+	if item.Repo == nil || *item.Repo != "projects" {
+		t.Fatalf("expected repo 'projects', got %v", item.Repo)
 	}
 
 	fetched, err := b.GetItem(item.ID)
 	if err != nil {
 		t.Fatalf("getting item: %v", err)
 	}
-	if fetched.Repo == nil || *fetched.Repo != "todoui" {
+	if fetched.Repo == nil || *fetched.Repo != "projects" {
 		t.Errorf("repo did not survive a read: %v", fetched.Repo)
 	}
 
@@ -652,7 +652,7 @@ func TestItemRepoRoundTripAndClear(t *testing.T) {
 		t.Fatalf("updating title: %v", err)
 	}
 	fetched, _ = b.GetItem(item.ID)
-	if fetched.Repo == nil || *fetched.Repo != "todoui" {
+	if fetched.Repo == nil || *fetched.Repo != "projects" {
 		t.Errorf("repo lost on unrelated update: %v", fetched.Repo)
 	}
 
