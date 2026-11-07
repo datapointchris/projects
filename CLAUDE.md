@@ -110,7 +110,8 @@ store/sqlite         Open, migrations, queries.sql, generated
   `queries.sql` and sqlc's `generated`. It turns the driver's no-row answer, and each unique answer
   `store/store.go` promises a sentinel for, into `model` sentinels, so `service` matches no driver text
   and imports no `database/sql`.
-- **`service.Service` satisfies `backend.Backend`**, so the TUI depends on that interface alone.
+- **`service.Service` satisfies `backend.Backend`**, so the TUI reaches every rule through that
+  interface, and outside its tests imports neither `service` nor a store.
 - **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
   `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a
   transaction cannot nest. What a rule decides on, it reads through `tx` too, and `InTx` promises those
@@ -118,7 +119,8 @@ store/sqlite         Open, migrations, queries.sql, generated
   `s.store` also deadlocks, because `:memory:` holds one connection.
 - **Undo is a rule, so it is in `service`.** A store holds `previous_state` as text it never reads.
   `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
-  and its `{"String":…,"Valid":…}` stays even though no store's types read that way.
+  whatever types a store uses for its own rows. A new column on a project, item or task joins its record
+  there and its store's restore, and `TestEveryModelFieldSurvivesAnUndo` fails until both carry it.
 - **A store's statements carry what only a statement can do atomically, or what only it can sort.**
   `store/store.go` states each on its method: a new row's position, an item's `updated_at`, a restore's
   handling of a row already there, and the order projects list in by status. Any second store has to
@@ -128,9 +130,8 @@ Two carve-outs are declared here rather than assumed:
 
 - **`sync` reaches `store/sqlite/generated` directly.** A pull rewrites rows wholesale, with no undo entry
   and none of the rules, and the push queue and origin binding belong to no rule. Routing that through
-  `service` would give the rules a surface only the engine calls. It ends when the sync engine is deleted,
-  after production moves to this repo's API. `generated` can then move under `store/sqlite/internal`,
-  where the compiler enforces the seam.
+  `service` would give the rules a surface only the engine calls. It ends when the sync engine is deleted.
+  `generated` can then move under `store/sqlite/internal`, where the compiler enforces the seam.
 - **Local mode links `service` directly.** A client normally depends on the wire contract and never on a
   server's types, because importing them couples deploy order. Local mode has no server, so that reason
   does not reach it. Anything on the HTTP path keeps its own lean structs.

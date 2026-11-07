@@ -8,9 +8,9 @@ import (
 
 // The types below are the JSON an undo entry's previous_state holds. Entries are
 // never pruned, so this shape is a format on disk: a field renamed here strands
-// every entry already written. Its nullable fields read {"String":…,"Valid":…}
-// because that is the JSON a nullable SQL column's Go type marshals to, and the
-// oldest entries hold exactly that. No store reads any of it.
+// every entry already written. Its nullable fields read {"String":…,"Valid":…} or
+// {"Int64":…,"Valid":…}, because that is the JSON a nullable SQL column's Go type
+// marshals to, and the oldest entries hold exactly that. No store reads any of it.
 
 type nullableText struct {
 	String string
@@ -156,7 +156,7 @@ func (r taskRecord) toModel() model.ProjectItemTask {
 	}
 }
 
-// An empty list is left nil, so a snapshot holding none writes null as it always has.
+// An empty list stays nil, so it marshals to the null that entries in the log hold.
 
 func membershipRecordsOf(memberships []model.Membership) []membershipRecord {
 	var records []membershipRecord
