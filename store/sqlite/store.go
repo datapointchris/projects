@@ -124,11 +124,12 @@ func (o operations) UpdateProject(ctx context.Context, project model.Project) (m
 	return toModelProject(row), nil
 }
 
-func (o operations) SetProjectStatus(ctx context.Context, id, status string, reason *string) (model.Project, error) {
+func (o operations) SetProjectStatus(ctx context.Context, project model.Project) (model.Project, error) {
 	row, err := o.q.SetProjectStatus(ctx, generated.SetProjectStatusParams{
-		NewStatus: status,
-		Reason:    toNullString(reason),
-		ID:        id,
+		Status:       project.Status,
+		StatusReason: toNullString(project.StatusReason),
+		ClosedAt:     toNullTime(project.ClosedAt),
+		ID:           project.ID,
 	})
 	if err != nil {
 		return model.Project{}, duplicateNameError(err)

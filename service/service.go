@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -187,26 +188,27 @@ func (s *Service) UpdateProject(id string, input model.UpdateProject) (*model.Pr
 
 // SetProjectStatus moves a project between active, someday, completed and
 // dropped. A reason is required when dropping, optional when shelving and
-// ignored when reopening — the closing timestamp and the reason are
-// consequences of the transition, derived by the store rather than handed in,
-// so an active project can never carry either.
+// ignored when reopening.
 func (s *Service) SetProjectStatus(id, status string, reason *string) (*model.Project, error) {
 	ctx := s.ctx()
 	if status == model.StatusDropped && (reason == nil || strings.TrimSpace(*reason) == "") {
 		return nil, model.ErrDropReasonRequired
 	}
 
-	current, err := s.store.GetProject(ctx, id)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
-		}
-		return nil, fmt.Errorf("getting project for status change: %w", err)
-	}
-
 	var updated model.Project
-	err = s.store.InTx(ctx, func(tx store.Operations) error {
-		p, err := tx.SetProjectStatus(ctx, id, status, reason)
+	err := s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetProject(ctx, id)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("project %q: %w", id, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting project for status change: %w", err)
+		}
+		next, err := projectAfterStatusChange(current, status, reason)
+		if err != nil {
+			return err
+		}
+		p, err := tx.SetProjectStatus(ctx, next)
 		if err != nil {
 			if errors.Is(err, model.ErrDuplicateName) {
 				return model.ErrDuplicateName
@@ -220,6 +222,31 @@ func (s *Service) SetProjectStatus(id, status string, reason *string) (*model.Pr
 		return nil, err
 	}
 	return &updated, nil
+}
+
+// projectAfterStatusChange derives what a transition carries with it, so an
+// active project can never hold a reason or a closing date. A someday project is
+// set aside rather than closed, so it records no close. A project already closed
+// in this status keeps its date, because rewording the reason decides nothing new.
+func projectAfterStatusChange(current model.Project, status string, reason *string) (model.Project, error) {
+	next := current
+	next.Status = status
+	next.StatusReason = reason
+	switch status {
+	case model.StatusActive:
+		next.StatusReason = nil
+		next.ClosedAt = nil
+	case model.StatusSomeday:
+		next.ClosedAt = nil
+	case model.StatusCompleted, model.StatusDropped:
+		if current.ClosedAt == nil || current.Status != status {
+			now := time.Now().UTC().Truncate(time.Millisecond)
+			next.ClosedAt = &now
+		}
+	default:
+		return model.Project{}, fmt.Errorf("unknown project status %q", status)
+	}
+	return next, nil
 }
 
 func (s *Service) DeleteProject(id string) error {

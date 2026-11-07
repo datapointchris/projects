@@ -41,12 +41,9 @@ type Operations interface {
 	// UpdateProject writes Name, Description and Position by ID. A name an active
 	// project holds answers model.ErrDuplicateName.
 	UpdateProject(ctx context.Context, project model.Project) (model.Project, error)
-	// SetProjectStatus derives closed_at and status_reason from the transition.
-	// Active and someday clear closed_at, and active clears the reason. A project
-	// already closed in this status keeps its date, and any other close stamps
-	// now. Reopening into a name an active project holds answers
-	// model.ErrDuplicateName.
-	SetProjectStatus(ctx context.Context, id, status string, reason *string) (model.Project, error)
+	// SetProjectStatus writes Status, StatusReason and ClosedAt by ID, as given.
+	// Reopening into a name an active project holds answers model.ErrDuplicateName.
+	SetProjectStatus(ctx context.Context, project model.Project) (model.Project, error)
 	UpdateProjectPosition(ctx context.Context, id string, position int) error
 	// DeleteProject cascades to the project's memberships.
 	DeleteProject(ctx context.Context, id string) error

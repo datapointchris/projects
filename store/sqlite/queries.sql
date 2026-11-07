@@ -53,23 +53,12 @@ SET name = ?,
 WHERE id = ?
 RETURNING *;
 
--- Every consequence of the transition in one statement: closed_at is stamped on
--- the way out and cleared on the way back, and the reason goes with it, so a
--- caller cannot leave an active project carrying a closing date.
 -- name: SetProjectStatus :one
 UPDATE projects
-SET status = sqlc.arg(new_status),
-    status_reason = CASE WHEN sqlc.arg(new_status) = 'active' THEN NULL ELSE sqlc.narg(reason) END,
-    closed_at = CASE
-        WHEN sqlc.arg(new_status) = 'active' THEN NULL
-        -- A someday project is set aside, not closed, so it records no close.
-        WHEN sqlc.arg(new_status) = 'someday' THEN NULL
-        -- Already closed and staying that way: keep the original date rather
-        -- than restamping it on an edit to the reason.
-        WHEN closed_at IS NOT NULL AND status = sqlc.arg(new_status) THEN closed_at
-        ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    END
-WHERE id = sqlc.arg(id)
+SET status = ?,
+    status_reason = ?,
+    closed_at = ?
+WHERE id = ?
 RETURNING *;
 
 -- name: DeleteProject :exec

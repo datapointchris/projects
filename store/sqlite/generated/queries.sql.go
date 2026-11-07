@@ -1326,32 +1326,27 @@ func (q *Queries) SetItemNumber(ctx context.Context, arg SetItemNumberParams) er
 
 const setProjectStatus = `-- name: SetProjectStatus :one
 UPDATE projects
-SET status = ?1,
-    status_reason = CASE WHEN ?1 = 'active' THEN NULL ELSE ?2 END,
-    closed_at = CASE
-        WHEN ?1 = 'active' THEN NULL
-        -- A someday project is set aside, not closed, so it records no close.
-        WHEN ?1 = 'someday' THEN NULL
-        -- Already closed and staying that way: keep the original date rather
-        -- than restamping it on an edit to the reason.
-        WHEN closed_at IS NOT NULL AND status = ?1 THEN closed_at
-        ELSE strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    END
-WHERE id = ?3
+SET status = ?,
+    status_reason = ?,
+    closed_at = ?
+WHERE id = ?
 RETURNING id, name, description, status, status_reason, closed_at, position, created_at
 `
 
 type SetProjectStatusParams struct {
-	NewStatus string
-	Reason    sql.NullString
-	ID        string
+	Status       string
+	StatusReason sql.NullString
+	ClosedAt     sql.NullString
+	ID           string
 }
 
-// Every consequence of the transition in one statement: closed_at is stamped on
-// the way out and cleared on the way back, and the reason goes with it, so a
-// caller cannot leave an active project carrying a closing date.
 func (q *Queries) SetProjectStatus(ctx context.Context, arg SetProjectStatusParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, setProjectStatus, arg.NewStatus, arg.Reason, arg.ID)
+	row := q.db.QueryRowContext(ctx, setProjectStatus,
+		arg.Status,
+		arg.StatusReason,
+		arg.ClosedAt,
+		arg.ID,
+	)
 	var i Project
 	err := row.Scan(
 		&i.ID,

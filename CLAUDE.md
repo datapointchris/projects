@@ -118,9 +118,10 @@ store/sqlite         Open, migrations, queries.sql, generated
 - **Undo is a rule, so it is in `service`.** A store holds `previous_state` as text it never reads.
   `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
   and its `{"String":…,"Valid":…}` stays even though no store's types read that way.
-- **A store's statements carry what only a statement can do atomically.** `store/store.go` states each
-  on its method: a close's `closed_at`, a new row's position, an item's `updated_at`, a restore's handling
-  of a row already there. Any second store has to state them again.
+- **A store's statements carry what only a statement can do atomically, or what only it can sort.**
+  `store/store.go` states each on its method: a new row's position, an item's `updated_at`, a restore's
+  handling of a row already there, and the order projects list in by status. Any second store has to
+  state them again.
 
 Two carve-outs are declared here rather than assumed:
 
@@ -195,9 +196,9 @@ re-proposal, "dropped, and here is why" closes the question.
 `closed_at` stays NULL, matching the API. So "is it closed" and "is it hidden" are different
 questions: the TUI asks `status != active` for hiding and for offering reopen.
 
-`SetProjectStatus` is the only write path, and `closed_at` and `status_reason` are derived inside
-its statement rather than accepted from a caller, so an active project can never carry either.
-`UpdateProject` deliberately does not touch status.
+`service.SetProjectStatus` is the only rule that moves a status, and it derives `closed_at` and
+`status_reason` from the transition rather than accepting them from a caller, so an active project
+can never carry either. `UpdateProject` deliberately does not touch status.
 
 **Closing a project does not cascade to its items.** An item still open when the project was
 dropped WAS still open; "shipped 8 of 11, dropped with 3 open" is a real signal and eleven archived
