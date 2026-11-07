@@ -301,6 +301,7 @@ jobs:
             go-build-repo-mod
             go-mod-tidy-repo
             go-test-repo-mod
+            hadolint
             jactionlint
             sqlfluff-lint
           )
@@ -363,3 +364,15 @@ jobs:
             echo "::endgroup::"
           done <"$RUNNER_TEMP/paths"
           exit "$status"
+
+  # The release builds the image only after it has tagged, and .dockerignore is an
+  # allowlist of what the binary imports, so a missing directory would otherwise
+  # surface with the version already cut.
+  api-image:
+    name: API image
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image without pushing it
+        run: docker build --build-arg PROJECTS_VERSION=0.0.0 .
