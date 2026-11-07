@@ -58,37 +58,53 @@ func rowError(err error) error {
 	return err
 }
 
-// duplicateNameError names a unique violation for the writes store.Store promises
-// ErrDuplicateName on. A project's only unique index beyond its id is the one on
-// an active project's name, and the driver answers an id collision with a
-// different code. Only active projects hold a name, so a status change fires this
-// only on the way back to active.
-func duplicateNameError(err error) error {
+// duplicateError names a unique violation for the writes store.Store promises a
+// sentinel on. A project's only unique index beyond its id is the one on an active
+// project's name, and the driver answers an id collision with a different code.
+// Only active projects hold a name, so a status change fires this only on the way
+// back to active.
+func duplicateError(err error) error {
 	var driverErr *modernc.Error
-	if errors.As(err, &driverErr) && driverErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
-		return model.ErrDuplicateName
+	if errors.As(err, &driverErr) {
+		switch driverErr.Code() {
+		case sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+			return model.ErrDuplicateName
+		case sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY:
+			return model.ErrDuplicateID
+		}
 	}
 	return rowError(err)
 }
 
-func (o operations) ListProjectsWithItemCount(ctx context.Context, status string) ([]model.ProjectWithItemCount, error) {
-	rows, err := o.q.ListProjectsWithItemCount(ctx, status)
+func (o operations) ListProjects(ctx context.Context) ([]model.Project, error) {
+	rows, err := o.q.ListAllProjectsRaw(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.ProjectWithItemCount, len(rows))
+	return toModelProjects(rows), nil
+}
+
+func (o operations) ListProjectItemFacts(ctx context.Context) ([]model.ProjectItemFact, error) {
+	rows, err := o.q.ListProjectItemFacts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.ProjectItemFact, len(rows))
 	for i, r := range rows {
-		out[i] = toModelProjectWithItemCount(r)
+		out[i] = model.ProjectItemFact{ProjectID: r.ProjectID, Completed: r.Completed != 0, Archived: r.Archived != 0}
+		if r.Repo.Valid {
+			out[i].Repo = &r.Repo.String
+		}
 	}
 	return out, nil
 }
 
-func (o operations) GetProjectWithItemCount(ctx context.Context, id string) (model.ProjectWithItemCount, error) {
-	row, err := o.q.GetProjectWithItemCount(ctx, id)
-	if err != nil {
-		return model.ProjectWithItemCount{}, rowError(err)
-	}
-	return toModelProjectWithItemCountFromGet(row), nil
+func (o operations) ListProjectKinds(ctx context.Context) ([]string, error) {
+	return o.q.ListProjectKinds(ctx)
+}
+
+func (o operations) ListProjectStatuses(ctx context.Context) ([]string, error) {
+	return o.q.ListProjectStatuses(ctx)
 }
 
 func (o operations) GetProject(ctx context.Context, id string) (model.Project, error) {
@@ -101,38 +117,34 @@ func (o operations) GetProject(ctx context.Context, id string) (model.Project, e
 
 func (o operations) CreateProject(ctx context.Context, project model.Project) (model.Project, error) {
 	row, err := o.q.CreateProject(ctx, generated.CreateProjectParams{
-		ID:          project.ID,
-		Name:        project.Name,
-		Description: toNullString(project.Description),
+		ID:           project.ID,
+		Name:         project.Name,
+		Description:  toNullString(project.Description),
+		Kind:         project.Kind,
+		Status:       project.Status,
+		StatusReason: toNullString(project.StatusReason),
+		ClosedAt:     toNullTime(project.ClosedAt),
+		Position:     int64(project.Position),
 	})
 	if err != nil {
-		return model.Project{}, duplicateNameError(err)
+		return model.Project{}, duplicateError(err)
 	}
 	return toModelProject(row), nil
 }
 
 func (o operations) UpdateProject(ctx context.Context, project model.Project) (model.Project, error) {
 	row, err := o.q.UpdateProject(ctx, generated.UpdateProjectParams{
-		Name:        project.Name,
-		Description: toNullString(project.Description),
-		Position:    int64(project.Position),
-		ID:          project.ID,
-	})
-	if err != nil {
-		return model.Project{}, duplicateNameError(err)
-	}
-	return toModelProject(row), nil
-}
-
-func (o operations) SetProjectStatus(ctx context.Context, project model.Project) (model.Project, error) {
-	row, err := o.q.SetProjectStatus(ctx, generated.SetProjectStatusParams{
+		Name:         project.Name,
+		Description:  toNullString(project.Description),
+		Kind:         project.Kind,
 		Status:       project.Status,
 		StatusReason: toNullString(project.StatusReason),
 		ClosedAt:     toNullTime(project.ClosedAt),
+		Position:     int64(project.Position),
 		ID:           project.ID,
 	})
 	if err != nil {
-		return model.Project{}, duplicateNameError(err)
+		return model.Project{}, duplicateError(err)
 	}
 	return toModelProject(row), nil
 }
@@ -149,10 +161,11 @@ func (o operations) DeleteProject(ctx context.Context, id string) error {
 }
 
 func (o operations) RestoreProject(ctx context.Context, project model.Project) error {
-	return duplicateNameError(o.q.UpsertProject(ctx, generated.UpsertProjectParams{
+	return duplicateError(o.q.RestoreProject(ctx, generated.RestoreProjectParams{
 		ID:           project.ID,
 		Name:         project.Name,
 		Description:  toNullString(project.Description),
+		Kind:         project.Kind,
 		Status:       project.Status,
 		StatusReason: toNullString(project.StatusReason),
 		ClosedAt:     toNullTime(project.ClosedAt),
@@ -169,26 +182,14 @@ func (o operations) ListAllItems(ctx context.Context) ([]model.ProjectItem, erro
 	return toModelProjectItems(rows), nil
 }
 
-func (o operations) ListItemsByProject(ctx context.Context, projectID string) ([]model.ProjectItemInProject, error) {
-	rows, err := o.q.ListItemsByProject(ctx, projectID)
+func (o operations) ListItemsInProject(ctx context.Context, projectID string) ([]model.ProjectItemInProject, error) {
+	rows, err := o.q.ListItemsInProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]model.ProjectItemInProject, len(rows))
 	for i, r := range rows {
 		out[i] = toModelProjectItemInProject(r)
-	}
-	return out, nil
-}
-
-func (o operations) ListArchivedItems(ctx context.Context, projectID string) ([]model.ProjectItemInProject, error) {
-	rows, err := o.q.ListArchivedItems(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]model.ProjectItemInProject, len(rows))
-	for i, r := range rows {
-		out[i] = toModelProjectItemInProjectFromArchived(r)
 	}
 	return out, nil
 }
@@ -218,6 +219,14 @@ func (o operations) GetItem(ctx context.Context, id string) (model.ProjectItem, 
 	return toModelProjectItem(row), nil
 }
 
+func (o operations) GetItemByNumber(ctx context.Context, number int) (model.ProjectItem, error) {
+	row, err := o.q.GetItemByNumber(ctx, sql.NullInt64{Int64: int64(number), Valid: true})
+	if err != nil {
+		return model.ProjectItem{}, rowError(err)
+	}
+	return toModelProjectItem(row), nil
+}
+
 func (o operations) NextItemNumber(ctx context.Context) (int, error) {
 	next, err := o.q.NextItemNumber(ctx)
 	if err != nil {
@@ -235,19 +244,20 @@ func (o operations) CreateItem(ctx context.Context, item model.ProjectItem) (mod
 		Repo:   toNullString(item.Repo),
 	})
 	if err != nil {
-		return model.ProjectItem{}, rowError(err)
+		return model.ProjectItem{}, duplicateError(err)
 	}
 	return toModelProjectItem(row), nil
 }
 
 func (o operations) UpdateItem(ctx context.Context, item model.ProjectItem) (model.ProjectItem, error) {
 	row, err := o.q.UpdateItem(ctx, generated.UpdateItemParams{
-		Title:     item.Title,
-		Notes:     toNullString(item.Notes),
-		Repo:      toNullString(item.Repo),
-		Completed: boolToInt64(item.Completed),
-		Archived:  boolToInt64(item.Archived),
-		ID:        item.ID,
+		Title:       item.Title,
+		Notes:       toNullString(item.Notes),
+		Repo:        toNullString(item.Repo),
+		Completed:   boolToInt64(item.Completed),
+		CompletedAt: toNullTime(item.CompletedAt),
+		Archived:    boolToInt64(item.Archived),
+		ID:          item.ID,
 	})
 	if err != nil {
 		return model.ProjectItem{}, rowError(err)
@@ -260,16 +270,17 @@ func (o operations) DeleteItem(ctx context.Context, id string) error {
 }
 
 func (o operations) RestoreItem(ctx context.Context, item model.ProjectItem) error {
-	return o.q.UpsertItem(ctx, generated.UpsertItemParams{
-		ID:        item.ID,
-		Number:    toNullInt64(item.Number),
-		Title:     item.Title,
-		Notes:     toNullString(item.Notes),
-		Repo:      toNullString(item.Repo),
-		Completed: boolToInt64(item.Completed),
-		Archived:  boolToInt64(item.Archived),
-		CreatedAt: formatTime(item.CreatedAt),
-		UpdatedAt: formatTime(item.UpdatedAt),
+	return o.q.RestoreItem(ctx, generated.RestoreItemParams{
+		ID:          item.ID,
+		Number:      toNullInt64(item.Number),
+		Title:       item.Title,
+		Notes:       toNullString(item.Notes),
+		Repo:        toNullString(item.Repo),
+		Completed:   boolToInt64(item.Completed),
+		CompletedAt: toNullTime(item.CompletedAt),
+		Archived:    boolToInt64(item.Archived),
+		CreatedAt:   formatTime(item.CreatedAt),
+		UpdatedAt:   formatTime(item.UpdatedAt),
 	})
 }
 
@@ -313,11 +324,11 @@ func (o operations) GetItemProjects(ctx context.Context, itemID string) ([]model
 	return toModelProjects(rows), nil
 }
 
-func (o operations) AddItemToProject(ctx context.Context, itemID, projectID string) error {
+func (o operations) AddItemToProject(ctx context.Context, membership model.Membership) error {
 	return o.q.AddItemToProject(ctx, generated.AddItemToProjectParams{
-		ItemID:      itemID,
-		ProjectID:   projectID,
-		ProjectID_2: projectID,
+		ItemID:    membership.ItemID,
+		ProjectID: membership.ProjectID,
+		Position:  int64(membership.Position),
 	})
 }
 
@@ -360,12 +371,8 @@ func (o operations) ListDependenciesInvolvingItem(ctx context.Context, itemID st
 	return toModelDependencies(rows), nil
 }
 
-func (o operations) GetDependencyIDs(ctx context.Context, itemID string) ([]string, error) {
-	return o.q.GetDependencyIDs(ctx, itemID)
-}
-
-func (o operations) GetBlockers(ctx context.Context, itemID string) ([]model.ProjectItem, error) {
-	rows, err := o.q.GetBlockers(ctx, itemID)
+func (o operations) ListDependencyItems(ctx context.Context, itemID string) ([]model.ProjectItem, error) {
+	rows, err := o.q.ListDependencyItems(ctx, itemID)
 	if err != nil {
 		return nil, err
 	}
@@ -382,6 +389,18 @@ func (o operations) RemoveDependency(ctx context.Context, edge model.Dependency)
 
 func (o operations) RestoreDependency(ctx context.Context, edge model.Dependency) error {
 	return o.q.UpsertDependency(ctx, generated.UpsertDependencyParams{ItemID: edge.ItemID, DependsOnID: edge.DependsOnID})
+}
+
+func (o operations) ListAllTasks(ctx context.Context) ([]model.ProjectItemTask, error) {
+	rows, err := o.q.ListAllTasks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.ProjectItemTask, len(rows))
+	for i, r := range rows {
+		out[i] = toModelProjectItemTask(r)
+	}
+	return out, nil
 }
 
 func (o operations) ListTasksByItem(ctx context.Context, itemID string) ([]model.ProjectItemTask, error) {
@@ -409,20 +428,21 @@ func (o operations) CreateTask(ctx context.Context, task model.ProjectItemTask) 
 		ID:       task.ID,
 		ItemID:   task.ItemID,
 		Title:    task.Title,
-		ItemID_2: task.ItemID,
+		Position: int64(task.Position),
 	})
 	if err != nil {
-		return model.ProjectItemTask{}, rowError(err)
+		return model.ProjectItemTask{}, duplicateError(err)
 	}
 	return toModelProjectItemTask(row), nil
 }
 
 func (o operations) UpdateTask(ctx context.Context, task model.ProjectItemTask) (model.ProjectItemTask, error) {
 	row, err := o.q.UpdateTask(ctx, generated.UpdateTaskParams{
-		Title:     task.Title,
-		Completed: boolToInt64(task.Completed),
-		Position:  int64(task.Position),
-		ID:        task.ID,
+		Title:       task.Title,
+		Completed:   boolToInt64(task.Completed),
+		CompletedAt: toNullTime(task.CompletedAt),
+		Position:    int64(task.Position),
+		ID:          task.ID,
 	})
 	if err != nil {
 		return model.ProjectItemTask{}, rowError(err)
@@ -435,13 +455,14 @@ func (o operations) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (o operations) RestoreTask(ctx context.Context, task model.ProjectItemTask) error {
-	return o.q.UpsertTask(ctx, generated.UpsertTaskParams{
-		ID:        task.ID,
-		ItemID:    task.ItemID,
-		Title:     task.Title,
-		Completed: boolToInt64(task.Completed),
-		Position:  int64(task.Position),
-		CreatedAt: formatTime(task.CreatedAt),
+	return o.q.RestoreTask(ctx, generated.RestoreTaskParams{
+		ID:          task.ID,
+		ItemID:      task.ItemID,
+		Title:       task.Title,
+		Completed:   boolToInt64(task.Completed),
+		CompletedAt: toNullTime(task.CompletedAt),
+		Position:    int64(task.Position),
+		CreatedAt:   formatTime(task.CreatedAt),
 	})
 }
 

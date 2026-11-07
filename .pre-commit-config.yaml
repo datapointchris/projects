@@ -286,6 +286,13 @@ repos:
         files: ^store/sqlite/.*\.(sql|yaml)$
         pass_filenames: false
         stages: [pre-commit]
+      - id: sqlc-diff-postgres
+        name: sqlc generated code for Postgres is current
+        entry: bash -c 'cd store/postgres && go tool sqlc diff'
+        language: system
+        files: ^store/postgres/.*\.(sql|yaml)$
+        pass_filenames: false
+        stages: [pre-commit]
 
 # generated:github-actions - GitHub Actions
   - repo: https://github.com/jdx/jactionlint
@@ -302,3 +309,14 @@ repos:
     hooks:
       - id: sqlfluff-lint
         args: [--dialect, "sqlite", --config, .sqlfluff]
+
+# > custom:after:sql - Postgres SQL lints in its own dialect
+  # .sqlfluffignore keeps the generated SQLite hook off store/postgres. This one
+  # reads only that directory, in the dialect it is written in.
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 4.2.2
+    hooks:
+      - id: sqlfluff-lint
+        alias: sqlfluff-lint-postgres
+        files: ^store/postgres/.*\.sql$
+        args: [--dialect, "postgres", --config, .sqlfluff, --disregard-sqlfluffignores]

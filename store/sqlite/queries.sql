@@ -1,63 +1,32 @@
--- Terminal projects are hidden unless asked for: closing a project is what takes
--- it out of the list, so an unfiltered default would make completing one do
--- nothing visible. Named parameter so the filter reads as a status rather than
--- a bare `?`, and so sqlfluff sees a bind rather than an unqualified column.
---
--- The completed split rides along with the total rather than being a second
--- query: the pane draws both numbers on every row, so asking twice would mean a
--- query per project.
---
--- The order is active, then someday, then closed. A someday project has no
--- closed_at, so ordering on closed_at alone would mix it in among the active
--- ones.
--- name: ListProjectsWithItemCount :many
-SELECT
-    p.*,
-    CAST(COALESCE(SUM(CASE WHEN pi.completed = 1 THEN 1 ELSE 0 END), 0) AS INTEGER)
-        AS completed_count,
-    COUNT(pi.id) AS item_count
-FROM projects p
-LEFT JOIN project_item_memberships m ON p.id = m.project_id
-LEFT JOIN project_items pi ON m.item_id = pi.id AND pi.archived = 0
-WHERE CAST(@status_filter AS TEXT) = 'all' OR p.status = CAST(@status_filter AS TEXT)
-GROUP BY p.id
-ORDER BY
-    CASE p.status WHEN 'active' THEN 0 WHEN 'someday' THEN 1 ELSE 2 END,
-    p.closed_at DESC, p.position ASC, p.name ASC;
+-- name: ListProjectKinds :many
+SELECT name FROM project_kinds ORDER BY name;
+
+-- name: ListProjectStatuses :many
+SELECT name FROM project_statuses ORDER BY name;
+
+-- One row per membership, which the rule adding them up reads whole.
+-- name: ListProjectItemFacts :many
+SELECT m.project_id, pi.completed, pi.archived, pi.repo
+FROM project_item_memberships m
+INNER JOIN project_items pi ON m.item_id = pi.id;
 
 -- name: GetProject :one
 SELECT * FROM projects WHERE id = ?;
 
--- name: GetProjectWithItemCount :one
-SELECT
-    p.*,
-    CAST(COALESCE(SUM(CASE WHEN pi.completed = 1 THEN 1 ELSE 0 END), 0) AS INTEGER)
-        AS completed_count,
-    COUNT(pi.id) AS item_count
-FROM projects p
-LEFT JOIN project_item_memberships m ON p.id = m.project_id
-LEFT JOIN project_items pi ON m.item_id = pi.id AND pi.archived = 0
-WHERE p.id = ?
-GROUP BY p.id;
-
 -- name: CreateProject :one
-INSERT INTO projects (id, name, description, position)
-VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM projects))
+INSERT INTO projects (id, name, description, kind, status, status_reason, closed_at, position)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateProject :one
 UPDATE projects
 SET name = ?,
     description = ?,
-    position = ?
-WHERE id = ?
-RETURNING *;
-
--- name: SetProjectStatus :one
-UPDATE projects
-SET status = ?,
+    kind = ?,
+    status = ?,
     status_reason = ?,
-    closed_at = ?
+    closed_at = ?,
+    position = ?
 WHERE id = ?
 RETURNING *;
 
@@ -67,16 +36,19 @@ DELETE FROM projects WHERE id = ?;
 -- name: UpdateProjectPosition :exec
 UPDATE projects SET position = ? WHERE id = ?;
 
--- name: ListItemsByProject :many
+-- name: ListItemsInProject :many
 SELECT pi.*, m.position AS membership_position,
     (SELECT COUNT(*) FROM project_item_memberships m2 WHERE m2.item_id = pi.id) AS project_count
 FROM project_items pi
 INNER JOIN project_item_memberships m ON pi.id = m.item_id
-WHERE m.project_id = ? AND pi.archived = 0
-ORDER BY m.position, pi.created_at;
+WHERE m.project_id = ?
+ORDER BY m.position, pi.created_at, pi.id;
 
 -- name: GetItem :one
 SELECT * FROM project_items WHERE id = ?;
+
+-- name: GetItemByNumber :one
+SELECT * FROM project_items WHERE number = ?;
 
 -- name: CreateItem :one
 INSERT INTO project_items (id, number, title, notes, repo)
@@ -98,6 +70,7 @@ SET title = ?,
     notes = ?,
     repo = ?,
     completed = ?,
+    completed_at = ?,
     archived = ?,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = ?
@@ -108,7 +81,7 @@ DELETE FROM project_items WHERE id = ?;
 
 -- name: AddItemToProject :exec
 INSERT INTO project_item_memberships (item_id, project_id, position)
-VALUES (?, ?, (SELECT COALESCE(MAX(m.position), 0) + 1 FROM project_item_memberships m WHERE m.project_id = ?));
+VALUES (?, ?, ?);
 
 -- name: RemoveItemFromProject :exec
 DELETE FROM project_item_memberships WHERE item_id = ? AND project_id = ?;
@@ -118,7 +91,7 @@ SELECT p.*
 FROM projects p
 INNER JOIN project_item_memberships m ON p.id = m.project_id
 WHERE m.item_id = ?
-ORDER BY p.name;
+ORDER BY p.position, p.created_at, p.id;
 
 -- name: UpdateItemPosition :exec
 UPDATE project_item_memberships SET position = ? WHERE item_id = ? AND project_id = ?;
@@ -134,10 +107,10 @@ VALUES (?, ?, ?);
 SELECT * FROM project_item_memberships WHERE item_id = ? AND project_id = ?;
 
 -- name: GetItemMemberships :many
-SELECT * FROM project_item_memberships WHERE item_id = ?;
+SELECT * FROM project_item_memberships WHERE item_id = ? ORDER BY project_id;
 
 -- name: GetProjectMemberships :many
-SELECT * FROM project_item_memberships WHERE project_id = ?;
+SELECT * FROM project_item_memberships WHERE project_id = ? ORDER BY position, item_id;
 
 -- name: AddDependency :exec
 INSERT INTO project_item_dependencies (item_id, depends_on_id) VALUES (?, ?);
@@ -145,28 +118,27 @@ INSERT INTO project_item_dependencies (item_id, depends_on_id) VALUES (?, ?);
 -- name: RemoveDependency :exec
 DELETE FROM project_item_dependencies WHERE item_id = ? AND depends_on_id = ?;
 
--- name: GetBlockers :many
+-- name: ListDependencyItems :many
 SELECT pi.*
 FROM project_items pi
 INNER JOIN project_item_dependencies d ON pi.id = d.depends_on_id
-WHERE d.item_id = ? AND pi.completed = 0;
-
--- name: GetDependencyIDs :many
-SELECT depends_on_id FROM project_item_dependencies WHERE item_id = ?;
+WHERE d.item_id = ?
+ORDER BY pi.number, pi.id;
 
 -- name: GetAllDependencies :many
-SELECT * FROM project_item_dependencies;
+SELECT * FROM project_item_dependencies ORDER BY item_id, depends_on_id;
 
 -- Both directions: deleting an item drops the rows where it is the dependent
 -- and the rows where it is the blocker.
 -- name: GetDependenciesInvolvingItem :many
-SELECT * FROM project_item_dependencies WHERE item_id = ? OR depends_on_id = ?;
+SELECT * FROM project_item_dependencies
+WHERE item_id = ? OR depends_on_id = ?
+ORDER BY item_id, depends_on_id;
 
 -- name: SearchItems :many
 SELECT * FROM project_items
-WHERE (title LIKE '%' || ? || '%' OR notes LIKE '%' || ? || '%')
-  AND archived = 0
-ORDER BY created_at DESC;
+WHERE title LIKE '%' || ? || '%' OR notes LIKE '%' || ? || '%'
+ORDER BY created_at DESC, id ASC;
 
 -- name: ListBlockedItems :many
 SELECT DISTINCT pi.*
@@ -175,14 +147,8 @@ INNER JOIN project_item_dependencies d ON pi.id = d.item_id
 INNER JOIN project_items blocker ON d.depends_on_id = blocker.id
 WHERE blocker.completed = 0
   AND pi.completed = 0
-  AND pi.archived = 0;
-
--- name: ListArchivedItems :many
-SELECT pi.*, m.position AS membership_position
-FROM project_items pi
-INNER JOIN project_item_memberships m ON pi.id = m.item_id
-WHERE m.project_id = ? AND pi.archived = 1
-ORDER BY pi.updated_at DESC;
+  AND pi.archived = 0
+ORDER BY pi.created_at DESC, pi.id ASC;
 
 -- name: ListTasksByItem :many
 SELECT * FROM project_item_tasks
@@ -194,13 +160,14 @@ SELECT * FROM project_item_tasks WHERE id = ?;
 
 -- name: CreateTask :one
 INSERT INTO project_item_tasks (id, item_id, title, position)
-VALUES (?, ?, ?, (SELECT COALESCE(MAX(t.position), 0) + 1 FROM project_item_tasks t WHERE t.item_id = ?))
+VALUES (?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTask :one
 UPDATE project_item_tasks
 SET title = ?,
     completed = ?,
+    completed_at = ?,
     position = ?
 WHERE id = ?
 RETURNING *;
@@ -278,6 +245,42 @@ ON CONFLICT(entity_type) DO UPDATE SET
     last_pull_at = CASE WHEN excluded.last_pull_at > sync_state.last_pull_at THEN excluded.last_pull_at ELSE sync_state.last_pull_at END,
     last_push_at = CASE WHEN excluded.last_push_at > sync_state.last_push_at THEN excluded.last_push_at ELSE sync_state.last_push_at END;
 
+-- Undo: a restore carries each column a pull leaves alone.
+
+-- name: RestoreProject :exec
+INSERT INTO projects (id, name, description, kind, status, status_reason, closed_at, position, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    name = excluded.name,
+    description = excluded.description,
+    kind = excluded.kind,
+    status = excluded.status,
+    status_reason = excluded.status_reason,
+    closed_at = excluded.closed_at,
+    position = excluded.position;
+
+-- name: RestoreItem :exec
+INSERT INTO project_items (id, number, title, notes, repo, completed, completed_at, archived, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    number = excluded.number,
+    title = excluded.title,
+    notes = excluded.notes,
+    repo = excluded.repo,
+    completed = excluded.completed,
+    completed_at = excluded.completed_at,
+    archived = excluded.archived,
+    updated_at = excluded.updated_at;
+
+-- name: RestoreTask :exec
+INSERT INTO project_item_tasks (id, item_id, title, completed, completed_at, position, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    title = excluded.title,
+    completed = excluded.completed,
+    completed_at = excluded.completed_at,
+    position = excluded.position;
+
 -- Sync: pull reconciliation (upserts)
 
 -- name: UpsertProject :exec
@@ -334,10 +337,10 @@ SELECT * FROM projects ORDER BY position, name;
 SELECT * FROM project_items ORDER BY created_at DESC;
 
 -- name: ListAllMemberships :many
-SELECT * FROM project_item_memberships;
+SELECT * FROM project_item_memberships ORDER BY project_id, item_id;
 
 -- name: ListAllTasks :many
-SELECT * FROM project_item_tasks ORDER BY item_id, position;
+SELECT * FROM project_item_tasks ORDER BY item_id, position, created_at;
 
 -- Undo
 

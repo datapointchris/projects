@@ -54,6 +54,16 @@ jobs:
       - name: Check sqlc generated code is current
         run: cd store/sqlite && go tool sqlc diff
 
+      - name: Check sqlc generated code for Postgres is current
+        run: cd store/postgres && go tool sqlc diff
+
+      # One suite, every rule, on the second store. The go job above ran it on
+      # SQLite, so a rule that only one store honors fails here.
+      - name: Run the service suite on Postgres
+        run: go test ./service/
+        env:
+          PROJECTS_TEST_STORE: postgres
+
       # Executes the Taskfile so its build paths cannot silently rot again, as
       # they did for 109 days after the package layout flatten.
       - name: Build via Taskfile

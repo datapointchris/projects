@@ -322,11 +322,11 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 			})
 		case "/api/v1/project-items":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItem{
-				{ID: "item-1", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			})
-		case "/api/v1/project-items/item-1":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
 			_ = json.NewEncoder(w).Encode(model.ProjectItemDetail{
-				ProjectItem: model.ProjectItem{ID: "item-1", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				Projects:    []model.Project{{ID: "proj-1", Name: "Remote"}},
 			})
 		default:
@@ -367,7 +367,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	// An item that only ever existed on the server has to land in the TUI
 	// without the user asking for it.
-	if _, err := app.backend.GetItem("item-1"); err != nil {
+	if _, err := app.backend.GetItem("01900000-0000-7000-8000-00000000a001"); err != nil {
 		t.Fatalf("background pull did not bring the remote item local: %v", err)
 	}
 	found := false
@@ -680,8 +680,8 @@ func TestProjectPaneShowsOpenAndDoneCounts(t *testing.T) {
 	if projects[0].ItemCount != 3 || projects[0].CompletedCount != 1 {
 		t.Fatalf("counts = %d items / %d done, want 3/1", projects[0].ItemCount, projects[0].CompletedCount)
 	}
-	if got := projects[0].OpenCount(); got != 2 {
-		t.Errorf("OpenCount() = %d, want 2", got)
+	if got := projects[0].OpenCount; got != 2 {
+		t.Errorf("OpenCount = %d, want 2", got)
 	}
 
 	send(t, app, fetchProjectsCmd(app.backend, app.projectStatusFilter())())

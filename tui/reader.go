@@ -310,7 +310,7 @@ func (m *App) projectReaderRows(width int) []string {
 
 	add(readerTitleStyle, p.Name)
 	add(dimStyle, fmt.Sprintf("Project %s · %s", shortID(p.ID), p.Status))
-	rows = append(rows, projectCounts(p.OpenCount(), p.CompletedCount)+dimStyle.Render("  open · done"))
+	rows = append(rows, projectCounts(p.OpenCount, p.CompletedCount)+dimStyle.Render("  open · done"))
 	add(dimStyle, "Created: "+p.CreatedAt.Format("Jan 2, 2006"))
 	if p.Status != model.StatusActive {
 		// A shelved project has not closed, so it has no closing line.

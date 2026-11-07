@@ -2725,13 +2725,13 @@ func (m *App) projectPaneWidth() int {
 	// Account for "All" entry
 	totalItems, totalDone := 0, 0
 	for _, p := range m.projects {
-		totalItems += p.ItemCount
+		totalItems += p.UnarchivedCount()
 		totalDone += p.CompletedCount
 	}
 	maxName := lipgloss.Width("> All ") + projectCountsWidth(totalItems-totalDone, totalDone)
 	for _, p := range m.projects {
 		// "> name ○open ✓done" — 2 prefix + name + space + counts
-		w := lipgloss.Width("> "+m.projectRowLabel(p)+" ") + projectCountsWidth(p.OpenCount(), p.CompletedCount)
+		w := lipgloss.Width("> "+m.projectRowLabel(p)+" ") + projectCountsWidth(p.OpenCount, p.CompletedCount)
 		if w > maxName {
 			maxName = w
 		}
@@ -2800,7 +2800,7 @@ func (m *App) renderProjectPane(width, height int) string {
 			// "All" entry
 			totalItems, totalDone := 0, 0
 			for _, p := range m.projects {
-				totalItems += p.ItemCount
+				totalItems += p.UnarchivedCount()
 				totalDone += p.CompletedCount
 			}
 			isCursor := m.showingAll
@@ -2845,7 +2845,7 @@ func (m *App) renderProjectPane(width, height int) string {
 			case isSelected:
 				style = projectMultiSelectedStyle
 			}
-			lines = append(lines, row(prefix, name, p.OpenCount(), p.CompletedCount, style))
+			lines = append(lines, row(prefix, name, p.OpenCount, p.CompletedCount, style))
 		}
 	}
 

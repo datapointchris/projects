@@ -273,16 +273,16 @@ func TestPull_Reconciles(t *testing.T) {
 			})
 		case "/api/v1/project-items":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItem{
-				{ID: "item-1", Title: "Pulled Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: "01900000-0000-7000-8000-00000000a001", Title: "Pulled Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			})
-		case "/api/v1/project-items/item-1":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
 			_ = json.NewEncoder(w).Encode(model.ProjectItemDetail{
-				ProjectItem: model.ProjectItem{ID: "item-1", Title: "Pulled Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Pulled Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				Projects:    []model.Project{{ID: "proj-1", Name: "Pulled"}},
 			})
-		case "/api/v1/project-items/item-1/tasks":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001/tasks":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItemTask{
-				{ID: "task-1", ItemID: "item-1", Title: "Pulled Task", CreatedAt: time.Now()},
+				{ID: "task-1", ItemID: "01900000-0000-7000-8000-00000000a001", Title: "Pulled Task", CreatedAt: time.Now()},
 			})
 		default:
 			w.WriteHeader(http.StatusOK)
@@ -317,7 +317,7 @@ func TestPull_Reconciles(t *testing.T) {
 		t.Errorf("expected 1 project 'Pulled', got %v", projects)
 	}
 
-	item, err := local.GetItem("item-1")
+	item, err := local.GetItem("01900000-0000-7000-8000-00000000a001")
 	if err != nil {
 		t.Fatalf("GetItem: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestPull_Reconciles(t *testing.T) {
 		t.Errorf("got title %q, want 'Pulled Item'", item.Title)
 	}
 
-	tasks, err := local.ListTasks("item-1")
+	tasks, err := local.ListTasks("01900000-0000-7000-8000-00000000a001")
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
@@ -510,9 +510,9 @@ func TestPull_KeepsWorkDoneWhileItWasRunning(t *testing.T) {
 			})
 		case "/api/v1/project-items":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItem{
-				{ID: "item-1", Title: "Server Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				{ID: "01900000-0000-7000-8000-00000000a001", Title: "Server Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			})
-		case "/api/v1/project-items/item-1":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
 			// Mid-pull: the user adds an item the server response cannot know about.
 			once.Do(func() {
 				created, err := sb.CreateItem(model.CreateProjectItem{
@@ -526,7 +526,7 @@ func TestPull_KeepsWorkDoneWhileItWasRunning(t *testing.T) {
 				raced <- created.ID
 			})
 			_ = json.NewEncoder(w).Encode(model.ProjectItemDetail{
-				ProjectItem: model.ProjectItem{ID: "item-1", Title: "Server Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Server Item", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				Projects:    []model.Project{{ID: project.ID, Name: "Server"}},
 			})
 		default:
@@ -627,7 +627,7 @@ func pullFixture(embedded bool) http.HandlerFunc {
 		}
 	}
 	task := map[string]any{
-		"id": "task-1", "item_id": "item-2", "title": "Embedded Task",
+		"id": "task-1", "item_id": "01900000-0000-7000-8000-00000000a002", "title": "Embedded Task",
 		"completed": false, "position": 0, "created_at": now.Format(time.RFC3339Nano),
 	}
 
@@ -637,22 +637,22 @@ func pullFixture(embedded bool) http.HandlerFunc {
 		case "/api/v1/projects":
 			_ = json.NewEncoder(w).Encode([]model.Project{{ID: "proj-1", Name: "Remote", Position: 0, CreatedAt: now}})
 		case "/api/v1/project-items":
-			blocker := base("item-1", "Blocker")
-			blocked := base("item-2", "Blocked")
+			blocker := base("01900000-0000-7000-8000-00000000a001", "Blocker")
+			blocked := base("01900000-0000-7000-8000-00000000a002", "Blocked")
 			if embedded {
 				blocker["dependency_ids"] = []string{}
 				blocker["tasks"] = []map[string]any{}
-				blocked["dependency_ids"] = []string{"item-1"}
+				blocked["dependency_ids"] = []string{"01900000-0000-7000-8000-00000000a001"}
 				blocked["tasks"] = []map[string]any{task}
 			}
 			_ = json.NewEncoder(w).Encode([]map[string]any{blocker, blocked})
-		case "/api/v1/project-items/item-1":
-			_ = json.NewEncoder(w).Encode(base("item-1", "Blocker"))
-		case "/api/v1/project-items/item-2":
-			detail := base("item-2", "Blocked")
-			detail["dependency_ids"] = []string{"item-1"}
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
+			_ = json.NewEncoder(w).Encode(base("01900000-0000-7000-8000-00000000a001", "Blocker"))
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a002":
+			detail := base("01900000-0000-7000-8000-00000000a002", "Blocked")
+			detail["dependency_ids"] = []string{"01900000-0000-7000-8000-00000000a001"}
 			_ = json.NewEncoder(w).Encode(detail)
-		case "/api/v1/project-items/item-2/tasks":
+		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a002/tasks":
 			_ = json.NewEncoder(w).Encode([]map[string]any{task})
 		default:
 			_ = json.NewEncoder(w).Encode([]map[string]any{})
@@ -689,23 +689,23 @@ func TestPull_UsesEmbeddedDetailAndStopsAtTwoRequests(t *testing.T) {
 		t.Errorf("expected 2 requests, got %d: %v", len(got), got)
 	}
 
-	tasks, err := local.ListTasks("item-2")
+	tasks, err := local.ListTasks("01900000-0000-7000-8000-00000000a002")
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
 	if len(tasks) != 1 || tasks[0].Title != "Embedded Task" {
 		t.Errorf("embedded task did not reconcile: %v", tasks)
 	}
-	blockers, err := local.GetBlockers("item-2")
+	blockers, err := local.GetBlockers("01900000-0000-7000-8000-00000000a002")
 	if err != nil {
 		t.Fatalf("GetBlockers: %v", err)
 	}
-	if len(blockers) != 1 || blockers[0].ID != "item-1" {
+	if len(blockers) != 1 || blockers[0].ID != "01900000-0000-7000-8000-00000000a001" {
 		t.Errorf("embedded dependency did not reconcile: %v", blockers)
 	}
 }
 
-// Deploy order between this tool and ichrisbirch must not matter. Against a server
+// Deploy order between this tool and its server must not matter. Against a server
 // that omits the fields, treating absent as empty would delete every task and
 // dependency locally, so the pull has to fall back to the per-item endpoints.
 func TestPull_FallsBackWhenTheServerOmitsEmbeddedFields(t *testing.T) {
@@ -715,18 +715,18 @@ func TestPull_FallsBackWhenTheServerOmitsEmbeddedFields(t *testing.T) {
 		t.Errorf("expected per-item fallback requests, got only %d", got)
 	}
 
-	tasks, err := local.ListTasks("item-2")
+	tasks, err := local.ListTasks("01900000-0000-7000-8000-00000000a002")
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
 	if len(tasks) != 1 || tasks[0].Title != "Embedded Task" {
 		t.Errorf("fallback lost the item's tasks: %v", tasks)
 	}
-	blockers, err := local.GetBlockers("item-2")
+	blockers, err := local.GetBlockers("01900000-0000-7000-8000-00000000a002")
 	if err != nil {
 		t.Fatalf("GetBlockers: %v", err)
 	}
-	if len(blockers) != 1 || blockers[0].ID != "item-1" {
+	if len(blockers) != 1 || blockers[0].ID != "01900000-0000-7000-8000-00000000a001" {
 		t.Errorf("fallback lost the item's dependencies: %v", blockers)
 	}
 }
@@ -873,14 +873,14 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 			})
 		case "/api/v1/project-items":
 			_ = json.NewEncoder(w).Encode([]model.ProjectItemDetail{{
-				ProjectItem: model.ProjectItem{ID: "item-1", Title: "Kept", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Kept", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 				Projects: []model.Project{
 					{ID: "proj-1", Name: "Real"},
 					{ID: "proj-missing", Name: "Never sent by /projects/"},
 				},
 				DependencyIDs: []string{"item-missing"},
 				Tasks: []model.ProjectItemTask{
-					{ID: "task-1", ItemID: "item-1", Title: "Kept task", CreatedAt: time.Now()},
+					{ID: "task-1", ItemID: "01900000-0000-7000-8000-00000000a001", Title: "Kept task", CreatedAt: time.Now()},
 				},
 			}})
 		default:
@@ -904,7 +904,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 	}
 
 	local := service.New(sqlite.New(database))
-	projects, err := local.GetItemProjects("item-1")
+	projects, err := local.GetItemProjects("01900000-0000-7000-8000-00000000a001")
 	if err != nil {
 		t.Fatalf("GetItemProjects: %v", err)
 	}
@@ -920,7 +920,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 		t.Errorf("the pull left %d dangling rows behind", violations)
 	}
 
-	tasks, err := local.ListTasks("item-1")
+	tasks, err := local.ListTasks("01900000-0000-7000-8000-00000000a001")
 	if err != nil {
 		t.Fatalf("ListTasks: %v", err)
 	}
@@ -935,7 +935,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 // pass order-independent — otherwise any renumbering upstream fails the entire
 // pull and the tool never syncs again.
 func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
-	numbers := map[string]int{"item-a": 1, "item-b": 2}
+	numbers := map[string]int{"01900000-0000-7000-8000-00000000a00a": 1, "01900000-0000-7000-8000-00000000a00b": 2}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path != "/api/v1/project-items" {
@@ -944,7 +944,7 @@ func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 			return
 		}
 		out := make([]model.ProjectItemDetail, 0, 2)
-		for _, id := range []string{"item-a", "item-b"} {
+		for _, id := range []string{"01900000-0000-7000-8000-00000000a00a", "01900000-0000-7000-8000-00000000a00b"} {
 			n := numbers[id]
 			out = append(out, model.ProjectItemDetail{
 				ProjectItem: model.ProjectItem{
@@ -972,18 +972,18 @@ func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 		t.Fatalf("first pull: %v", err)
 	}
 
-	numbers["item-a"], numbers["item-b"] = 2, 1
+	numbers["01900000-0000-7000-8000-00000000a00a"], numbers["01900000-0000-7000-8000-00000000a00b"] = 2, 1
 	if err := engine.Pull(t.Context()); err != nil {
 		t.Fatalf("a swap upstream failed the pull: %v", err)
 	}
 
 	local := service.New(sqlite.New(database))
-	item, err := local.GetItem("item-a")
+	item, err := local.GetItem("01900000-0000-7000-8000-00000000a00a")
 	if err != nil {
 		t.Fatalf("GetItem: %v", err)
 	}
 	if item.Number == nil || *item.Number != 2 {
-		t.Errorf("item-a number = %v, want 2", item.Number)
+		t.Errorf("01900000-0000-7000-8000-00000000a00a number = %v, want 2", item.Number)
 	}
 }
 

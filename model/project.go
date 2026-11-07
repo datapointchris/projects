@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"slices"
+	"strings"
+	"time"
+)
 
 // Project statuses. A project is a finite effort with a definition of done, so
 // completing it is what hides it — there is no separate archived flag the way
@@ -27,12 +31,17 @@ const (
 	StatusAll = "all"
 )
 
+// KindLife is the kind a project takes when nothing names one.
+const KindLife = "life"
+
 // Project represents a project that items are organized into.
 type Project struct {
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
-	Status      string  `json:"status"`
+	// Kind is one of the names in the project_kinds table.
+	Kind   string `json:"kind,omitempty"`
+	Status string `json:"status"`
 	// Why a project was dropped rather than deferred. Nil for anything still
 	// active, and cleared by the server on reopen.
 	StatusReason *string `json:"status_reason,omitempty"`
@@ -44,33 +53,112 @@ type Project struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-// ProjectWithItemCount is a Project with the count of active (non-archived) items.
-// Returned by GET /projects/ and GET /projects/{id}/.
+// ProjectIsTerminal reports whether a status closes the project it is on.
+func ProjectIsTerminal(status string) bool {
+	return status == StatusCompleted || status == StatusDropped
+}
+
+// ProjectWithItemCount is a Project with what its items add up to. The counts
+// partition ItemCount: archived beats completed, so an archived item is neither
+// open nor completed and is what ItemCount has beyond the other two.
 type ProjectWithItemCount struct {
 	Project
-	ItemCount int `json:"item_count"`
-	// How many of those are done. A total alone cannot distinguish a project
-	// with nothing left in it from one that has not been started. Derived from
-	// the local tables on every read rather than carried in the sync payload,
-	// so an API that does not send it costs nothing.
+	ItemCount      int `json:"item_count"`
+	OpenCount      int `json:"open_count"`
 	CompletedCount int `json:"completed_count"`
+	// Repos is derived from the items rather than stored: an item's repo tag is
+	// the one record of what code a piece of work touches.
+	Repos []string `json:"repos"`
 }
 
-// OpenCount is the number that decides whether a project still wants work.
-func (p ProjectWithItemCount) OpenCount() int {
-	return p.ItemCount - p.CompletedCount
+// UnarchivedCount is the items a project still shows, open or finished.
+func (p ProjectWithItemCount) UnarchivedCount() int {
+	return p.OpenCount + p.CompletedCount
 }
 
-// CreateProject is the input for creating a new project.
+// ProjectItemFact is what one membership adds to its project's counts.
+type ProjectItemFact struct {
+	ProjectID string
+	Completed bool
+	Archived  bool
+	Repo      *string
+}
+
+// SortProjectsForBoard orders projects the way a board shows them: active first,
+// then someday, then closed, each newest close first, then by position and name.
+// A someday project has no closing date, so ordering on the date alone would mix
+// it in among the active ones.
+func SortProjectsForBoard(projects []ProjectWithItemCount) {
+	statusRank := func(status string) int {
+		switch status {
+		case StatusActive:
+			return 0
+		case StatusSomeday:
+			return 1
+		default:
+			return 2
+		}
+	}
+	slices.SortStableFunc(projects, func(a, b ProjectWithItemCount) int {
+		if byStatus := statusRank(a.Status) - statusRank(b.Status); byStatus != 0 {
+			return byStatus
+		}
+		if byClose := CompareNewestCloseFirst(a.ClosedAt, b.ClosedAt); byClose != 0 {
+			return byClose
+		}
+		if byPosition := a.Position - b.Position; byPosition != 0 {
+			return byPosition
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+}
+
+// CompareNewestCloseFirst puts a project with no closing date ahead of any closed
+// one, and the most recently closed next.
+func CompareNewestCloseFirst(a, b *time.Time) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return -1
+	case b == nil:
+		return 1
+	}
+	return b.Compare(*a)
+}
+
+// ProjectFilter narrows a list of projects. Status is a status name or StatusAll.
+// Repo keeps projects holding at least one item tagged with it. A nil Limit caps
+// nothing, and zero returns no rows.
+type ProjectFilter struct {
+	Status string
+	Repo   *string
+	Limit  *int
+}
+
+// CreateProject is the input for creating a new project. Only Name is required.
+// A nil ID is generated, a nil Kind is KindLife and a nil Status is StatusActive.
+// A nil Position places the project after every other.
 type CreateProject struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
+	ID           *string `json:"id,omitempty"`
+	Name         string  `json:"name"`
+	Description  *string `json:"description,omitempty"`
+	Kind         *string `json:"kind,omitempty"`
+	Status       *string `json:"status,omitempty"`
+	StatusReason *string `json:"status_reason,omitempty"`
+	Position     *int    `json:"position,omitempty"`
 }
 
-// UpdateProject is the input for updating a project.
-// All fields are optional — only non-nil fields are applied.
+// UpdateProject is the input for updating a project. Only non-nil fields are
+// applied. A pointer cannot say "set this to nothing", so the Clear flags do.
 type UpdateProject struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Position    *int    `json:"position,omitempty"`
+	Name         *string `json:"name,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	Kind         *string `json:"kind,omitempty"`
+	Status       *string `json:"status,omitempty"`
+	StatusReason *string `json:"status_reason,omitempty"`
+	Position     *int    `json:"position,omitempty"`
+
+	ClearDescription  bool `json:"-"`
+	ClearStatusReason bool `json:"-"`
 }

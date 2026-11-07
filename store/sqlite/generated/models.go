@@ -23,6 +23,7 @@ type Project struct {
 	ID           string
 	Name         string
 	Description  sql.NullString
+	Kind         string
 	Status       string
 	StatusReason sql.NullString
 	ClosedAt     sql.NullString
@@ -31,15 +32,16 @@ type Project struct {
 }
 
 type ProjectItem struct {
-	ID        string
-	Number    sql.NullInt64
-	Title     string
-	Notes     sql.NullString
-	Repo      sql.NullString
-	Completed int64
-	Archived  int64
-	CreatedAt string
-	UpdatedAt string
+	ID          string
+	Number      sql.NullInt64
+	Title       string
+	Notes       sql.NullString
+	Repo        sql.NullString
+	Completed   int64
+	CompletedAt sql.NullString
+	Archived    int64
+	CreatedAt   string
+	UpdatedAt   string
 }
 
 type ProjectItemDependency struct {
@@ -54,12 +56,21 @@ type ProjectItemMembership struct {
 }
 
 type ProjectItemTask struct {
-	ID        string
-	ItemID    string
-	Title     string
-	Completed int64
-	Position  int64
-	CreatedAt string
+	ID          string
+	ItemID      string
+	Title       string
+	Completed   int64
+	CompletedAt sql.NullString
+	Position    int64
+	CreatedAt   string
+}
+
+type ProjectKind struct {
+	Name string
+}
+
+type ProjectStatus struct {
+	Name string
 }
 
 type SyncOrigin struct {
