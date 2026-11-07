@@ -42,8 +42,12 @@ func newItemsCreateCommand() *cobra.Command {
 			// Ahead of opening anything, so a caller that cannot be asked is told
 			// which flag it left out.
 			if len(missing) > 0 && !interactive(cmd) {
-				return goclikit.UsageError(fmt.Errorf("%s required — pass them, or run from a terminal to be asked",
-					strings.Join(missing, " and ")))
+				pronoun := "it"
+				if len(missing) > 1 {
+					pronoun = "them"
+				}
+				return goclikit.UsageError(fmt.Errorf("%s required — pass %s, or run from a terminal to be asked",
+					strings.Join(missing, " and "), pronoun))
 			}
 			source, err := openForWriting(cmd)
 			if err != nil {
