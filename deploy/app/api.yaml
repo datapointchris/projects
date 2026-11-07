@@ -72,8 +72,7 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      # Covers the preStop sleep plus the API's 20 second drain, with room to spare.
-      # Raise it with drainTimeout in api/main.go.
+      # Covers the preStop sleep plus drainTimeout in api/main.go, with room to spare.
       terminationGracePeriodSeconds: 30
       containers:
         - name: api
@@ -95,20 +94,21 @@ spec:
                 seconds: 5
           # /ready answers 503 while Postgres or the identity provider does not,
           # which takes the pod out of the Service without restarting it.
+          # timeoutSeconds outlasts readinessCheckDeadline in api/routes/routes.go.
           readinessProbe:
             httpGet:
               path: /ready
               port: http
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /health
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          # A resident set of about 22 MiB after a couple of thousand requests over
-          # a few hundred rows. The room is for a list answered to several clients at
-          # once. The limit equals the request, so the pod never uses more memory
+          # The room above the resident set is for a list answered to several clients
+          # at once. The limit equals the request, so the pod never uses more memory
           # than the scheduler set aside for it.
           resources:
             requests:

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -99,30 +100,49 @@ var statusOfRefusal = []struct {
 }
 
 // fail answers what a rule returned. A refusal says its own words, and one naming a
-// field marks it the way a validation error does. Anything else is a fault of this
-// server, whose detail stays in the log.
+// field marks it the way a validation error does. A refusal whose kind has no row is
+// still the caller's to fix, so it answers as one and logs the missing row. A request
+// that ran out of time answers 503. Anything else is a fault of this server, and its
+// answer names the request whose log line holds the detail.
 func (t *table) fail(w http.ResponseWriter, r *http.Request, err error) {
 	for _, known := range statusOfRefusal {
-		if !errors.Is(err, known.kind) {
-			continue
-		}
-		var refusal *model.Refusal
-		if errors.As(err, &refusal) && refusal.Field != "" {
-			problem := wire.ValidationError{
-				Type: "value_error", Loc: []any{"body", refusal.Field}, Msg: "Value error, " + refusal.Message,
-				Input: refusal.Input, Ctx: map[string]any{"error": map[string]any{}},
-			}
-			refuseInvalid(w, r, []wire.ValidationError{problem})
+		if errors.Is(err, known.kind) {
+			answerRefusal(w, r, known.status, err)
 			return
 		}
-		writeRefusal(w, r, known.status, err.Error(), nil)
+	}
+	var refusal *model.Refusal
+	switch {
+	case errors.As(err, &refusal):
+		t.logFailure(r, "a refusal's kind has no row in statusOfRefusal", err)
+		answerRefusal(w, r, http.StatusUnprocessableEntity, err)
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		t.logFailure(r, "request ran out of time", err)
+		writeRefusal(w, r, http.StatusServiceUnavailable, "The database did not answer in time.", nil)
+	default:
+		t.logFailure(r, "request failed", err)
+		writeRefusal(w, r, http.StatusInternalServerError, "Internal server error in request "+requestlog.RequestID(r.Context()), nil)
+	}
+}
+
+func answerRefusal(w http.ResponseWriter, r *http.Request, status int, err error) {
+	var refusal *model.Refusal
+	if errors.As(err, &refusal) && refusal.Field != "" {
+		problem := wire.ValidationError{
+			Type: "value_error", Loc: []any{"body", refusal.Field}, Msg: "Value error, " + refusal.Message,
+			Input: refusal.Input, Ctx: map[string]any{"error": map[string]any{}},
+		}
+		refuseInvalid(w, r, []wire.ValidationError{problem})
 		return
 	}
-	t.log.LogAttrs(r.Context(), slog.LevelError, "request failed",
+	writeRefusal(w, r, status, err.Error(), nil)
+}
+
+func (t *table) logFailure(r *http.Request, message string, err error) {
+	t.log.LogAttrs(r.Context(), slog.LevelError, message,
 		slog.String("err", err.Error()),
 		slog.String("method", r.Method),
 		slog.String("path", r.URL.EscapedPath()),
 		slog.String("request_id", requestlog.RequestID(r.Context())),
 	)
-	writeRefusal(w, r, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %T", err), nil)
 }

@@ -24,13 +24,15 @@ type Postgres struct {
 	Database string
 }
 
-// URL is the connection string pgx and goose read.
+// URL is the connection string pgx and goose read. A host that drops packets fails
+// its dial in seconds rather than at the system's TCP timeout.
 func (p Postgres) URL() string {
 	return (&url.URL{
-		Scheme: "postgres",
-		User:   url.UserPassword(p.Username, p.Password),
-		Host:   net.JoinHostPort(p.Host, p.Port),
-		Path:   "/" + p.Database,
+		Scheme:   "postgres",
+		User:     url.UserPassword(p.Username, p.Password),
+		Host:     net.JoinHostPort(p.Host, p.Port),
+		Path:     "/" + p.Database,
+		RawQuery: "connect_timeout=5",
 	}).String()
 }
 

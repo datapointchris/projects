@@ -97,7 +97,7 @@ func serve(ctx context.Context, log *slog.Logger) error {
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", loaded.ListenPort),
-		Handler:      requestlog.Middleware(log, protected),
+		Handler:      requestlog.Middleware(log, routes.WithRequestDeadline(protected)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

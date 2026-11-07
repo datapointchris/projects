@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +30,7 @@ const (
 	messageNoOffset      = "Input should have timezone info"
 	messageNotAnInstant  = "Input should be a valid datetime or date"
 	messageCannotBeNull  = "Value error, cannot be null; omit the field to leave it unchanged"
+	messageHoldsNUL      = "Input should not hold a NUL character"
 )
 
 // requestBody reads a JSON object field by field. A partial update has to tell a
@@ -67,10 +70,32 @@ func readRequestBody(r *http.Request) *requestBody {
 		body.refuse("model_attributes_type", messageNotAnObject, body.whole, "body")
 		return body
 	}
+	if holdsNUL(body.whole) {
+		body.refuse("string_type", messageHoldsNUL, nil, "body")
+		return body
+	}
 	if err := json.Unmarshal(raw, &body.fields); err != nil {
 		body.refuse("model_attributes_type", messageNotAnObject, body.whole, "body")
 	}
 	return body
+}
+
+// holdsNUL looks through a decoded body. Postgres text cannot hold a NUL and SQLite's
+// can, so a body holding one is refused here, on either store.
+func holdsNUL(value any) bool {
+	switch decoded := value.(type) {
+	case string:
+		return strings.ContainsRune(decoded, 0)
+	case []any:
+		return slices.ContainsFunc(decoded, holdsNUL)
+	case map[string]any:
+		for key, element := range decoded {
+			if strings.ContainsRune(key, 0) || holdsNUL(element) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (b *requestBody) refuse(kind, message string, input any, loc ...any) {
@@ -180,8 +205,18 @@ func (b *requestBody) partialBool(field string) *bool {
 	return partial[bool](b, field, "bool_type", messageNotABoolean)
 }
 
+// A position column holds 32 bits, so the integers here decode as int32. A larger
+// number is refused rather than wrapped into some other position.
+func widened(value *int32) *int {
+	if value == nil {
+		return nil
+	}
+	wide := int(*value)
+	return &wide
+}
+
 func (b *requestBody) partialInt(field string) *int {
-	return partial[int](b, field, "int_type", messageNotAnInteger)
+	return widened(partial[int32](b, field, "int_type", messageNotAnInteger))
 }
 
 // intOr answers fallback for a field left out, and refuses null.
@@ -190,8 +225,8 @@ func (b *requestBody) intOr(field string, fallback int) int {
 	if !sent {
 		return fallback
 	}
-	if value := decodeField[int](b, field, "int_type", messageNotAnInteger, raw); value != nil {
-		return *value
+	if value := decodeField[int32](b, field, "int_type", messageNotAnInteger, raw); value != nil {
+		return int(*value)
 	}
 	return fallback
 }
@@ -202,8 +237,8 @@ func (b *requestBody) requiredInt(field string) int {
 		b.refuseMissing(field)
 		return 0
 	}
-	if value := decodeField[int](b, field, "int_type", messageNotAnInteger, raw); value != nil {
-		return *value
+	if value := decodeField[int32](b, field, "int_type", messageNotAnInteger, raw); value != nil {
+		return int(*value)
 	}
 	return 0
 }
