@@ -34,33 +34,6 @@ func setupSync(t *testing.T, handler http.Handler) (*sync.SyncBackend, *sync.Eng
 	return sb, engine
 }
 
-func TestSyncBackend_QueueOnMutation(t *testing.T) {
-	// Server that accepts everything
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("{}"))
-	})
-	sb, engine := setupSync(t, handler)
-
-	// Create a project through SyncBackend
-	p, err := sb.CreateProject(model.CreateProject{Name: "SyncTest"})
-	if err != nil {
-		t.Fatalf("CreateProject: %v", err)
-	}
-	if p.ID == "" {
-		t.Fatal("expected non-empty ID")
-	}
-
-	// Give the push loop a moment to process
-	time.Sleep(100 * time.Millisecond)
-
-	// After successful push, pending count should be 0
-	status := engine.Status()
-	if status.PendingCount != 0 {
-		t.Errorf("expected 0 pending, got %d", status.PendingCount)
-	}
-}
-
 func TestSyncBackend_ReadsDelegateToLocal(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

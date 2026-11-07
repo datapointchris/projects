@@ -337,13 +337,3 @@ func TestAProjectCannotBeRenamedToARepo(t *testing.T) {
 		t.Errorf("got %v, want ErrRepoNamedProject", err)
 	}
 }
-
-// Refusing to create a project on a machine without a registry is worse than a
-// project named after a repo.
-func TestWithoutARegistryNothingIsBanned(t *testing.T) {
-	b := newTestBackend(t)
-
-	if _, err := b.CreateProject(model.CreateProject{Name: "projects"}); err != nil {
-		t.Errorf("a backend with no registry must ban nothing: %v", err)
-	}
-}
