@@ -120,6 +120,34 @@ func pressKey(t *testing.T, app *App, key string) {
 	send(t, app, runeKey([]rune(key)[0]))
 }
 
+// Through an API, an item another machine wrote reaches the board only when it
+// reads the API again, which R does at once.
+func TestRInAPIModeShowsAnItemAnotherMachineWrote(t *testing.T) {
+	app := newTestApp(t, 80, 24, "here at launch")
+	app.where = Where{APIHost: "projects.example.com"}
+	projects, err := app.backend.ListProjectsByStatus(model.StatusActive)
+	if err != nil || len(projects) == 0 {
+		t.Fatalf("listing projects: %v", err)
+	}
+	if _, err := app.backend.CreateItem(model.CreateProjectItem{Title: "written elsewhere", ProjectIDs: []string{projects[0].ID}}); err != nil {
+		t.Fatal(err)
+	}
+	titles := func() []string {
+		var held []string
+		for _, item := range app.items {
+			held = append(held, item.Title)
+		}
+		return held
+	}
+	if slices.Contains(titles(), "written elsewhere") {
+		t.Fatal("the board showed the item before reading the API again")
+	}
+	pressKey(t, app, "R")
+	if !slices.Contains(titles(), "written elsewhere") {
+		t.Errorf("after R the board holds %q, want the item written elsewhere", titles())
+	}
+}
+
 // A position counts every member of a project and this list hides the archived
 // ones, so a drop has to count them or it lands that many rows too high.
 func TestAMovedItemLandsWhereItIsDroppedBelowAnArchivedOne(t *testing.T) {

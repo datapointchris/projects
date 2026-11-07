@@ -14,9 +14,5 @@ press enter
 wait ○ Rotate the API keys
 frame item-added
 
-press R
-wait Read again from
-frame read-again
-
 press q
 exits
