@@ -12,22 +12,24 @@ import (
 
 func (s *Service) Undo() (*model.UndoResult, error) {
 	ctx := s.ctx()
-	entry, err := s.store.GetLatestUndoEntry(ctx)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, model.ErrNothingToUndo
+
+	var result *model.UndoResult
+	err := s.store.InTx(ctx, func(tx store.Operations) error {
+		entry, err := tx.GetLatestUndoEntry(ctx)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return model.ErrNothingToUndo
+			}
+			return fmt.Errorf("getting undo log: %w", err)
 		}
-		return nil, fmt.Errorf("getting undo log: %w", err)
-	}
 
-	result := &model.UndoResult{
-		Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, shortEntityID(entry.EntityID)),
-		Action:      entry.Action,
-		EntityType:  entry.EntityType,
-		EntityID:    entry.EntityID,
-	}
+		result = &model.UndoResult{
+			Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, shortEntityID(entry.EntityID)),
+			Action:      entry.Action,
+			EntityType:  entry.EntityType,
+			EntityID:    entry.EntityID,
+		}
 
-	err = s.store.InTx(ctx, func(tx store.Operations) error {
 		// Every mutation that writes an undo entry needs a case here. A type that
 		// falls through would leave the entry consumed and the change standing,
 		// which reads to the user as undo silently doing nothing.

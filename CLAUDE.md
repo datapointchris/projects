@@ -113,8 +113,9 @@ store/sqlite         Open, migrations, queries.sql, generated
 - **`service.Service` satisfies `backend.Backend`**, so the TUI depends on that interface alone.
 - **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
   `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a
-  transaction cannot nest. A read inside one goes through `tx` too: `:memory:` holds one connection, so
-  `s.store` from inside `fn` deadlocks.
+  transaction cannot nest. What a rule decides on, it reads through `tx` too, and `InTx` promises those
+  reads still hold at commit. `store/sqlite` keeps that by beginning immediate. From inside `fn`,
+  `s.store` also deadlocks, because `:memory:` holds one connection.
 - **Undo is a rule, so it is in `service`.** A store holds `previous_state` as text it never reads.
   `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
   and its `{"String":…,"Valid":…}` stays even though no store's types read that way.

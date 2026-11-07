@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -831,6 +833,39 @@ func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {
 	if after.CreatedAt != before.CreatedAt {
 		t.Errorf("created_at changed on restore: %q → %q", before.CreatedAt, after.CreatedAt)
 	}
+}
+
+// An edit in the TUI reaches this while the sync engine's pull writes, and two
+// running copies reach it on one file. Each rule reads and then writes, and SQLite
+// refuses that upgrade once another writer has committed unless the transaction
+// began with the write lock.
+func TestAnEditSurvivesASecondWriter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "projects.db")
+	writer := func() *Service {
+		database, err := sqlite.Open(path)
+		if err != nil {
+			t.Fatalf("opening database: %v", err)
+		}
+		t.Cleanup(func() { _ = database.Close() })
+		return New(sqlite.New(database))
+	}
+	first, second := writer(), writer()
+	p := mustCreateProject(t, first, "work")
+	item := mustCreateItem(t, first, model.CreateProjectItem{Title: "edited", ProjectIDs: []string{p.ID}})
+
+	var edits sync.WaitGroup
+	for _, b := range []*Service{first, second} {
+		edits.Go(func() {
+			for i := range 100 {
+				title := fmt.Sprintf("edit %d", i)
+				if _, err := b.UpdateItem(item.ID, model.UpdateProjectItem{Title: &title}); err != nil {
+					t.Errorf("editing beside another writer: %v", err)
+					return
+				}
+			}
+		})
+	}
+	edits.Wait()
 }
 
 // writeUndoEntry puts an entry in the log exactly as an earlier release left it.

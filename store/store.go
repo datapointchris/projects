@@ -17,6 +17,10 @@ type Store interface {
 	// together. Split apart, a failure between them leaves either an undo entry
 	// for a change that never happened or a change nothing can reverse.
 	//
+	// A rule reads what it decides on through tx, so what fn read has to hold when
+	// it commits. A store gives that with serializable isolation or by holding the
+	// write lock from the start.
+	//
 	// An error from fn rolls back and returns unchanged, so a sentinel a rule
 	// returned still matches. fn gets Operations rather than a Store, so a
 	// transaction cannot nest.

@@ -145,31 +145,34 @@ func (s *Service) CreateProject(input model.CreateProject) (*model.Project, erro
 func (s *Service) UpdateProject(id string, input model.UpdateProject) (*model.Project, error) {
 	ctx := s.ctx()
 
-	current, err := s.store.GetProject(ctx, id)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, fmt.Errorf("project %q: %w", id, model.ErrNotFound)
-		}
-		return nil, fmt.Errorf("getting project for update: %w", err)
-	}
-
-	next := current
 	if input.Name != nil {
 		// Checked on rename too: a ban one `edit` walks around is decoration.
 		if err := s.refuseRepoName(*input.Name); err != nil {
 			return nil, err
 		}
-		next.Name = *input.Name
-	}
-	if input.Description != nil {
-		next.Description = input.Description
-	}
-	if input.Position != nil {
-		next.Position = *input.Position
 	}
 
 	var updated model.Project
-	err = s.store.InTx(ctx, func(tx store.Operations) error {
+	err := s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetProject(ctx, id)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("project %q: %w", id, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting project for update: %w", err)
+		}
+
+		next := current
+		if input.Name != nil {
+			next.Name = *input.Name
+		}
+		if input.Description != nil {
+			next.Description = input.Description
+		}
+		if input.Position != nil {
+			next.Position = *input.Position
+		}
+
 		p, err := tx.UpdateProject(ctx, next)
 		if err != nil {
 			if errors.Is(err, model.ErrDuplicateName) {
@@ -251,12 +254,11 @@ func projectAfterStatusChange(current model.Project, status string, reason *stri
 
 func (s *Service) DeleteProject(id string) error {
 	ctx := s.ctx()
-	snapshot, err := captureProject(ctx, s.store, id)
-	if err != nil {
-		return err
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		snapshot, err := captureProject(ctx, tx, id)
+		if err != nil {
+			return err
+		}
 		if err := tx.DeleteProject(ctx, id); err != nil {
 			return fmt.Errorf("deleting project: %w", err)
 		}
@@ -266,15 +268,14 @@ func (s *Service) DeleteProject(id string) error {
 
 func (s *Service) ReorderProject(projectID string, newPosition int) error {
 	ctx := s.ctx()
-	current, err := s.store.GetProject(ctx, projectID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return fmt.Errorf("project %q: %w", projectID, model.ErrNotFound)
-		}
-		return fmt.Errorf("getting project for reorder: %w", err)
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetProject(ctx, projectID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("project %q: %w", projectID, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting project for reorder: %w", err)
+		}
 		if err := tx.UpdateProjectPosition(ctx, projectID, newPosition); err != nil {
 			return fmt.Errorf("reordering project: %w", err)
 		}
@@ -389,33 +390,33 @@ func (s *Service) CreateItem(input model.CreateProjectItem) (*model.ProjectItemD
 func (s *Service) UpdateItem(id string, input model.UpdateProjectItem) (*model.ProjectItem, error) {
 	ctx := s.ctx()
 
-	current, err := s.store.GetItem(ctx, id)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, fmt.Errorf("item %q: %w", id, model.ErrNotFound)
-		}
-		return nil, fmt.Errorf("getting item for update: %w", err)
-	}
-
-	next := current
-	if input.Title != nil {
-		next.Title = *input.Title
-	}
-	if input.Notes != nil {
-		next.Notes = input.Notes
-	}
-	if input.Repo != nil {
-		next.Repo = emptyRepoUnlinks(input.Repo)
-	}
-	if input.Completed != nil {
-		next.Completed = *input.Completed
-	}
-	if input.Archived != nil {
-		next.Archived = *input.Archived
-	}
-
 	var updated model.ProjectItem
-	err = s.store.InTx(ctx, func(tx store.Operations) error {
+	err := s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetItem(ctx, id)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("item %q: %w", id, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting item for update: %w", err)
+		}
+
+		next := current
+		if input.Title != nil {
+			next.Title = *input.Title
+		}
+		if input.Notes != nil {
+			next.Notes = input.Notes
+		}
+		if input.Repo != nil {
+			next.Repo = emptyRepoUnlinks(input.Repo)
+		}
+		if input.Completed != nil {
+			next.Completed = *input.Completed
+		}
+		if input.Archived != nil {
+			next.Archived = *input.Archived
+		}
+
 		item, err := tx.UpdateItem(ctx, next)
 		if err != nil {
 			return fmt.Errorf("updating item: %w", err)
@@ -431,12 +432,11 @@ func (s *Service) UpdateItem(id string, input model.UpdateProjectItem) (*model.P
 
 func (s *Service) DeleteItem(id string) error {
 	ctx := s.ctx()
-	snapshot, err := captureItem(ctx, s.store, id)
-	if err != nil {
-		return err
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		snapshot, err := captureItem(ctx, tx, id)
+		if err != nil {
+			return err
+		}
 		if err := logUndo(ctx, tx, "delete", "item", id, snapshot); err != nil {
 			return err
 		}
@@ -449,17 +449,16 @@ func (s *Service) DeleteItem(id string) error {
 
 func (s *Service) ReorderItem(itemID, projectID string, newPosition int) error {
 	ctx := s.ctx()
-	current, err := s.store.GetMembership(ctx, itemID, projectID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			// The pairing is what is absent, not either id on its own: both can
-			// exist while the item is not in that project.
-			return fmt.Errorf("item %q is not in project %q: %w", itemID, projectID, model.ErrNotFound)
-		}
-		return fmt.Errorf("getting membership for reorder: %w", err)
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetMembership(ctx, itemID, projectID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				// The pairing is what is absent, not either id on its own: both can
+				// exist while the item is not in that project.
+				return fmt.Errorf("item %q is not in project %q: %w", itemID, projectID, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting membership for reorder: %w", err)
+		}
 		if err := tx.UpdateItemPosition(ctx, model.Membership{
 			ItemID:    itemID,
 			ProjectID: projectID,
@@ -488,23 +487,23 @@ func (s *Service) AddToProject(itemID, projectID string) error {
 
 func (s *Service) RemoveFromProject(itemID, projectID string) error {
 	ctx := s.ctx()
-	projects, err := s.store.GetItemProjects(ctx, itemID)
-	if err != nil {
-		return fmt.Errorf("checking project count: %w", err)
-	}
-	if len(projects) <= 1 {
-		return model.ErrLastProject
-	}
-
-	current, err := s.store.GetMembership(ctx, itemID, projectID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return fmt.Errorf("item %q is not in project %q: %w", itemID, projectID, model.ErrNotFound)
-		}
-		return fmt.Errorf("getting membership for remove: %w", err)
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		projects, err := tx.GetItemProjects(ctx, itemID)
+		if err != nil {
+			return fmt.Errorf("checking project count: %w", err)
+		}
+		if len(projects) <= 1 {
+			return model.ErrLastProject
+		}
+
+		current, err := tx.GetMembership(ctx, itemID, projectID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("item %q is not in project %q: %w", itemID, projectID, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting membership for remove: %w", err)
+		}
+
 		if err := tx.RemoveItemFromProject(ctx, itemID, projectID); err != nil {
 			return fmt.Errorf("removing item from project: %w", err)
 		}
@@ -524,23 +523,22 @@ func (s *Service) GetItemProjects(itemID string) ([]model.Project, error) {
 
 func (s *Service) AddDependency(itemID, dependsOn string) error {
 	ctx := s.ctx()
-
-	deps, err := s.store.ListAllDependencies(ctx)
-	if err != nil {
-		return fmt.Errorf("getting dependencies for cycle check: %w", err)
-	}
-
-	adj := make(map[string][]string)
-	for _, d := range deps {
-		adj[d.DependsOnID] = append(adj[d.DependsOnID], d.ItemID)
-	}
-
-	if graph.WouldCycle(adj, dependsOn, itemID) {
-		return model.ErrCyclicDependency
-	}
-
 	edge := model.Dependency{ItemID: itemID, DependsOnID: dependsOn}
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		deps, err := tx.ListAllDependencies(ctx)
+		if err != nil {
+			return fmt.Errorf("getting dependencies for cycle check: %w", err)
+		}
+
+		adj := make(map[string][]string)
+		for _, d := range deps {
+			adj[d.DependsOnID] = append(adj[d.DependsOnID], d.ItemID)
+		}
+
+		if graph.WouldCycle(adj, dependsOn, itemID) {
+			return model.ErrCyclicDependency
+		}
+
 		if err := tx.AddDependency(ctx, edge); err != nil {
 			return fmt.Errorf("adding dependency: %w", err)
 		}
@@ -621,27 +619,27 @@ func (s *Service) CreateTask(itemID string, input model.CreateProjectItemTask) (
 func (s *Service) UpdateTask(itemID, taskID string, input model.UpdateProjectItemTask) (*model.ProjectItemTask, error) {
 	ctx := s.ctx()
 
-	current, err := s.store.GetTask(ctx, taskID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return nil, fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
-		}
-		return nil, fmt.Errorf("getting task for update: %w", err)
-	}
-
-	next := current
-	if input.Title != nil {
-		next.Title = *input.Title
-	}
-	if input.Completed != nil {
-		next.Completed = *input.Completed
-	}
-	if input.Position != nil {
-		next.Position = *input.Position
-	}
-
 	var updated model.ProjectItemTask
-	err = s.store.InTx(ctx, func(tx store.Operations) error {
+	err := s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetTask(ctx, taskID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting task for update: %w", err)
+		}
+
+		next := current
+		if input.Title != nil {
+			next.Title = *input.Title
+		}
+		if input.Completed != nil {
+			next.Completed = *input.Completed
+		}
+		if input.Position != nil {
+			next.Position = *input.Position
+		}
+
 		t, err := tx.UpdateTask(ctx, next)
 		if err != nil {
 			return fmt.Errorf("updating task: %w", err)
@@ -657,15 +655,14 @@ func (s *Service) UpdateTask(itemID, taskID string, input model.UpdateProjectIte
 
 func (s *Service) DeleteTask(itemID, taskID string) error {
 	ctx := s.ctx()
-	current, err := s.store.GetTask(ctx, taskID)
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			return fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
-		}
-		return fmt.Errorf("getting task for delete: %w", err)
-	}
-
 	return s.store.InTx(ctx, func(tx store.Operations) error {
+		current, err := tx.GetTask(ctx, taskID)
+		if err != nil {
+			if errors.Is(err, model.ErrNotFound) {
+				return fmt.Errorf("task %q: %w", taskID, model.ErrNotFound)
+			}
+			return fmt.Errorf("getting task for delete: %w", err)
+		}
 		if err := tx.DeleteTask(ctx, taskID); err != nil {
 			return fmt.Errorf("deleting task: %w", err)
 		}
