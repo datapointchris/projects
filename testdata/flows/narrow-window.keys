@@ -1,5 +1,6 @@
-# A window too small for the layout: the panes hit their floors, and the overlays
-# are wider and taller than what is left.
+# A window too small for the layout: the project pane sits at its minimum width, and
+# an overlay's text wraps inside its box.
+mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 wait Projects
 frame first-screen
 

@@ -1,4 +1,5 @@
 # Add a task from the list and from the reader, then toggle and delete one.
+mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 wait Export posts from the old CMS
 press tab
 wait [Enter]read

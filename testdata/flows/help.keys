@@ -1,5 +1,5 @@
-# The help overlay from each pane. Its text depends on the pane behind it, and at 30
-# rows it is taller than the window.
+# The help overlay from each pane, in a window shorter than the overlay. Its text
+# depends on the pane behind it.
 wait Export posts from the old CMS
 
 press ?

@@ -1,7 +1,7 @@
  Export posts from the old CMS
  Item 1 · ○ open
  Projects: Move the blog to plain files
- Created: Nov 7, 2026
+ Created: <date>
 
  ─── Blocks ───
  ○ Set up redirects for the old URLs (3)

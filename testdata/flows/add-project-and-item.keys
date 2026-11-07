@@ -1,5 +1,5 @@
-# Add a project, then items, through the overlays. A flash holds the hints back for
-# three seconds, so a wait after a create names the row and the panes, not the hints.
+# Add a project, then items, through the overlays. A flash holds the hints back, so a
+# wait after a create names the row and the panes, not the hints.
 wait Export posts from the old CMS
 
 press a
