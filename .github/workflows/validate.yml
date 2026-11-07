@@ -71,6 +71,61 @@ jobs:
           go install github.com/go-task/task/v3/cmd/task@v3.52.0
           task build
 
+  vue-web:
+    runs-on: ubuntu-26.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+
+      - uses: actions/checkout@v7
+
+      # generated:vue-web
+      # Shared by the vue job and the hooks job, whose vue-eslint, vue-prettier
+      # and vue-typecheck hooks run npm scripts in the component.
+      - uses: actions/setup-node@v7
+        with:
+          # The repo's own file, at the workspace root, because the Node major
+          # also lives in each Dockerfile's FROM line and a pin here would be a
+          # third copy. The ci die refuses to write this job without the file,
+          # since setup-node fails before installing anything.
+          node-version-file: .nvmrc
+          cache: npm
+          # A glob rather than web/package-lock.json, because the two
+          # layouts in use keep the lock in different places: one lock per
+          # component beside its package.json, or an npm workspace with a
+          # single lock at the repo root. setup-node fails outright when a
+          # named path does not resolve, so a workspace component with no lock
+          # of its own kills the job before npm ci.
+          #
+          # Action inputs resolve from the workspace root, not the job's
+          # working-directory, so this is not relative to the component.
+          cache-dependency-path: "**/package-lock.json"
+
+      # An npm workspace has to install from the root: the lock covers every
+      # workspace, and npm ci inside one refuses to run without a lock beside
+      # it. Falling back keeps the per-component layout installing in place.
+      #
+      # The directory is named on the step because the hooks job has no
+      # working-directory of its own, and installs for every component.
+      - working-directory: "web"
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            cd "$GITHUB_WORKSPACE" && npm ci
+          fi
+
+      - run: npm run build
+
+      # test:unit where the component has one, because test is where a
+      # frontend hangs its browser run or a second build; otherwise test. A
+      # component with neither has no suite, which is not a failure.
+      - name: Test
+        run: |
+          script=$(node -p "const s = require('./package.json').scripts ?? {}; s['test:unit'] ? 'test:unit' : s.test ? 'test' : ''")
+          if [ -n "$script" ]; then npm run "$script"; fi
+
   hooks:
     runs-on: ubuntu-26.04
     steps:
@@ -87,6 +142,41 @@ jobs:
           go-version-file: "./go.mod"
           cache: true
           cache-dependency-path: "./go.sum"
+
+      # Shared by the vue job and the hooks job, whose vue-eslint, vue-prettier
+      # and vue-typecheck hooks run npm scripts in the component.
+      - uses: actions/setup-node@v7
+        with:
+          # The repo's own file, at the workspace root, because the Node major
+          # also lives in each Dockerfile's FROM line and a pin here would be a
+          # third copy. The ci die refuses to write this job without the file,
+          # since setup-node fails before installing anything.
+          node-version-file: .nvmrc
+          cache: npm
+          # A glob rather than web/package-lock.json, because the two
+          # layouts in use keep the lock in different places: one lock per
+          # component beside its package.json, or an npm workspace with a
+          # single lock at the repo root. setup-node fails outright when a
+          # named path does not resolve, so a workspace component with no lock
+          # of its own kills the job before npm ci.
+          #
+          # Action inputs resolve from the workspace root, not the job's
+          # working-directory, so this is not relative to the component.
+          cache-dependency-path: "**/package-lock.json"
+
+      # An npm workspace has to install from the root: the lock covers every
+      # workspace, and npm ci inside one refuses to run without a lock beside
+      # it. Falling back keeps the per-component layout installing in place.
+      #
+      # The directory is named on the step because the hooks job has no
+      # working-directory of its own, and installs for every component.
+      - working-directory: "web"
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            cd "$GITHUB_WORKSPACE" && npm ci
+          fi
 
       # Every hook in the repo's committed pre-commit config. A push from a
       # checkout that never ran `pre-commit
@@ -301,6 +391,9 @@ jobs:
             go-build-repo-mod
             go-mod-tidy-repo
             go-test-repo-mod
+            vue-eslint
+            vue-prettier
+            vue-typecheck
             hadolint
             jactionlint
             sqlfluff-lint
@@ -317,7 +410,7 @@ jobs:
           done
           exit "$status"
 
-# > custom:after:all - Kubernetes manifests
+# > custom:after:all - Kubernetes manifests, the images, and the web smoke
 #
 # The release publishes deploy/ as the base a cluster applies, and calls this
 # workflow as its gate, so a base that fails here is never pushed.
@@ -338,7 +431,7 @@ jobs:
           echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
 
       # release/pin-manifests pins and labels every path as the release does,
-      # with the image named by a digest of zeros. kube-linter refuses an image
+      # with each image named by a digest of zeros. kube-linter refuses an image
       # with no tag or digest, which the committed base carries until the
       # release pins it.
       #
@@ -352,7 +445,8 @@ jobs:
           SCHEMAS: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/f7d855e49c34b039c9ef2196444910275e31e09e
         run: |
           zeros=$(printf '0%.0s' {1..64})
-          release/pin-manifests --image "ghcr.io/$GITHUB_REPOSITORY@sha256:$zeros" --version 0.0.0 \
+          release/pin-manifests --image "ghcr.io/$GITHUB_REPOSITORY@sha256:$zeros" \
+            --web-image "ghcr.io/$GITHUB_REPOSITORY-web@sha256:$zeros" --version 0.0.0 \
             --out "$RUNNER_TEMP/manifests" >"$RUNNER_TEMP/paths"
           status=0
           while IFS= read -r path; do
@@ -376,3 +470,38 @@ jobs:
 
       - name: Build the image without pushing it
         run: docker build --build-arg PROJECTS_VERSION=0.0.0 .
+
+  # Builds the web image as the release will, then drives one roundtrip through
+  # the stack it ships in: Caddy's routes, the browser login against a stand-in
+  # identity provider, and a project named with a slash reaching the API. The
+  # vue-web job's unit tests reach none of those.
+  web-stack:
+    name: Web image and its smoke
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Build and start the stack
+        working-directory: .
+        run: docker compose -f docker-compose.dev.yml up --build --wait
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npx playwright test
+
+      - name: Print the stack's logs
+        if: failure()
+        working-directory: .
+        run: docker compose -f docker-compose.dev.yml logs --no-color

@@ -1,0 +1,71 @@
+# The projects-web image's Caddyfile. The host's route sends every path here,
+# and this splits them: /api and /.well-known go to the API, and the rest is
+# the built SPA. So the browser sees one origin, its session cookie
+# reaches the API, and no CORS is needed.
+{
+	# Nothing reconfigures a running container, so the admin endpoint and the
+	# copy of the config it would save stay off.
+	admin off
+	persist_config off
+	# TLS ends at the edge in front of this container.
+	auto_https off
+}
+
+# A high port, so the process needs no capability to bind it.
+:8080 {
+	encode gzip
+
+	# One JSON object a line on stdout. Caddy redacts the Cookie and
+	# Authorization headers from it.
+	log {
+		output stdout
+		format json
+	}
+
+	# For this container's own probes. Wrapped in `handle` so it ends routing
+	# before the SPA fallback catches it.
+	handle /health {
+		respond "ok" 200
+	}
+
+	# The API's routes, its browser login under /api/auth, and the RFC 9728
+	# metadata a CLI reads before it holds a token. The rest of /.well-known
+	# goes there too, so no document under it is answered with the SPA's page.
+	# The request's path is passed on as sent, so a project name escaped as %2F
+	# reaches the API escaped.
+	@api path /api/* /.well-known/*
+	handle @api {
+		reverse_proxy projects-api:8000
+	}
+
+	# The build names each file here by a hash of its content, so a file is
+	# cached for a year. A name no release holds answers 404 rather than the
+	# page, which a tab still running an older release would otherwise parse
+	# as a script and keep for that year.
+	handle /assets/* {
+		root * /srv
+		@present file
+		header @present Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Every other path is the one page, revalidated so a release shows promptly.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+		header Cache-Control "public, max-age=300, must-revalidate"
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "interest-cohort=(), geolocation=(), microphone=(), camera=()"
+		# The page's font comes from Google Fonts, and 'unsafe-inline' style is
+		# for Vue's style bindings. Scripts and requests stay on this origin.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+}

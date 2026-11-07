@@ -1,0 +1,39 @@
+// The raised and pressed shadows of a card: the project list's rows and the
+// panel holding a project's items.
+:root {
+  // prettier-ignore
+  --shadow-card:
+        0 -2px 2px var(--clr-black-trans-200),
+        0px 4px 4px var(--clr-black-trans-400),
+        0px 16px 16px var(--clr-black-trans-600),
+        16px 8px 16px var(--clr-black-trans-600),
+        inset 5px 5px 10px var(--clr-black-trans-200),
+        inset -10px -10px 10px var(--clr-black-trans-200),
+        inset -6px -6px 14px var(--clr-black-trans-600),
+        -4px -4px 10px var(--clr-shadow-highlight-md),
+        inset 6px 6px 10px var(--clr-shadow-highlight-md);
+
+  // prettier-ignore
+  --shadow-card-active:
+        inset 2px 2px 5px var(--clr-black-trans-800),
+        -2px -2px 5px var(--clr-black-trans-800),
+
+        inset 4px 4px 8px var(--clr-black-trans-800),
+        -8px -8px 12px var(--clr-black-trans-600),
+
+        inset 8px 8px 32px var(--clr-black-trans-400),
+
+        inset -2px -2px 5px var(--clr-shadow-highlight-sm),
+        2px 2px 5px var(--clr-shadow-highlight-md),
+
+        inset -4px -4px 8px var(--clr-shadow-highlight-md),
+        8px 8px 24px var(--clr-shadow-highlight-lg),
+
+        inset -8px -8px 32px var(--clr-shadow-highlight-md);
+
+  // prettier-ignore
+  --shadow-card-hover:
+        10px 10px 24px var(--clr-black-trans-800),
+        -4px -4px 12px var(--clr-shadow-highlight-lg),
+        inset 8px 8px 12px var(--clr-shadow-highlight-lg);
+}

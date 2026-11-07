@@ -1,0 +1,9 @@
+# The image builds from package.json, the lockfile, the sources and the
+# Caddyfile. npm ci and the build remake the rest.
+node_modules
+dist
+e2e
+test-results
+playwright-report
+**/__tests__
+*.md

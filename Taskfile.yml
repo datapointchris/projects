@@ -18,7 +18,8 @@ tasks:
       - task --list
 
   # A worktree is a clean checkout, so everything gitignored is absent. The
-  # module cache comes back from go.sum. .envrc is linked from the primary
+  # module cache comes back from go.sum, and the web app's packages, which the
+  # commit hooks run, from its lockfile. .envrc is linked from the primary
   # checkout, because a worktree without it runs against production data.
   # PRIMARY is derived from the shared git directory, so the link step no-ops in
   # the primary itself and wherever the primary has no .envrc.
@@ -29,6 +30,7 @@ tasks:
         sh: git rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||'
     cmds:
       - go mod download
+      - npm ci --prefix web --no-audit --no-fund
       - |
         if [ "{{.PRIMARY}}" != "$PWD" ] && [ -f "{{.PRIMARY}}/.envrc" ]; then
           ln -sfn "{{.PRIMARY}}/.envrc" .envrc
@@ -53,6 +55,47 @@ tasks:
     cmds:
       - echo "Running tests..."
       - go test -v ./...
+      - task: web:test
+
+  web:test:
+    desc: Run the web app's unit tests
+    dir: web
+    cmds:
+      - npm run test:unit
+
+  # The browser reaches the stack at http://localhost:8096, and the stand-in
+  # identity provider logs every login in as one person. Its database lives in
+  # a volume, so a stop that keeps the data is `docker compose stop`.
+  dev-stack:start:
+    desc: Build and start the web app's stack from this checkout, and wait until it serves
+    cmds:
+      - docker compose -f docker-compose.dev.yml up --build --wait
+      - echo "Serving at http://localhost:8096"
+
+  dev-stack:stop:
+    desc: Stop the web app's stack and delete its database
+    cmds:
+      - docker compose -f docker-compose.dev.yml down -v
+
+  # Vite reloads the page on every edit and sends /api to the running stack.
+  web:dev:
+    desc: Serve the web app from source at http://localhost:3002, against the stack
+    deps:
+      - dev-stack:start
+    dir: web
+    cmds:
+      - npm run dev
+
+  # One roundtrip through the stack the image ships in: the login, a project
+  # named with a slash, and an item created, edited and deleted. It deletes the
+  # stack afterwards, pass or fail.
+  web:test:e2e:
+    desc: Run the Playwright smoke against a fresh stack, then delete it
+    cmds:
+      - defer: docker compose -f docker-compose.dev.yml down -v
+      - docker compose -f docker-compose.dev.yml down -v
+      - docker compose -f docker-compose.dev.yml up --build --wait
+      - cd web && npx playwright install chromium && npx playwright test
 
   install:
     desc: Build and install the dev build to ~/go/bin, where the release lives

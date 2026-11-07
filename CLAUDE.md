@@ -1,7 +1,8 @@
 # projects — Claude Code instructions
 
 The main package is at the module root — `go build .`, `go install github.com/datapointchris/projects@latest`.
-`api/main.go` is the HTTP API, `projects-api`, which `go install` of the root does not build.
+`api/main.go` is the HTTP API, `projects-api`, which `go install` of the root does not build. `web/` is
+the browser page over that API, in Vue, and nothing in Go imports it.
 
 ## How to run and test
 
@@ -403,10 +404,50 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   already handed out can outrun the rows left.
 - **`.sqlfluffignore` keeps the SQLite hook off `store/postgres`**, and a second hook in
   `.pre-commit-config.yaml` lints it in its own dialect, because the config holds one dialect.
-- **A release publishes the image and manifests at the tag `go-semantic-release` cut**, in `release.yml`.
-  One version names both the TUI and the API, because a rule change in `service` moves both. A new
-  directory the binary imports joins `.dockerignore`'s allowlist, or `validate.yml`'s image build fails
-  the pull request.
+- **A release publishes both images and the manifests at the tag `go-semantic-release` cut**, in
+  `release.yml`. One version names the TUI, the API and the web app, because a rule change in `service`
+  moves all three. A new directory the binary imports joins `.dockerignore`'s allowlist, or
+  `validate.yml`'s image build fails the pull request. `release/pin-manifests` refuses a built path
+  running an image no flag pinned, so a new image in `deploy/` takes a flag there.
+
+## The web app is one page on the API's origin, and the API logs the browser in
+
+`web/` is Vue 3, Pinia and Vite, with no router: `ProjectsView` is the whole app, at `/`. Its styles in
+`src/assets/sass` are this repo's own copy, imported by nothing else, so a change to the look lands here
+alone. The root `.prettierrc.yaml` formats it.
+
+```bash
+task dev-stack:start   # the stack from this checkout at http://localhost:8096
+task web:dev           # Vite at http://localhost:3002, proxying /api to the stack
+task web:test          # Vitest
+task web:test:e2e      # one Playwright roundtrip through a fresh stack, which it then removes
+```
+
+- **The `projects-web` image is Caddy, and its Caddyfile is the only router.** `/api/*` and
+  `/.well-known/*` go to `projects-api:8000`, `/assets/*` is the hashed build with a miss answering 404,
+  and every other path is `index.html`. So the browser sees one origin, the session cookie reaches the
+  API, and nothing needs CORS. Caddy passes `%2F` through escaped.
+- **The browser holds a session cookie and never a token.** `api/authentication/browser_login.go` runs
+  `gobrowserlogin` as the `WEB_CLIENT_ID` confidential client, and keeps sessions in Postgres in
+  `browser_sessions` and `browser_login_attempts`, which opt out of the audit trigger. It is on only
+  where `WEB_CLIENT_SECRET` is set, and `settings.LoadServer` then refuses a missing `PUBLIC_URL`,
+  because the callback is `PUBLIC_URL/api/auth/callback`. Like the token verifier, it reads the provider
+  in the background. Until it has, a login answers 503, and so does any request without a bearer token,
+  while `/ready` names why and keeps the pod out of its Service.
+- **A session acts as its person and reaches every route.** `routes.ServiceScopes` limits only service
+  clients. The request log names a session's client as `WEB_CLIENT_ID`.
+- **Every request the page sends carries `X-CSRF: 1`**, set once in `src/api/client.ts`. The API answers
+  403 to a session's request without it, whatever the method.
+- **A 401 on a write, or on a read holding typed input, fails in place**, so nothing the person typed is
+  lost to a redirect. `holdsTypedInput: true` on the request marks the read, as the search does. Any
+  other read navigates to `/api/auth/login?return_to=…`, once a page and at most twice a minute,
+  counted in `sessionStorage`. `extractApiError` passes the client's own refusal through, so its
+  message is what the page shows.
+- **The dev stack's identity provider is a stand-in** that grants every login as one person, with no
+  page to fill in. The login takes http only on a loopback host, and the browser and the API must name
+  the issuer by one URL. So the stand-in shares the API container's network, where `localhost:8097`
+  reaches it, and publishes that port to the host, where the browser reaches it the same way.
+- **The stack's ports are 8096 for the page and 8097 for the stand-in**, and Vite's is 3002.
 
 ## Never write the breaking-change trailer in a commit message
 

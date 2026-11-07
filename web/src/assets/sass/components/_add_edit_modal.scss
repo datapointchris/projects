@@ -1,0 +1,380 @@
+@use '../abstracts/breakpoints';
+@use '../abstracts/effects';
+
+// Reusable modal overlay + window with slam-in / squeeze-close animations.
+// Used by AddEditModal.vue — page-specific form content goes in the slot.
+
+.add-edit-modal__overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--clr-black-trans-800);
+  z-index: 5;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  &.visible {
+    visibility: visible;
+    pointer-events: auto;
+    animation: overlay-in 0.8s ease forwards;
+  }
+
+  &.closing {
+    visibility: visible;
+    pointer-events: none;
+    animation: overlay-out 1.25s ease forwards;
+  }
+
+  &.closing-success {
+    visibility: visible;
+    pointer-events: none;
+    animation: overlay-out 1.25s ease forwards;
+  }
+}
+
+.add-edit-modal__window {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: var(--clr-gray-900);
+  padding: var(--space-xl);
+  border-top: 2px solid var(--clr-gray-400);
+  border-left: 2px solid var(--clr-gray-400);
+  border-right: 1px solid var(--clr-gray-700);
+  border-bottom: 1px solid var(--clr-gray-700);
+  z-index: 10;
+  border-radius: var(--space-xl);
+  max-height: 90vh;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  will-change: transform, opacity, filter;
+
+  // Layered depth: deep-3d stepped shadow + big soft ambient + inner highlight
+  // prettier-ignore
+  box-shadow:
+    var(--deep-3d-box-shadow),
+    0 40px 80px rgba(0, 0, 0, 0.6),
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 30px rgba(0, 0, 0, 0.3);
+
+  &.visible {
+    visibility: visible;
+    pointer-events: auto;
+    animation: window-slam-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  &.closing {
+    visibility: visible;
+    pointer-events: none;
+    animation: window-cancel-squeeze 0.75s ease forwards;
+  }
+
+  &.closing-success {
+    visibility: visible;
+    pointer-events: none;
+    animation: window-success-squeeze 0.75s ease forwards;
+    transform-origin: center top;
+  }
+
+  @include breakpoints.phone {
+    width: calc(100vw - 2 * var(--space-xs));
+    padding: var(--space-s);
+    border-radius: var(--space-m);
+  }
+}
+
+// Inner form panel — callers use this class on their form element
+.add-edit-modal__form {
+  padding: var(--space-s) var(--space-m);
+  text-align: center;
+  border-radius: var(--button-border-radius);
+  background-color: var(--clr-primary);
+  color: var(--clr-accent-light);
+  font-size: var(--fs-500);
+
+  // Inner form gets its own shadow layer for depth separation from the window
+  // prettier-ignore
+  box-shadow:
+    var(--shadow-card),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.add-edit-modal__form-item {
+  padding: var(--space-2xs);
+  flex: 1;
+
+  label {
+    display: block;
+    margin-bottom: var(--space-xs);
+  }
+
+  .textbox {
+    width: 100%;
+  }
+}
+
+.add-edit-modal__form-row {
+  display: flex;
+  gap: var(--space-s);
+}
+
+.add-edit-modal__form-buttons {
+  display: flex;
+  justify-content: space-evenly;
+  padding-top: var(--space-s);
+
+  button {
+    color: var(--clr-accent-light);
+    font-size: var(--fs-500);
+  }
+}
+
+// Tile selector for categories/labels — radio inputs with visual tiles
+.add-edit-modal__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-inline: auto;
+  gap: var(--space-xs);
+  user-select: none;
+  padding: var(--space-2xs);
+}
+
+.add-edit-modal__tile-input {
+  clip: rect(0 0 0 0);
+  clip-path: inset(100%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+
+  &:checked + .add-edit-modal__tile {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+    // prettier-ignore
+    box-shadow:
+      0 5px 10px var(--clr-black-trans-1000),
+      inset 0 0 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.add-edit-modal__tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3xs) var(--space-s);
+  border-radius: var(--button-border-radius);
+  border: 2px solid var(--clr-accent-light);
+  background-color: var(--clr-primary);
+  box-shadow: 0 3px 6px var(--clr-black-trans-600);
+  transition: var(--transition-default) ease;
+  cursor: pointer;
+  font-size: var(--fs-300);
+
+  &:hover {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+  }
+}
+
+// Priority input: hide native spinner arrows
+.add-edit-modal__number-input {
+  text-align: center;
+  width: 120px;
+
+  // Webkit (Chrome, Safari, Edge)
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  // Firefox
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+// === Keyframe animations ===
+
+@keyframes overlay-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes overlay-out {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+// Rubber-band bounce: each stop uses ease-in-out so the motion decelerates
+// into each peak and accelerates back — like a spring
+@keyframes window-slam-in {
+  0% {
+    transform: translate(-50%, -50%) scale(0.05) rotate(-15deg);
+    opacity: 0;
+    filter: brightness(0.3) blur(6px);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  20% {
+    transform: translate(-50%, -50%) scale(1.3) rotate(2.5deg);
+    opacity: 1;
+    filter: brightness(1) blur(0);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  32% {
+    transform: translate(-50%, -50%) scale(0.85) rotate(-1.8deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  44% {
+    transform: translate(-50%, -50%) scale(1.14) rotate(1.2deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  56% {
+    transform: translate(-50%, -50%) scale(0.93) rotate(-0.6deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  68% {
+    transform: translate(-50%, -50%) scale(1.06) rotate(0.3deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  80% {
+    transform: translate(-50%, -50%) scale(0.98) rotate(-0.1deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  90% {
+    transform: translate(-50%, -50%) scale(1.015) rotate(0.05deg);
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+// Cancel: smooth inhale then squeeze to nothing
+@keyframes window-cancel-squeeze {
+  0% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: brightness(1);
+    animation-timing-function: ease-out;
+  }
+
+  30% {
+    transform: translate(-50%, -50%) scale(1.25) rotate(-2deg);
+    opacity: 1;
+    filter: brightness(1.1);
+    animation-timing-function: ease-in;
+  }
+
+  95% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(0) rotate(8deg);
+    opacity: 0;
+    filter: brightness(0.5);
+  }
+}
+
+// Success: same inhale-squeeze as cancel but with green+white glow at peak
+// Dark depth shadows persist throughout — green/white added as top layers
+// Same layer count in every keyframe so the browser can interpolate
+@keyframes window-success-squeeze {
+  0% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: brightness(1) hue-rotate(0deg);
+    // prettier-ignore
+    box-shadow:
+      0 0 0 rgba(80, 255, 80, 0),
+      0 0 0 rgba(255, 255, 255, 0),
+      var(--deep-3d-box-shadow),
+      0 40px 80px rgba(0, 0, 0, 0.6),
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 30px rgba(0, 0, 0, 0.3);
+    animation-timing-function: ease-out;
+  }
+
+  10% {
+    // prettier-ignore
+    box-shadow:
+      0 0 0 rgba(80, 255, 80, 0),
+      0 0 0 rgba(255, 255, 255, 0),
+      var(--deep-3d-box-shadow),
+      0 40px 80px rgba(0, 0, 0, 0.6),
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 30px rgba(0, 0, 0, 0.3);
+  }
+
+  30% {
+    transform: translate(-50%, -50%) scale(1.25) rotate(-2deg);
+    opacity: 1;
+    filter: brightness(1.3) hue-rotate(15deg);
+    // prettier-ignore
+    box-shadow:
+      0 0 40px rgba(80, 255, 80, 0.95),
+      0 0 80px rgba(255, 255, 255, 0.2),
+      var(--deep-3d-box-shadow),
+      0 40px 80px rgba(0, 0, 0, 0.6),
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 30px rgba(0, 0, 0, 0.3);
+    animation-timing-function: ease-in;
+  }
+
+  95% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(0) rotate(8deg);
+    opacity: 0;
+    filter: brightness(0.5) hue-rotate(0deg);
+    // prettier-ignore
+    box-shadow:
+      0 0 0 rgba(80, 255, 80, 0),
+      0 0 0 rgba(255, 255, 255, 0),
+      var(--deep-3d-box-shadow),
+      0 40px 80px rgba(0, 0, 0, 0.6),
+      0 20px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 30px rgba(0, 0, 0, 0.3);
+  }
+}

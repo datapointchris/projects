@@ -3,12 +3,13 @@
 # The cluster supplies what this directory does not create:
 #
 # - A ConfigMap and a Secret, both named projects-settings, holding the settings
-#   README.md lists as environment variables. POSTGRES_PASSWORD goes in the
-#   Secret. The pod reads both, so any other setting may sit in either.
-# - A route to the Service reaching /.well-known/oauth-protected-resource as
-#   well as /api/v1, since a client logging in reads the first to find the
-#   issuer. PUBLIC_URL names the address that route serves.
-# - Each NetworkPolicy the pod reaches Postgres and the issuer through.
+#   README.md lists as environment variables. POSTGRES_PASSWORD and
+#   WEB_CLIENT_SECRET go in the Secret. The pod reads both, so any other
+#   setting may sit in either.
+# - No route of its own. projects-web, in web.yaml, passes /api and
+#   /.well-known here from the app's host, whose address PUBLIC_URL names.
+# - Each NetworkPolicy the pod reaches Postgres and the issuer through, and the
+#   one letting projects-web reach it.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

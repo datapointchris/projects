@@ -1,0 +1,95 @@
+// Listing/table modal — sibling to AddEditModal for data-heavy content.
+// Reuses the same overlay and animation keyframes from _add_edit_modal.scss.
+// The window gets a responsive width so grid/table layouts can resolve fr units.
+
+.listing-modal__window {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: clamp(600px, 80vw, 1200px);
+  max-height: 85vh;
+  background: var(--clr-gray-900);
+  padding: var(--space-xl);
+  border-top: 2px solid var(--clr-gray-400);
+  border-left: 2px solid var(--clr-gray-400);
+  border-right: 1px solid var(--clr-gray-700);
+  border-bottom: 1px solid var(--clr-gray-700);
+  z-index: 10;
+  border-radius: var(--space-xl);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden; // window doesn't scroll — content panel does
+
+  will-change: transform, opacity, filter;
+
+  // Same layered depth as AddEditModal
+  // prettier-ignore
+  box-shadow:
+        var(--deep-3d-box-shadow),
+        0 40px 80px rgba(0, 0, 0, 0.6),
+        0 20px 40px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 0 30px rgba(0, 0, 0, 0.3);
+
+  // Reuse the same animation classes as AddEditModal
+  &.visible {
+    visibility: visible;
+    pointer-events: auto;
+    animation: window-slam-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  &.closing {
+    visibility: visible;
+    pointer-events: none;
+    animation: window-cancel-squeeze 0.75s ease forwards;
+  }
+
+  &.closing-success {
+    visibility: visible;
+    pointer-events: none;
+    animation: window-success-squeeze 0.75s ease forwards;
+    transform-origin: center top;
+  }
+}
+
+// Inner content panel — static frame with heading and buttons
+.listing-modal__content {
+  position: relative;
+  padding: var(--space-s) var(--space-m);
+  border-radius: var(--button-border-radius);
+  background-color: var(--clr-primary--darker);
+  color: var(--clr-accent-light);
+  font-size: var(--fs-500);
+
+  // prettier-ignore
+  box-shadow:
+        var(--shadow-card),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+// Scrollable list area — sits between heading and buttons, fades at edges
+.listing-modal__scrollable {
+  max-height: calc(70vh - var(--space-xl) * 2);
+  overflow-y: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  background-color: var(--clr-primary);
+  border-radius: var(--button-border-radius);
+  padding: var(--space-xs);
+  box-shadow: var(--shadow-button-active);
+}
+
+.listing-modal__title {
+  text-align: center;
+}
+
+.listing-modal__buttons {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-s);
+}

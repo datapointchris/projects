@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+:root {
+  --ff-base: 'Ubuntu Mono', monospace;
+
+  --fs-200: clamp(0.75rem, 0.6522rem + 0.0435vi, 0.875rem);
+  --fs-300: clamp(0.9375rem, 0.9158rem + 0.1087vi, 1rem);
+  --fs-400: clamp(1.125rem, 1.0815rem + 0.2174vi, 1.25rem);
+  --fs-500: clamp(1.35rem, 1.2761rem + 0.3696vi, 1.5625rem);
+  --fs-600: clamp(1.62rem, 1.5041rem + 0.5793vi, 1.9531rem);
+  --fs-700: clamp(1.944rem, 1.771rem + 0.8651vi, 2.4414rem);
+  --fs-800: clamp(2.3328rem, 2.0827rem + 1.2504vi, 3.0518rem);
+  --fs-900: clamp(2.7994rem, 2.4462rem + 1.7658vi, 3.8147rem);
+  --fs-1000: clamp(3.3592rem, 2.8691rem + 2.4507vi, 4.7684rem);
+  --fs-1100: clamp(4.0311rem, 3.36rem + 3.3555vi, 5.9605rem);
+
+  // ignore these so prettier doesn't put them on one line
+
+  // prettier-ignore
+  --deep-3d-text-shadow:
+        1px 1px 0px var(--clr-gray-400),
+        2px 2px 0px var(--clr-gray-400),
+        3px 3px 0px var(--clr-gray-500),
+        4px 4px 0px var(--clr-gray-600),
+        5px 5px 0px var(--clr-gray-700),
+        6px 6px 0px var(--clr-gray-800),
+        7px 7px 0px var(--clr-gray-900);
+
+  // prettier-ignore
+  --deep-3d-text-shadow-elongated:
+        1px 1px 0px var(--clr-gray-900),
+        2px 2px 0px var(--clr-gray-800),
+        3px 3px 0px var(--clr-gray-700),
+        4px 4px 0px var(--clr-gray-600),
+        5px 5px 0px var(--clr-gray-500),
+        6px 6px 0px var(--clr-gray-400),
+        7px 7px 0px var(--clr-gray-400);
+
+  // prettier-ignore
+  --deep-3d-text-shadow-reversed:
+        1px -1px 0px var(--clr-gray-400),
+        2px -2px 0px var(--clr-gray-400),
+        3px -3px 0px var(--clr-gray-500),
+        4px -4px 0px var(--clr-gray-600),
+        5px -5px 0px var(--clr-gray-700),
+        6px -6px 0px var(--clr-gray-800),
+        7px -7px 0px var(--clr-gray-900);
+
+  // prettier-ignore
+  --deep-3d-text-shadow-reversed-elongated:
+        1px -1px 0px var(--clr-gray-400),
+        2px -2px 0px var(--clr-gray-500),
+        3px -3px 0px var(--clr-gray-600),
+        4px -4px 0px var(--clr-gray-700),
+        5px -5px 0px var(--clr-gray-800),
+        6px -6px 0px var(--clr-gray-900),
+        7px -7px 0px var(--clr-gray-900);
+
+  // prettier-ignore
+  --text-glow:
+        0 0 7px var(--clr-gray-trans-500),
+        0 0 15px var(--clr-accent);
+}
+
+@mixin text-glow-colored($glow-color: var(--clr-accent)) {
+  text-shadow:
+    0 0 7px var(--clr-gray-trans-500),
+    0 0 15px $glow-color;
+}
+
+@mixin deep-3d-text {
+  text-shadow: var(--deep-3d-text-shadow);
+}
+
+.centered {
+  text-align: center;
+}

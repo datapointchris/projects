@@ -1,0 +1,9 @@
+// The width below which the layout is a phone's. `base/base` publishes it as
+// `--phone-max-width`, which is how `usePhoneViewport` reads the same value.
+$phone-max-width: 720px;
+
+@mixin phone {
+  @media (max-width: $phone-max-width) {
+    @content;
+  }
+}

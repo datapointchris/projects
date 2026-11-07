@@ -1,0 +1,24 @@
+// The shape a design style swaps: corners, role borders and motion timing.
+// Each value reproduces the neumorphic style exactly; a design style
+// redefines these under its `data-design` attribute.
+
+:root {
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-default: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-2xl: 25px;
+  --radius-3xl: 30px;
+  --radius-circle: 50%;
+
+  --border-card: none;
+  --border-input: none;
+  --border-subnav: 2px solid var(--clr-gray-700);
+
+  --transition-fast: 0.1s;
+  --transition-default: 0.15s;
+  --transition-medium: 0.2s;
+  --transition-slow: 0.3s;
+}
