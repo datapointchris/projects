@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import type { ProjectCreate, ProjectKind, ProjectUpdate } from '@/api/client'
+import { DEFAULT_PROJECT_KIND, PROJECT_KINDS } from '@/api/types'
 import AddEditModal from '@/components/AddEditModal.vue'
 import NeuSelect from '@/components/NeuSelect.vue'
 
@@ -80,18 +81,17 @@ const emit = defineEmits<{
 
 const nameInput = ref<HTMLInputElement | null>(null)
 
-const kindOptions = [
-  { value: 'build', label: 'Build — making something that did not exist' },
-  { value: 'chore', label: 'Chore — has to happen, produces nothing new' },
-  { value: 'life', label: 'Life — everything that is neither' },
-]
-
-const DEFAULT_KIND: ProjectKind = 'life'
+const KIND_LABELS: Record<ProjectKind, string> = {
+  build: 'Build — making something that did not exist',
+  chore: 'Chore — has to happen, produces nothing new',
+  life: 'Life — everything that is neither',
+}
+const kindOptions = PROJECT_KINDS.map((kind) => ({ value: kind, label: KIND_LABELS[kind] }))
 
 const form = reactive({
   name: '',
   description: '',
-  kind: DEFAULT_KIND as ProjectKind,
+  kind: DEFAULT_PROJECT_KIND as ProjectKind,
 })
 
 watch(
@@ -108,7 +108,7 @@ watch(
 function resetForm() {
   form.name = ''
   form.description = ''
-  form.kind = DEFAULT_KIND
+  form.kind = DEFAULT_PROJECT_KIND
 }
 
 function handleModalClose() {

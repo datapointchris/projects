@@ -1,17 +1,3 @@
-@use '../abstracts/breakpoints';
-
-:root {
-  --phone-max-width: #{breakpoints.$phone-max-width};
-  // The bar holding the menu button on a phone.
-  --phone-bar-height: 56px;
-  // Where a page's sticky header stops: under the notch, and under the phone bar on a phone.
-  --page-sticky-top: env(safe-area-inset-top, 0px);
-
-  @include breakpoints.phone {
-    --page-sticky-top: calc(var(--phone-bar-height) + env(safe-area-inset-top, 0px));
-  }
-}
-
 html {
   height: 100%;
   background-color: var(--clr-primary--darker);

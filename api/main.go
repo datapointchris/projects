@@ -17,6 +17,7 @@ import (
 
 	"github.com/datapointchris/goapiauth"
 	"github.com/datapointchris/goapiauth/tokenorsession"
+	"github.com/datapointchris/gobrowserlogin"
 	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/datapointchris/projects/api/authentication"
@@ -91,12 +92,13 @@ func serve(ctx context.Context, log *slog.Logger) error {
 		{Name: "identity provider", Check: func(context.Context) error { return provider.Ready() }},
 	}
 	public := routes.PublicPaths
-	var browserLogin *authentication.BrowserLogin
+	var browserLogin *gobrowserlogin.Connecting
 	if loaded.BrowserLogin() {
-		browserLogin = authentication.NewBrowserLogin(stdlib.OpenDBFromPool(pool), loaded.OIDCIssuer, loaded.WebClientID, loaded.WebClientSecret, loaded.PublicURL, log)
-		go browserLogin.Run(ctx, log)
-		checks = append(checks, routes.ReadinessCheck{Name: "browser login", Check: func(context.Context) error { return browserLogin.Ready() }})
-		public = append(slices.Clone(public), authentication.LoginPath, authentication.CallbackPath)
+		browserLogin, err = authentication.NewBrowserLogin(stdlib.OpenDBFromPool(pool), loaded.OIDCIssuer, loaded.WebClientID, loaded.WebClientSecret, loaded.PublicURL, log)
+		if err != nil {
+			return fmt.Errorf("reading the browser login's settings: %w", err)
+		}
+		go browserLogin.Run(ctx)
 	} else {
 		log.WarnContext(ctx, "WEB_CLIENT_SECRET is unset, so the API logs no browser in and only a bearer token reaches it")
 	}
@@ -110,7 +112,7 @@ func serve(ctx context.Context, log *slog.Logger) error {
 	}
 	var sessions tokenorsession.Sessions
 	if browserLogin != nil {
-		browserLogin.Mount(mux)
+		public = append(slices.Clone(public), authentication.MountBrowserLogin(mux, browserLogin, log)...)
 		sessions = browserLogin
 	}
 	protected := authentication.Protect(mux, routes.ServiceScopes, provider, sessions, loaded.WebClientID, log, public...)

@@ -2,7 +2,7 @@
 -- The tables gobrowserlogin's postgresstore reads and writes, as its Schema
 -- declares them. The API checks their columns at start, so a column renamed here
 -- keeps the browser login from starting. Neither carries an audit trigger: a
--- session's row is written on every login and each minute it is used, and no
+-- session's row is written on every login and again as it is used, and no
 -- person edits one.
 
 -- A login a browser has started and not finished. state_sha256 is the SHA-256 of

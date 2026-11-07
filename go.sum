@@ -89,8 +89,8 @@ github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMF
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=
 github.com/datapointchris/goapiauth v0.2.0 h1:Bqo+F5X70YnmRgWNIpqohFT5brScxt82888iqPS3a/U=
 github.com/datapointchris/goapiauth v0.2.0/go.mod h1:R5j+QfvEqu0mTwap4nz13fq5RRuXwKGUnAH6VvfhLmQ=
-github.com/datapointchris/gobrowserlogin v0.1.2 h1:Z79KtYgym2pooxJ/0aPHhjYpKpHkEiOBVxcALsDFSLM=
-github.com/datapointchris/gobrowserlogin v0.1.2/go.mod h1:wfN8b/nONCpCdrZH2S15bNNK6YSqtVjpxgeQanY5Yw8=
+github.com/datapointchris/gobrowserlogin v0.2.0 h1:rJ8MlbL//Xvy8uJbjXR8Hy/57nyaMxFliaw2zEvgoGw=
+github.com/datapointchris/gobrowserlogin v0.2.0/go.mod h1:wfN8b/nONCpCdrZH2S15bNNK6YSqtVjpxgeQanY5Yw8=
 github.com/datapointchris/goclikit v0.5.3 h1:6ec9nuswLXeIqZLa0YVEQeqsCnrjkqF/3gDtCBSowNQ=
 github.com/datapointchris/goclikit v0.5.3/go.mod h1:hEbplQyvrWq5m5UepXVNKfv8jvvlmQshNMrWdoHBb6Y=
 github.com/datapointchris/goclilogin v0.8.0 h1:pHeTUzgl++YT+jI0iSir9Wtow+L5u+JM1cVZ3p8Fsbk=

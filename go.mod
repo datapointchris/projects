@@ -14,7 +14,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/datapointchris/goapiauth v0.2.0
-	github.com/datapointchris/gobrowserlogin v0.1.2
+	github.com/datapointchris/gobrowserlogin v0.2.0
 	github.com/datapointchris/goclikit v0.5.3
 	github.com/datapointchris/goclilogin v0.8.0
 	github.com/datapointchris/goselfupdate v0.11.0

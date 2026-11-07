@@ -72,4 +72,9 @@ test('logs in, then creates, edits and deletes a project and its item', async ({
   await expect(page.locator(SUCCESS, { hasText: `${projectName} deleted` })).toBeVisible()
   await expect(page.getByTestId('project-item').filter({ hasText: projectName })).toHaveCount(0)
   await expect(page.locator(ERROR)).toHaveCount(0)
+
+  await page.getByTestId('logout-button').click()
+  await expect(page.getByTestId('logged-out')).toBeVisible()
+  const afterLogout = await page.request.get('/api/v1/projects', { headers: { 'X-CSRF': '1' } })
+  expect(afterLogout.status()).toBe(401)
 })

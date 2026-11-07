@@ -52,7 +52,9 @@ services:
       # container's network, where localhost reaches it, and its port is
       # published here, where localhost reaches it from the browser.
       OIDC_ISSUER: http://localhost:8097/projects
-      PUBLIC_URL: http://localhost:8096
+      # The login returns the browser here. `task web:dev` names Vite's address
+      # instead, so a login started from source lands back on it.
+      PUBLIC_URL: ${PROJECTS_PUBLIC_URL:-http://localhost:8096}
       WEB_CLIENT_ID: projects-web
       WEB_CLIENT_SECRET: projects-web-dev-secret
     ports:

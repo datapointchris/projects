@@ -1,7 +1,14 @@
 // --- Project ---
 
-/** Values come from the project_kinds lookup table; adding one is an insert plus this union. */
-export type ProjectKind = 'build' | 'chore' | 'life'
+/** The API's project schema lists these, and a test holds this copy to it. */
+export const PROJECT_KINDS = ['build', 'chore', 'life'] as const
+export type ProjectKind = (typeof PROJECT_KINDS)[number]
+
+/** The kind the API gives a project created without one. */
+export const DEFAULT_PROJECT_KIND: ProjectKind = 'life'
+
+/** The API's project schema lists these, and a test holds this copy to it. */
+export const PROJECT_STATUSES = ['active', 'someday', 'completed', 'dropped'] as const
 
 /**
  * Where a project is in its lifecycle, from the project_statuses lookup table.
@@ -12,7 +19,7 @@ export type ProjectKind = 'build' | 'chore' | 'life'
  * hides like a closed project, but it is open work set aside, so the server
  * leaves `closed_at` empty.
  */
-export type ProjectStatus = 'active' | 'someday' | 'completed' | 'dropped'
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
 /** `all` is the absence of the filter, not a status a project can be in. */
 export type ProjectStatusFilter = ProjectStatus | 'all'

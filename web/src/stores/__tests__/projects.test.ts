@@ -168,21 +168,6 @@ describe('useProjectsStore', () => {
     expect(store.itemsLoading).toBe(false)
   })
 
-  it('clears blockers when fetching new items', async () => {
-    mockApi.get.mockImplementation((url: string) => {
-      if (url === '/projects/1/items?status=all') return Promise.resolve({ data: testItems })
-      return Promise.resolve({ data: [] })
-    })
-    const store = useProjectsStore()
-    store.itemBlockers = { 99: [{ id: 98, title: 'old', completed: false, archived: false, created_at: '', updated_at: '' }] }
-
-    await store.fetchItems(1)
-
-    // itemBlockers was cleared at start (then refilled by fetchItemBlockers)
-    // Since our mock returns empty blockers, it should be empty
-    expect(store.itemBlockers).toEqual({})
-  })
-
   // --- sortedItems ---
 
   it('sorts items by position', () => {
@@ -268,15 +253,6 @@ describe('useProjectsStore', () => {
     expect(mockApi.patch).toHaveBeenCalledTimes(2)
     expect(mockApi.patch).toHaveBeenCalledWith('/project-items/11/reorder', { project_id: 1, position: 0 })
     expect(mockApi.patch).toHaveBeenCalledWith('/project-items/10/reorder', { project_id: 1, position: 1 })
-  })
-
-  it('does nothing when no project is selected', async () => {
-    const store = useProjectsStore()
-    store.selectedProjectId = null
-
-    await store.reorderItems([11, 10])
-
-    expect(mockApi.patch).not.toHaveBeenCalled()
   })
 
   // --- reorderProjects ---

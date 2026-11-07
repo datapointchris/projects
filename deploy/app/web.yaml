@@ -95,9 +95,9 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          # Caddy holds about 15Mi serving the page. The limit equals the
-          # request, so the pod never uses more memory than the scheduler set
-          # aside for it.
+          # The limit equals the request, so the pod never uses more memory
+          # than the scheduler set aside for it. `docker stats` on the dev
+          # stack's `web` container reads what Caddy holds serving the page.
           resources:
             requests:
               cpu: 10m

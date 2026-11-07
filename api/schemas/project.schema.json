@@ -32,11 +32,23 @@
     },
     "kind": {
       "type": "string",
-      "description": "One of the names in the project_kinds table."
+      "description": "One of the names in the project_kinds table. A project created without one is life.",
+      "enum": [
+        "build",
+        "chore",
+        "life"
+      ],
+      "default": "life"
     },
     "status": {
       "type": "string",
-      "description": "One of the names in the project_statuses table."
+      "description": "One of the names in the project_statuses table.",
+      "enum": [
+        "active",
+        "someday",
+        "completed",
+        "dropped"
+      ]
     },
     "status_reason": {
       "type": [

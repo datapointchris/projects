@@ -1,6 +1,4 @@
-// The shape a design style swaps: corners, role borders and motion timing.
-// Each value reproduces the neumorphic style exactly; a design style
-// redefines these under its `data-design` attribute.
+// Corners, role borders and motion timing, in one place.
 
 :root {
   --radius-xs: 3px;

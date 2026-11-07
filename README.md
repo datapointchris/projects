@@ -503,6 +503,14 @@ When a session ends, a change fails where it was made, with a message, rather th
 losing it. So does a search, whose query exists nowhere else. Any other read goes to the login and
 comes back, at most twice a minute.
 
+The page's Log out button posts `/api/auth/logout`, which ends the session at the API. The provider
+keeps its own, so logging in again may complete without asking for anything. Ending that one is the
+provider's logout page.
+
+While the API cannot yet reach the provider or the session tables, it serves every bearer request. A
+login answers a 503 page, and a request carrying a session answers 503. A `PUBLIC_URL` that is not
+https, or http on a loopback host, stops the API at start, because no browser would keep its cookie.
+
 `docker-compose.dev.yml` runs the whole stack from this checkout at <http://localhost:8096>, with a
 stand-in provider that logs every login in as one person:
 

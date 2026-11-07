@@ -9,6 +9,7 @@ const logger = createLogger('ApiClient')
 // HttpOnly cookie and this code never sees a token.
 const BASE = '/api/v1'
 const LOGIN = '/api/auth/login'
+const LOGOUT = '/api/auth/logout'
 
 // The API refuses its session cookie on a request without this header, which a
 // page on another origin cannot add without a preflight the API never answers.
@@ -57,6 +58,14 @@ function sendToLogin(): boolean {
   const here = location.pathname + location.search + location.hash
   location.assign(`${LOGIN}?return_to=${encodeURIComponent(here)}`)
   return true
+}
+
+export const LOGIN_AGAIN_HREF = `${LOGIN}?return_to=${encodeURIComponent('/')}`
+
+// Ends this browser's session at the API. The identity provider keeps its own,
+// so a login after it may complete without asking for anything.
+export async function logOut(): Promise<void> {
+  await api.post(LOGOUT, undefined, { baseURL: '' })
 }
 
 function sessionEnded(detail: string, requestId?: string): ApiError {

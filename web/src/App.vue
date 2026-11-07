@@ -1,14 +1,27 @@
 <template>
   <div class="main">
-    <ProjectsView />
+    <!-- Nothing reads the API once logged out, because a read would start a login. -->
+    <p
+      v-if="loggedOut"
+      data-testid="logged-out"
+      class="logged-out">
+      You have logged out.
+      <a :href="LOGIN_AGAIN_HREF">Log in again</a>
+    </p>
+    <ProjectsView
+      v-else
+      @logged-out="loggedOut = true" />
   </div>
   <NotificationToast />
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import { LOGIN_AGAIN_HREF } from '@/api/client'
 import NotificationToast from '@/components/NotificationToast.vue'
 import ProjectsView from '@/views/ProjectsView.vue'
+
+const loggedOut = ref(false)
 
 onMounted(() => {
   // index.html paints the body dark before the styles load, and the theme's colors show once it lets go.

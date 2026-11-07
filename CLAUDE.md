@@ -398,7 +398,8 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   `TestEveryTableIsAuditedButWhatOptsOut` fails.
 - **A kind or status is a row in `model.ProjectKinds` or `model.ProjectStatuses`**, and in SQLite's
   `lookup_rows.sql`. `postgres.Migrate` upserts Postgres's from `model`, and
-  `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it.
+  `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it. The project schemas' `enum`
+  and the web app's `types.ts` list them too, and a test holds each to `model`.
 - **Item numbers come from the `item_numbers` sequence**, through `AssigningItemNumbers`. A database
   loaded from elsewhere needs the sequence set from the old sequence's own counter, because numbers it
   already handed out can outrun the rows left.
@@ -431,9 +432,15 @@ task web:test:e2e      # one Playwright roundtrip through a fresh stack, which i
   `gobrowserlogin` as the `WEB_CLIENT_ID` confidential client, and keeps sessions in Postgres in
   `browser_sessions` and `browser_login_attempts`, which opt out of the audit trigger. It is on only
   where `WEB_CLIENT_SECRET` is set, and `settings.LoadServer` then refuses a missing `PUBLIC_URL`,
-  because the callback is `PUBLIC_URL/api/auth/callback`. Like the token verifier, it reads the provider
-  in the background. Until it has, a login answers 503, and so does any request without a bearer token,
-  while `/ready` names why and keeps the pod out of its Service.
+  because the callback is `PUBLIC_URL/api/auth/callback`. A `PUBLIC_URL` gobrowserlogin refuses, such as
+  http off loopback, stops the API at start. It is a `gobrowserlogin.Connecting`, which opens the store
+  and reads the provider in the background, as the token verifier does. Until it has, a login answers a
+  503 page, and a request carrying a session answers 503. A request carrying nothing still gets the 401
+  challenge. `/ready` leaves the login out, because bearer clients do not need it.
+- **`POST /api/auth/logout` ends the session, and the page's Log out button posts it.** The page then
+  shows a logged-out line and reads nothing, because any read would start a login. The provider keeps
+  its own session, so logging in again may not ask for anything. `MountBrowserLogin` returns the three
+  paths it serves, which is what `Protect` passes with no credential.
 - **A session acts as its person and reaches every route.** `routes.ServiceScopes` limits only service
   clients. The request log names a session's client as `WEB_CLIENT_ID`.
 - **Every request the page sends carries `X-CSRF: 1`**, set once in `src/api/client.ts`. The API answers
@@ -447,7 +454,11 @@ task web:test:e2e      # one Playwright roundtrip through a fresh stack, which i
   page to fill in. The login takes http only on a loopback host, and the browser and the API must name
   the issuer by one URL. So the stand-in shares the API container's network, where `localhost:8097`
   reaches it, and publishes that port to the host, where the browser reaches it the same way.
-- **The stack's ports are 8096 for the page and 8097 for the stand-in**, and Vite's is 3002.
+  `task web:dev` starts the stack with Vite's address as `PUBLIC_URL`, so a login returns to Vite.
+- **The page's kinds and statuses are `PROJECT_KINDS` and `PROJECT_STATUSES` in `src/api/types.ts`.**
+  The project schemas list both as an `enum`, and kind's `default`. One test holds the schemas to
+  `model`, and another holds `types.ts` to the schema, so a new kind or status fails both until each
+  copy has it.
 
 ## Never write the breaking-change trailer in a commit message
 

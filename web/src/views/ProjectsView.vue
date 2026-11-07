@@ -82,6 +82,13 @@
           </div>
         </template>
       </draggable>
+
+      <button
+        data-testid="logout-button"
+        class="button projects-page__logout"
+        @click="onLogOut">
+        <span class="button__text">Log out</span>
+      </button>
     </aside>
 
     <!-- Right pane: items for selected project -->
@@ -489,7 +496,7 @@ import { ref, watch, nextTick, onMounted } from 'vue'
 import draggable from 'vuedraggable'
 import { useProjectsStore } from '@/stores/projects'
 import { useNotifications } from '@/composables/useNotifications'
-import { api } from '@/api/client'
+import { api, logOut } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import type {
   Project,
@@ -512,17 +519,32 @@ import ManageProjectsModal from '@/components/projects/ManageProjectsModal.vue'
 import ProjectItemTasks from '@/components/projects/ProjectItemTasks.vue'
 import ActionButton from '@/components/ActionButton.vue'
 import NeuSelect from '@/components/NeuSelect.vue'
+import { PROJECT_STATUSES } from '@/api/types'
 
+const STATUS_LABELS: Record<ProjectStatus, string> = {
+  active: 'Active',
+  someday: 'Someday',
+  completed: 'Completed',
+  dropped: 'Dropped',
+}
 const statusFilterOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'someday', label: 'Someday' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'dropped', label: 'Dropped' },
+  ...PROJECT_STATUSES.map((status) => ({ value: status, label: STATUS_LABELS[status] })),
   { value: 'all', label: 'All' },
 ]
 
 const store = useProjectsStore()
 const { show: notify } = useNotifications()
+const emit = defineEmits<{ 'logged-out': [] }>()
+
+async function onLogOut() {
+  try {
+    await logOut()
+    emit('logged-out')
+  } catch (e) {
+    const detail = e instanceof ApiError ? e.userMessage : String(e)
+    notify(`Failed to log out: ${detail}`, 'error')
+  }
+}
 
 // --- Local arrays for vuedraggable (synced with store) ---
 const localProjects = ref<ProjectWithItemCount[]>([])
@@ -918,6 +940,10 @@ function clearSearch() {
     h2 {
       margin: 0;
     }
+  }
+
+  &__logout {
+    align-self: flex-start;
   }
 
   &__empty {

@@ -16,7 +16,7 @@
   --clr-accent-light: oklch(0.94 0.045 var(--accent-hue));
   --clr-accent-dark: oklch(0.34 0.076 var(--accent-hue));
 
-  // Semantic palette — foreground colors derive from accent-hue, overridden by named themes
+  // Semantic palette — foreground colors derive from accent-hue
   // Neovim role mapping: Type (secondary), String (tertiary), DiagInfo (info), Comment (subtle)
   --clr-secondary: oklch(0.65 0.12 calc(var(--accent-hue) + 120));
   --clr-tertiary: oklch(0.65 0.1 calc(var(--accent-hue) + 240));
@@ -25,23 +25,13 @@
 
   --clr-text: hsl(0 0% 87%);
 
-  // Theme-aware status colors — full brightness, named themes override with palette-matched values
+  // Status colors at full brightness
   // Glow consumers (box-shadows) apply their own dimming via oklch(from var(...) ...)
   --clr-error: oklch(0.63 0.25 29);
   --clr-warning: oklch(0.75 0.15 85);
   --clr-success: oklch(0.55 0.15 145);
   --clr-critical: var(--clr-error);
   --clr-overdue: oklch(0.58 0.2 35);
-
-  // DEPRECATED — aliases for backwards compatibility with durations color data stored in DB
-  // These will be removed after a data migration. Do not use in new code.
-  --clr-accent--orange: var(--clr-accent-light);
-  --clr-accent--yellow: var(--clr-warning);
-  --clr-accent--red: var(--clr-error);
-  --clr-accent--blue: var(--clr-info);
-  --clr-accent--green: var(--clr-success);
-  --clr-accent--green-bright: var(--clr-tertiary);
-  --clr-accent--purple: var(--clr-secondary);
 
   --clr-gray-050: hsl(0, 0%, 87%);
   --clr-gray-100: hsl(0, 0%, 67%);
