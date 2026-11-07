@@ -134,7 +134,7 @@ func (s *Service) CreateProject(input model.CreateProject) (*model.Project, erro
 			return fmt.Errorf("creating project: %w", err)
 		}
 		created = p
-		return logUndo(ctx, tx, "create", "project", p.ID, nil)
+		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityProject, p.ID, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -181,7 +181,7 @@ func (s *Service) UpdateProject(id string, input model.UpdateProject) (*model.Pr
 			return fmt.Errorf("updating project: %w", err)
 		}
 		updated = p
-		return logUndo(ctx, tx, "update", "project", id, projectRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityProject, id, projectRecordOf(current))
 	})
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func (s *Service) SetProjectStatus(id, status string, reason *string) (*model.Pr
 			return fmt.Errorf("setting project status: %w", err)
 		}
 		updated = p
-		return logUndo(ctx, tx, "update", "project", id, projectRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityProject, id, projectRecordOf(current))
 	})
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (s *Service) DeleteProject(id string) error {
 		if err := tx.DeleteProject(ctx, id); err != nil {
 			return fmt.Errorf("deleting project: %w", err)
 		}
-		return logUndo(ctx, tx, "delete", "project", id, snapshot)
+		return logUndo(ctx, tx, model.UndoActionDelete, model.UndoEntityProject, id, snapshot)
 	})
 }
 
@@ -279,7 +279,7 @@ func (s *Service) ReorderProject(projectID string, newPosition int) error {
 		if err := tx.UpdateProjectPosition(ctx, projectID, newPosition); err != nil {
 			return fmt.Errorf("reordering project: %w", err)
 		}
-		return logUndo(ctx, tx, "update", "project_position", projectID, projectRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityProjectPosition, projectID, projectRecordOf(current))
 	})
 }
 
@@ -378,7 +378,7 @@ func (s *Service) CreateItem(input model.CreateProjectItem) (*model.ProjectItemD
 			}
 		}
 
-		return logUndo(ctx, tx, "create", "item", item.ID, nil)
+		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityItem, item.ID, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -422,7 +422,7 @@ func (s *Service) UpdateItem(id string, input model.UpdateProjectItem) (*model.P
 			return fmt.Errorf("updating item: %w", err)
 		}
 		updated = item
-		return logUndo(ctx, tx, "update", "item", id, itemRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityItem, id, itemRecordOf(current))
 	})
 	if err != nil {
 		return nil, err
@@ -437,7 +437,7 @@ func (s *Service) DeleteItem(id string) error {
 		if err != nil {
 			return err
 		}
-		if err := logUndo(ctx, tx, "delete", "item", id, snapshot); err != nil {
+		if err := logUndo(ctx, tx, model.UndoActionDelete, model.UndoEntityItem, id, snapshot); err != nil {
 			return err
 		}
 		if err := tx.DeleteItem(ctx, id); err != nil {
@@ -466,7 +466,7 @@ func (s *Service) ReorderItem(itemID, projectID string, newPosition int) error {
 		}); err != nil {
 			return fmt.Errorf("reordering item: %w", err)
 		}
-		return logUndo(ctx, tx, "update", "item_position", itemID, membershipRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityItemPosition, itemID, membershipRecordOf(current))
 	})
 }
 
@@ -478,7 +478,7 @@ func (s *Service) AddToProject(itemID, projectID string) error {
 		if err := tx.AddItemToProject(ctx, itemID, projectID); err != nil {
 			return fmt.Errorf("adding item to project: %w", err)
 		}
-		return logUndo(ctx, tx, "create", "membership", itemID, membershipRecord{
+		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityMembership, itemID, membershipRecord{
 			ItemID:    itemID,
 			ProjectID: projectID,
 		})
@@ -507,7 +507,7 @@ func (s *Service) RemoveFromProject(itemID, projectID string) error {
 		if err := tx.RemoveItemFromProject(ctx, itemID, projectID); err != nil {
 			return fmt.Errorf("removing item from project: %w", err)
 		}
-		return logUndo(ctx, tx, "delete", "membership", itemID, membershipRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionDelete, model.UndoEntityMembership, itemID, membershipRecordOf(current))
 	})
 }
 
@@ -542,7 +542,7 @@ func (s *Service) AddDependency(itemID, dependsOn string) error {
 		if err := tx.AddDependency(ctx, edge); err != nil {
 			return fmt.Errorf("adding dependency: %w", err)
 		}
-		return logUndo(ctx, tx, "create", "dependency", itemID, dependencyRecord(edge))
+		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityDependency, itemID, dependencyRecord(edge))
 	})
 }
 
@@ -553,7 +553,7 @@ func (s *Service) RemoveDependency(itemID, dependsOn string) error {
 		if err := tx.RemoveDependency(ctx, edge); err != nil {
 			return fmt.Errorf("removing dependency: %w", err)
 		}
-		return logUndo(ctx, tx, "delete", "dependency", itemID, dependencyRecord(edge))
+		return logUndo(ctx, tx, model.UndoActionDelete, model.UndoEntityDependency, itemID, dependencyRecord(edge))
 	})
 }
 
@@ -608,7 +608,7 @@ func (s *Service) CreateTask(itemID string, input model.CreateProjectItemTask) (
 		created = t
 		// The row, not nil: undoing a task create still has to know which item
 		// owned it so the reversal can be pushed.
-		return logUndo(ctx, tx, "create", "task", id, taskRecordOf(t))
+		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityTask, id, taskRecordOf(t))
 	})
 	if err != nil {
 		return nil, err
@@ -645,7 +645,7 @@ func (s *Service) UpdateTask(itemID, taskID string, input model.UpdateProjectIte
 			return fmt.Errorf("updating task: %w", err)
 		}
 		updated = t
-		return logUndo(ctx, tx, "update", "task", taskID, taskRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionUpdate, model.UndoEntityTask, taskID, taskRecordOf(current))
 	})
 	if err != nil {
 		return nil, err
@@ -666,7 +666,7 @@ func (s *Service) DeleteTask(itemID, taskID string) error {
 		if err := tx.DeleteTask(ctx, taskID); err != nil {
 			return fmt.Errorf("deleting task: %w", err)
 		}
-		return logUndo(ctx, tx, "delete", "task", taskID, taskRecordOf(current))
+		return logUndo(ctx, tx, model.UndoActionDelete, model.UndoEntityTask, taskID, taskRecordOf(current))
 	})
 }
 

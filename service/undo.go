@@ -35,19 +35,19 @@ func (s *Service) Undo() (*model.UndoResult, error) {
 		// which reads to the user as undo silently doing nothing.
 		var undoErr error
 		switch entry.EntityType {
-		case "project":
+		case model.UndoEntityProject:
 			undoErr = undoProject(ctx, tx, entry, result)
-		case "item":
+		case model.UndoEntityItem:
 			undoErr = undoItem(ctx, tx, entry, result)
-		case "task":
+		case model.UndoEntityTask:
 			undoErr = undoTask(ctx, tx, entry, result)
-		case "membership":
+		case model.UndoEntityMembership:
 			undoErr = undoMembership(ctx, tx, entry, result)
-		case "dependency":
+		case model.UndoEntityDependency:
 			undoErr = undoDependency(ctx, tx, entry, result)
-		case "item_position":
+		case model.UndoEntityItemPosition:
 			undoErr = undoItemPosition(ctx, tx, entry, result)
-		case "project_position":
+		case model.UndoEntityProjectPosition:
 			undoErr = undoProjectPosition(ctx, tx, entry, result)
 		default:
 			return fmt.Errorf("undoing unknown entity type %q", entry.EntityType)
@@ -70,11 +70,11 @@ func (s *Service) Undo() (*model.UndoResult, error) {
 
 func undoItem(ctx context.Context, tx store.Operations, entry model.UndoEntry, result *model.UndoResult) error {
 	switch entry.Action {
-	case "create":
+	case model.UndoActionCreate:
 		if err := tx.DeleteItem(ctx, entry.EntityID); err != nil {
 			return fmt.Errorf("undoing create: %w", err)
 		}
-	case "update":
+	case model.UndoActionUpdate:
 		if entry.PreviousState != nil {
 			var prev itemRecord
 			if err := json.Unmarshal([]byte(*entry.PreviousState), &prev); err != nil {
@@ -88,7 +88,7 @@ func undoItem(ctx context.Context, tx store.Operations, entry model.UndoEntry, r
 			}
 			result.Restored = &restored
 		}
-	case "delete":
+	case model.UndoActionDelete:
 		if entry.PreviousState != nil {
 			snapshot, err := decodeItemSnapshot(*entry.PreviousState)
 			if err != nil {
@@ -112,6 +112,8 @@ func undoItem(ctx context.Context, tx store.Operations, entry model.UndoEntry, r
 				result.RestoredTasks = append(result.RestoredTasks, task.toModel())
 			}
 		}
+	default:
+		return fmt.Errorf("undoing unknown item action %q", entry.Action)
 	}
 	return nil
 }
@@ -128,7 +130,7 @@ func undoTask(ctx context.Context, tx store.Operations, entry model.UndoEntry, r
 	detail := &model.UndoDetail{ItemID: prev.ItemID}
 	result.Detail = detail
 
-	if entry.Action == "create" {
+	if entry.Action == model.UndoActionCreate {
 		if err := tx.DeleteTask(ctx, entry.EntityID); err != nil {
 			return fmt.Errorf("undoing task create: %w", err)
 		}
@@ -158,10 +160,10 @@ func undoMembership(ctx context.Context, tx store.Operations, entry model.UndoEn
 	result.Detail = &model.UndoDetail{
 		ItemID:    prev.ItemID,
 		ProjectID: prev.ProjectID,
-		Removed:   entry.Action == "create",
+		Removed:   entry.Action == model.UndoActionCreate,
 	}
 
-	if entry.Action == "create" {
+	if entry.Action == model.UndoActionCreate {
 		if err := tx.RemoveItemFromProject(ctx, prev.ItemID, prev.ProjectID); err != nil {
 			return fmt.Errorf("undoing membership create: %w", err)
 		}
@@ -186,10 +188,10 @@ func undoDependency(ctx context.Context, tx store.Operations, entry model.UndoEn
 	result.Detail = &model.UndoDetail{
 		ItemID:      prev.ItemID,
 		DependsOnID: prev.DependsOnID,
-		Removed:     entry.Action == "create",
+		Removed:     entry.Action == model.UndoActionCreate,
 	}
 
-	if entry.Action == "create" {
+	if entry.Action == model.UndoActionCreate {
 		if err := tx.RemoveDependency(ctx, model.Dependency(prev)); err != nil {
 			return fmt.Errorf("undoing dependency create: %w", err)
 		}
@@ -243,11 +245,11 @@ func undoProjectPosition(ctx context.Context, tx store.Operations, entry model.U
 // undoProject reverses a logged project mutation.
 func undoProject(ctx context.Context, tx store.Operations, entry model.UndoEntry, result *model.UndoResult) error {
 	switch entry.Action {
-	case "create":
+	case model.UndoActionCreate:
 		if err := tx.DeleteProject(ctx, entry.EntityID); err != nil {
 			return fmt.Errorf("undoing project create: %w", err)
 		}
-	case "update":
+	case model.UndoActionUpdate:
 		if entry.PreviousState != nil {
 			var prev projectRecord
 			if err := json.Unmarshal([]byte(*entry.PreviousState), &prev); err != nil {
@@ -265,7 +267,7 @@ func undoProject(ctx context.Context, tx store.Operations, entry model.UndoEntry
 			}
 			result.RestoredProject = &restored
 		}
-	case "delete":
+	case model.UndoActionDelete:
 		if entry.PreviousState != nil {
 			snapshot, err := decodeProjectSnapshot(*entry.PreviousState)
 			if err != nil {
@@ -280,6 +282,8 @@ func undoProject(ctx context.Context, tx store.Operations, entry model.UndoEntry
 				result.RestoredItemIDs = append(result.RestoredItemIDs, membership.ItemID)
 			}
 		}
+	default:
+		return fmt.Errorf("undoing unknown project action %q", entry.Action)
 	}
 	return nil
 }
