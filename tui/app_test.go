@@ -734,8 +734,33 @@ func TestCancellingTheDropPromptLeavesTheProjectAlone(t *testing.T) {
 	}
 }
 
-// A paste arrives as one message rather than as keys, so each input has to be
-// handed it, and a filter has to narrow on it as it does on typing.
+// A terminal that honors Bubble Tea's keyboard requests, such as tmux with
+// extended-keys on, reports these three apart from Esc, Enter and Tab.
+func TestKeysSomeTerminalsReportApartActAsEscEnterAndTab(t *testing.T) {
+	app := newTestApp(t, 100, 30)
+
+	keys(t, app, "?")
+	send(t, app, tea.KeyPressMsg{Code: '[', Mod: tea.ModCtrl})
+	if app.appMode != modeNormal {
+		t.Errorf("ctrl+[ left mode %v, want help closed", app.appMode)
+	}
+
+	before := app.activePane
+	send(t, app, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl})
+	if app.activePane == before {
+		t.Error("ctrl+i did not switch panes")
+	}
+
+	keys(t, app, "a", "Typed")
+	send(t, app, tea.KeyPressMsg{Code: 'm', Mod: tea.ModCtrl})
+	if app.appMode != modeNormal {
+		t.Errorf("ctrl+m left mode %v, want the prompt submitted", app.appMode)
+	}
+}
+
+// A person copies a whole line, newline included, and pastes it into a filter. A
+// paste arrives as one message rather than as keys, so each input has to be handed
+// it, and a filter has to narrow on it as it does on typing.
 func TestPasteGoesToTheFocusedInputAndNarrowsItsFilter(t *testing.T) {
 	app := newTestApp(t, 120, 30, "serve", "schema", "unrelated-a", "unrelated-b")
 	dependsOn(t, app, "serve", "schema")
@@ -765,7 +790,7 @@ func TestPasteGoesToTheFocusedInputAndNarrowsItsFilter(t *testing.T) {
 
 	app.activePane = itemPane
 	keys(t, app, "b", "/")
-	paste("unrelated-a")
+	paste("unrelated-a\n")
 	if got := app.depFilter.Value(); got != "unrelated-a" {
 		t.Errorf("dependency filter holds %q, want the pasted text", got)
 	}

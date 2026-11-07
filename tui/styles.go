@@ -26,13 +26,29 @@ func inputView(input textinput.Model) string {
 	return input.View()
 }
 
+// paneBox is a pane's border at an outer width, around an inner height of rows.
+func paneBox(active bool, width, innerHeight int) lipgloss.Style {
+	border := inactiveBorderStyle
+	if active {
+		border = activeBorderStyle
+	}
+	return border.Width(width).Height(innerHeight + 2)
+}
+
+// overlayBox frames an overlay as wide as the window allows, held between lo and hi
+// columns inside its border.
+func overlayBox(content string, windowWidth, lo, hi int) string {
+	inside := max(min(windowWidth-4, hi), lo)
+	return overlayBoxStyle.Width(inside + 2).Render(content)
+}
+
 // All colors use ANSI 0-15 so the TUI adapts to the terminal's theme.
 //
 //	0=black  1=red     2=green   3=yellow  4=blue    5=magenta  6=cyan    7=white
 //	8=bright black (dim)  9-15=bright variants of 1-7
 //
-// A style's Width and Height count its border, which is why a bordered box is sized
-// two wider and two taller than the text inside it.
+// A style's Width and Height count its border, so a bordered box is sized two wider
+// and two taller than the area inside its border.
 var (
 	// Pane borders
 	activeBorderStyle = lipgloss.NewStyle().

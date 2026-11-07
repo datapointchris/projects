@@ -37,6 +37,12 @@ func main() {
 	}
 }
 
+// localOnlyBackend is the backend with sync off, where this database is the
+// authority that numbers items.
+func localOnlyBackend(d *sql.DB, reposRegistryPath string) *backend.LocalBackend {
+	return backend.NewLocalBackend(d, backend.AssigningItemNumbers(), backend.RefusingRepoNames(reposRegistryPath))
+}
+
 // needsBackend reports whether a command reads or writes todoui's own data.
 //
 // PersistentPreRunE opens the database and runs migrations, and cobra runs it
@@ -98,14 +104,13 @@ func rootCmd() *cobra.Command {
 			}
 			database = d
 
-			banRepoNames := backend.RefusingRepoNames(repos.DefaultPath())
 			if cfg.Sync.Enabled {
-				local := backend.NewLocalBackend(d, banRepoNames)
+				local := backend.NewLocalBackend(d, backend.RefusingRepoNames(repos.DefaultPath()))
 				syncEngine = sync.New(d, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
 				syncEngine.Start()
 				b = sync.NewSyncBackend(local, syncEngine)
 			} else {
-				b = backend.NewLocalBackend(d, backend.AssigningItemNumbers(), banRepoNames)
+				b = localOnlyBackend(d, repos.DefaultPath())
 			}
 			return nil
 		},

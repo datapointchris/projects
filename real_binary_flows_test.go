@@ -57,9 +57,9 @@ func TestRealBinaryFlows(t *testing.T) {
 	}
 }
 
-// seedFixtureDatabase writes through the backend the TUI itself writes through, so
-// the fixture holds what todoui's own rules allow. A note here is as long as a real
-// one, because one-line notes are what kept layout bugs out of earlier fixtures.
+// seedFixtureDatabase writes through the backend the TUI writes through with sync off,
+// so the fixture holds what todoui's own rules allow. The export note runs long,
+// because a one-line note hides layout bugs.
 func seedFixtureDatabase(t *testing.T, path string) {
 	t.Helper()
 	database, err := db.Open(path)
@@ -71,7 +71,7 @@ func seedFixtureDatabase(t *testing.T, path string) {
 			t.Fatal(err)
 		}
 	}()
-	seed := fixtureSeeder{t: t, backend: backend.NewLocalBackend(database, backend.AssigningItemNumbers())}
+	seed := fixtureSeeder{t: t, backend: localOnlyBackend(database, filepath.Join(filepath.Dir(path), "repos.json"))}
 
 	blog := seed.project("Move the blog to plain files", fixtureText(t, "blog-project-description.md"))
 	faucet := seed.project("Replace the kitchen faucet", "")

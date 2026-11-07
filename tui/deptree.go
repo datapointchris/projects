@@ -398,7 +398,7 @@ func (m *App) handleDepTreeSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.focusOn(s.forestID())
 		return m, nil
 	default:
-		cmd := m.updateDepTreeSearch(msg)
+		cmd := m.updateFocusedInput(msg)
 		return m, cmd
 	}
 }
@@ -532,16 +532,9 @@ func (m *App) renderDepTreeView() string {
 	left := m.renderForestPane(leftWidth-2, paneHeight)
 	right := m.renderFocusPane(rightWidth-2, paneHeight)
 
-	var leftBorder, rightBorder lipgloss.Style
-	if m.depTree.active == forestPane {
-		leftBorder = activeBorderStyle.Width(leftWidth).Height(paneHeight + 2)
-		rightBorder = inactiveBorderStyle.Width(rightWidth).Height(paneHeight + 2)
-	} else {
-		leftBorder = inactiveBorderStyle.Width(leftWidth).Height(paneHeight + 2)
-		rightBorder = activeBorderStyle.Width(rightWidth).Height(paneHeight + 2)
-	}
-
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftBorder.Render(left), rightBorder.Render(right))
+	leftBox := paneBox(m.depTree.active == forestPane, leftWidth, paneHeight).Render(left)
+	rightBox := paneBox(m.depTree.active != forestPane, rightWidth, paneHeight).Render(right)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 	return lipgloss.JoinVertical(lipgloss.Left, panes, statusBar)
 }
 

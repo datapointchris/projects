@@ -970,7 +970,7 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		return m.handleKey(sameKeyOnEveryTerminal(msg))
 
 	case tea.PasteMsg:
 		cmd := m.pasteIntoFocusedInput(msg)
@@ -1242,10 +1242,32 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- Key handling ---
 
-// pasteIntoFocusedInput sends a paste where typing goes. Everywhere else a paste
-// does nothing, because its text is not a key press.
+// sameKeyOnEveryTerminal folds the keys only some terminals report apart. Bubble Tea
+// asks every terminal to separate ctrl+[ from Esc, ctrl+m from Enter and ctrl+i from
+// Tab, and one that cannot sends the same bytes for each pair.
+func sameKeyOnEveryTerminal(msg tea.KeyPressMsg) tea.KeyPressMsg {
+	switch msg.String() {
+	case "ctrl+[":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "ctrl+m":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "ctrl+i":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	}
+	return msg
+}
+
+// pasteIntoFocusedInput flattens a paste onto the one line every input here holds,
+// so a copied line's newline cannot defeat a filter, and sends it where typing goes.
+// With no input focused a paste only clears the transient message, as a key does.
 func (m *App) pasteIntoFocusedInput(msg tea.PasteMsg) tea.Cmd {
 	m.errorMsg = ""
+	msg.Content = strings.Join(strings.Fields(msg.Content), " ")
+	return m.updateFocusedInput(msg)
+}
+
+// updateFocusedInput sends a key or a paste to the input this mode types into.
+func (m *App) updateFocusedInput(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch {
 	case m.appMode == modeAddItem, m.appMode == modeAddItemMulti, m.appMode == modeAddProject,
@@ -1817,8 +1839,7 @@ func (m *App) handleInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		var cmd tea.Cmd
-		m.titleInput, cmd = m.titleInput.Update(msg)
+		cmd := m.updateFocusedInput(msg)
 		return m, cmd
 	}
 
@@ -1912,8 +1933,7 @@ func (m *App) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		default:
-			var cmd tea.Cmd
-			m.titleInput, cmd = m.titleInput.Update(msg)
+			cmd := m.updateFocusedInput(msg)
 			return m, cmd
 		}
 	}
@@ -2106,7 +2126,7 @@ func (m *App) handleDepLinkKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.depFiltering = false
 			return m, nil
 		default:
-			cmd := m.updateDepFilter(msg)
+			cmd := m.updateFocusedInput(msg)
 			return m, cmd
 		}
 	}
@@ -2320,9 +2340,8 @@ func (m *App) paneContentHeight() int {
 
 // --- View ---
 
-// View draws from the top of what it is given and drops what falls off the bottom,
-// so a screen taller than the window keeps its last rows, where an overlay's hints
-// are.
+// Bubble Tea draws a view from its top and loses the rows past the window, so View
+// cuts a taller screen to its last rows, where an overlay's hints are.
 func (m *App) View() tea.View {
 	v := tea.NewView(lastRows(m.screen(), m.height))
 	v.AltScreen = true
@@ -2384,17 +2403,8 @@ func (m *App) screen() string {
 	leftPane := m.renderProjectPane(projectPaneWidth-2, paneHeight)
 	rightPane := m.renderItemPane(itemPaneWidth-2, paneHeight)
 
-	var leftBorder, rightBorder lipgloss.Style
-	if m.activePane == projectPane {
-		leftBorder = activeBorderStyle.Width(projectPaneWidth).Height(paneHeight + 2)
-		rightBorder = inactiveBorderStyle.Width(itemPaneWidth).Height(paneHeight + 2)
-	} else {
-		leftBorder = inactiveBorderStyle.Width(projectPaneWidth).Height(paneHeight + 2)
-		rightBorder = activeBorderStyle.Width(itemPaneWidth).Height(paneHeight + 2)
-	}
-
-	left := leftBorder.Render(leftPane)
-	right := rightBorder.Render(rightPane)
+	left := paneBox(m.activePane == projectPane, projectPaneWidth, paneHeight).Render(leftPane)
+	right := paneBox(m.activePane != projectPane, itemPaneWidth, paneHeight).Render(rightPane)
 
 	panes := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
@@ -2438,15 +2448,7 @@ func (m *App) renderInputOverlay() string {
 
 	content := strings.Join(lines, "\n")
 
-	boxWidth := m.width - 4
-	if boxWidth > 60 {
-		boxWidth = 60
-	}
-	if boxWidth < 30 {
-		boxWidth = 30
-	}
-
-	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
+	return overlayBox(content, m.width, 30, 60)
 }
 
 func (m *App) renderHelpOverlay() string {
@@ -2530,7 +2532,7 @@ func (m *App) renderHelpOverlay() string {
 	lines = append(lines, dimStyle.Render("  [Esc] or [?] Close"))
 
 	content := strings.Join(lines, "\n")
-	return overlayBoxStyle.Width(52).Render(content)
+	return overlayBox(content, m.width, 50, 50)
 }
 
 func (m *App) renderSearchOverlay() string {
@@ -2563,15 +2565,7 @@ func (m *App) renderSearchOverlay() string {
 
 	content := strings.Join(lines, "\n")
 
-	boxWidth := m.width - 4
-	if boxWidth > 70 {
-		boxWidth = 70
-	}
-	if boxWidth < 40 {
-		boxWidth = 40
-	}
-
-	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
+	return overlayBox(content, m.width, 40, 70)
 }
 
 func (m *App) renderDepLinkOverlay() string {
@@ -2684,15 +2678,7 @@ func (m *App) renderDepLinkOverlay() string {
 
 	content := strings.Join(lines, "\n")
 
-	boxWidth := m.width - 4
-	if boxWidth > 80 {
-		boxWidth = 80
-	}
-	if boxWidth < 40 {
-		boxWidth = 40
-	}
-
-	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
+	return overlayBox(content, m.width, 40, 80)
 }
 
 // projectCounts renders a project's open and done tallies. The glyphs are the
