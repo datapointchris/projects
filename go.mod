@@ -4,6 +4,9 @@ go 1.26.5
 
 toolchain go1.26.10
 
+// The web app holds no Go, and its npm packages can ship Go of their own.
+ignore ./web
+
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.0
@@ -11,6 +14,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/datapointchris/goapiauth v0.2.0
+	github.com/datapointchris/gobrowserlogin v0.1.2
 	github.com/datapointchris/goclikit v0.5.3
 	github.com/datapointchris/goclilogin v0.8.0
 	github.com/datapointchris/goselfupdate v0.11.0
@@ -64,6 +68,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
+	github.com/coreos/go-oidc/v3 v3.21.0 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/cubicdaiya/gonp v1.0.4 // indirect
@@ -157,6 +162,7 @@ require (
 	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
