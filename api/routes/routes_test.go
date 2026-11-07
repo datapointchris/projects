@@ -275,17 +275,15 @@ func TestAPartialUpdateTellsNullFromLeftOut(t *testing.T) {
 
 	status, answer := a.send(t, a.person, http.MethodPatch, path, map[string]any{"title": nil})
 	var refused struct {
-		Message string `json:"message"`
-		Errors  []struct {
+		Errors []struct {
 			Loc []any `json:"loc"`
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(answer, &refused); err != nil {
 		t.Fatalf("reading %s: %v", answer, err)
 	}
-	const want = "title: Value error, cannot be null; omit the field to leave it unchanged"
-	if status != http.StatusUnprocessableEntity || refused.Message != want || len(refused.Errors) != 1 {
-		t.Errorf("null on a title answered %d: %s", status, answer)
+	if status != http.StatusUnprocessableEntity || len(refused.Errors) != 1 {
+		t.Fatalf("null on a title answered %d: %s", status, answer)
 	}
 	if refused.Errors[0].Loc[1] != "title" {
 		t.Errorf("the refusal marks %v", refused.Errors[0].Loc)

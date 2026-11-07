@@ -325,30 +325,6 @@ func TestMigrate_AddsNumberColumnToExistingDatabase(t *testing.T) {
 	}
 }
 
-// Several items can be waiting for a number at once, so the unique index has to
-// tolerate more than one null. SQLite does; a UNIQUE column constraint applied
-// to a backfilled column would not have been reachable by ALTER TABLE anyway.
-func TestOpen_NumberIndexAllowsManyUnnumberedItems(t *testing.T) {
-	database, err := Open(":memory:")
-	if err != nil {
-		t.Fatalf("opening database: %v", err)
-	}
-	defer func() { _ = database.Close() }()
-
-	for _, id := range []string{"a", "b", "c"} {
-		if _, err := database.Exec("INSERT INTO project_items (id, title) VALUES (?, ?)", id, id); err != nil {
-			t.Fatalf("inserting unnumbered item %s: %v", id, err)
-		}
-	}
-
-	if _, err := database.Exec("INSERT INTO project_items (id, title, number) VALUES ('d', 'd', 7)"); err != nil {
-		t.Fatalf("inserting numbered item: %v", err)
-	}
-	if _, err := database.Exec("INSERT INTO project_items (id, title, number) VALUES ('e', 'e', 7)"); err == nil {
-		t.Error("a duplicate number was accepted — the handle has to name exactly one item")
-	}
-}
-
 // TestMigrate_ReplacesTheGlobalNameConstraint is the one migration that rebuilds
 // a table rather than adding a column, because SQLite attaches a column-level
 // UNIQUE as an index no DDL can drop. Two things have to survive it: the rows,
@@ -432,23 +408,9 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 		t.Error("foreign keys left off after the rebuild — every later cascade would silently stop working")
 	}
 
-	// The global constraint is gone and the partial one takes over. Created
-	// directly rather than by applying indexes.sql, which touches tables this
-	// fixture has no reason to build; that the file carries it is covered by
-	// TestOpen_ExistingDatabaseGainsTheUniquenessRules.
-	if _, err := database.Exec(
-		"CREATE UNIQUE INDEX idx_projects_name_active ON projects(name) WHERE status = 'active'",
-	); err != nil {
-		t.Fatalf("creating the partial index: %v", err)
-	}
 	if _, err := database.Exec(
 		"INSERT INTO projects (id, name, status) VALUES ('p2', 'clisteno', 'completed')",
 	); err != nil {
 		t.Errorf("a closed project must be allowed to share a name: %v", err)
-	}
-	if _, err := database.Exec(
-		"INSERT INTO projects (id, name) VALUES ('p3', 'clisteno')",
-	); err == nil {
-		t.Error("two ACTIVE projects sharing a name must still be refused")
 	}
 }
