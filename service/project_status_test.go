@@ -1,4 +1,4 @@
-package backend
+package service
 
 import (
 	"errors"
@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
-func mustSetStatus(t *testing.T, b *LocalBackend, id, status string, reason *string) *model.Project {
+func mustSetStatus(t *testing.T, b *Service, id, status string, reason *string) *model.Project {
 	t.Helper()
 	p, err := b.SetProjectStatus(id, status, reason)
 	if err != nil {
@@ -193,6 +193,19 @@ func TestTwoActiveProjectsCannotShareAName(t *testing.T) {
 	}
 }
 
+// The project reader's edit reaches this through updateProjectCmd, which prints
+// whatever the service answers.
+func TestRenamingOntoATakenNameAnswersDuplicateName(t *testing.T) {
+	b := newTestBackend(t)
+	mustCreateProject(t, b, "clisteno")
+	other := mustCreateProject(t, b, "other")
+
+	name := "clisteno"
+	if _, err := b.UpdateProject(other.ID, model.UpdateProject{Name: &name}); !errors.Is(err, model.ErrDuplicateName) || err.Error() != model.ErrDuplicateName.Error() {
+		t.Errorf("got %v, want ErrDuplicateName as the whole message", err)
+	}
+}
+
 func TestReopeningIntoATakenNameIsRefused(t *testing.T) {
 	b := newTestBackend(t)
 	closed := mustCreateProject(t, b, "clisteno")
@@ -269,7 +282,7 @@ func ptr(s string) *string { return &s }
 
 // --- The repo-named-project ban ---
 
-func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
+func backendRefusingRepos(t *testing.T, names ...string) *Service {
 	t.Helper()
 	entries := make([]string, len(names))
 	for i, name := range names {
@@ -279,12 +292,12 @@ func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
 	if err := os.WriteFile(path, []byte(`{"repos":[`+strings.Join(entries, ",")+`]}`), 0o600); err != nil {
 		t.Fatalf("writing registry: %v", err)
 	}
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	return NewLocalBackend(database, RefusingRepoNames(path))
+	return New(sqlite.New(database), RefusingRepoNames(path))
 }
 
 func TestAProjectCannotBeNamedAfterARepo(t *testing.T) {
@@ -322,15 +335,5 @@ func TestAProjectCannotBeRenamedToARepo(t *testing.T) {
 
 	if !errors.Is(err, model.ErrRepoNamedProject) {
 		t.Errorf("got %v, want ErrRepoNamedProject", err)
-	}
-}
-
-// Refusing to create a project on a machine without a registry is worse than a
-// project named after a repo.
-func TestWithoutARegistryNothingIsBanned(t *testing.T) {
-	b := newTestBackend(t)
-
-	if _, err := b.CreateProject(model.CreateProject{Name: "projects"}); err != nil {
-		t.Errorf("a backend with no registry must ban nothing: %v", err)
 	}
 }

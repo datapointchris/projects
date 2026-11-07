@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/service"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 // The layout bugs that reached a human all needed content no fixture had:
@@ -31,7 +31,7 @@ func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
 		t.Skipf("PROJECTS_DB=%s is not readable: %v", path, err)
 	}
 
-	database, err := db.Open(path)
+	database, err := sqlite.Open(path)
 	if err != nil {
 		t.Fatalf("opening %s: %v", path, err)
 	}
@@ -41,7 +41,7 @@ func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
 	for _, size := range sizes {
 		width, height := size[0], size[1]
 
-		app := NewApp(backend.NewLocalBackend(database), nil, path, 2*time.Minute)
+		app := NewApp(service.New(sqlite.New(database)), nil, path, 2*time.Minute)
 		send(t, app, tea.WindowSizeMsg{Width: width, Height: height})
 		send(t, app, app.Init()())
 		app.activePane = itemPane

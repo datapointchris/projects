@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/datapointchris/projects/db/generated"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite/generated"
 )
 
 // Pull fetches all data from the remote API and reconciles it with the local database.
@@ -422,9 +422,8 @@ func nullStr(s *string) sql.NullString {
 	return sql.NullString{String: *s, Valid: true}
 }
 
-// nullTime stores a nullable timestamp in the same RFC3339Nano text every other
-// column uses, so a value written by a pull and one written by SQLite's own
-// strftime sort against each other.
+// nullTime stores a nullable timestamp as RFC3339Nano, which trims trailing zeros.
+// These columns sort as text, so a pulled .34Z sorts after a local .343Z.
 func nullTime(t *time.Time) sql.NullString {
 	if t == nil {
 		return sql.NullString{}

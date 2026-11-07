@@ -46,7 +46,9 @@ that opens the default database. A run naming its database moves nothing, so a r
 the real data where it is. An `.envrc` still exporting the old names is refused rather than ignored,
 which keeps it from falling through to the production database. On a machine upgrading, run `projects`
 once on the default database before editing `.envrc`, so `dev.db` moves with the rest. The `MIGRATION`
-marker there says when the file retires.
+marker there says when the file retires. Anything that opens the database stays after
+`MoveDataUnderFormerName` in `PersistentPreRunE`, because opening first creates an empty database, and
+the move refuses to run over one.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -68,7 +70,7 @@ go test -run TestRealBinaryFlows .                     # compare
 TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then read the diff
 ```
 
-- **`seedFixtureDatabase` writes through `backend.LocalBackend`**, the path the TUI writes through, so
+- **`seedFixtureDatabase` writes through `service.Service`**, the path the TUI writes through, so
   the fixture holds only what the tool's own rules allow. There is no stand-in of the sync API, and sync
   stays off because no `PROJECTS_SYNC` reaches the program.
 - **`PROJECTS_DB` is relative, and the program's working directory is the test's temporary directory.**
@@ -89,6 +91,50 @@ go build -o "$D/projects" . && tuidrive run look.keys --out frames --dir "$D" --
 
 `tuidrive run --help` states what reaches the program and what `--out` writes. Always name `PROJECTS_DB`
 under a temporary directory, whatever it says, because `projects` with none opens the production database.
+
+## Storage, service and entry point are three layers, and every rule is in `service`
+
+Ports and adapters at the storage seam, so a second store runs the same rules and a new rule lands once.
+
+```text
+tui, main.go
+    │ backend.Backend, which sync.SyncBackend also satisfies by wrapping the service
+    ▼
+service.Service      every rule
+    │ store.Store    model types only
+    ▼
+store/sqlite         Open, migrations, queries.sql, generated
+```
+
+- **`store/sqlite` opens the database and holds no decision.** It owns the schema, the migrations,
+  `queries.sql` and sqlc's `generated`. It turns the driver's no-row answer, and each unique answer
+  `store/store.go` promises a sentinel for, into `model` sentinels, so `service` matches no driver text
+  and imports no `database/sql`.
+- **`service.Service` satisfies `backend.Backend`**, so the TUI reaches every rule through that
+  interface, and outside its tests imports neither `service` nor a store.
+- **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
+  `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a
+  transaction cannot nest. What a rule decides on, it reads through `tx` too, and `InTx` promises those
+  reads still hold at commit. `store/sqlite` keeps that by beginning immediate. From inside `fn`,
+  `s.store` also deadlocks, because `:memory:` holds one connection.
+- **Undo is a rule, so it is in `service`.** A store holds `previous_state` as text it never reads.
+  `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
+  whatever types a store uses for its own rows. A new column on a project, item or task joins its record
+  there and its store's restore, and `TestEveryModelFieldSurvivesAnUndo` fails until both carry it.
+- **A store's statements carry what only a statement can do atomically, or what only it can sort.**
+  `store/store.go` states each on its method: a new row's position, an item's `updated_at`, a restore's
+  handling of a row already there, and the order projects list in by status. Any second store has to
+  state them again.
+
+Two carve-outs are declared here rather than assumed:
+
+- **`sync` reaches `store/sqlite/generated` directly.** A pull rewrites rows wholesale, with no undo entry
+  and none of the rules, and the push queue and origin binding belong to no rule. Routing that through
+  `service` would give the rules a surface only the engine calls. It ends when the sync engine is deleted.
+  `generated` can then move under `store/sqlite/internal`, where the compiler enforces the seam.
+- **Local mode links `service` directly.** A client normally depends on the wire contract and never on a
+  server's types, because importing them couples deploy order. Local mode has no server, so that reason
+  does not reach it. Anything on the HTTP path keeps its own lean structs.
 
 ## `projects` is a TUI; there is no item CLI
 
@@ -138,7 +184,7 @@ started this.
 
 A missing registry bans nothing.
 
-Enforcement is on the backend (`RefusingRepoNames`), the one path every create
+Enforcement is on the service (`RefusingRepoNames`), the one path every create
 and rename takes.
 
 ## A project has a status, and it is not an `archived` flag
@@ -152,9 +198,9 @@ re-proposal, "dropped, and here is why" closes the question.
 `closed_at` stays NULL, matching the API. So "is it closed" and "is it hidden" are different
 questions: the TUI asks `status != active` for hiding and for offering reopen.
 
-`SetProjectStatus` is the only write path, and `closed_at` and `status_reason` are derived inside
-its statement rather than accepted from a caller, so an active project can never carry either.
-`UpdateProject` deliberately does not touch status.
+`service.SetProjectStatus` is the only rule that moves a status, and it derives `closed_at` and
+`status_reason` from the transition rather than accepting them from a caller, so an active project
+can never carry either. `UpdateProject` deliberately does not touch status.
 
 **Closing a project does not cascade to its items.** An item still open when the project was
 dropped WAS still open; "shipped 8 of 11, dropped with 3 open" is a real signal and eleven archived

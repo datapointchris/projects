@@ -1,4 +1,4 @@
-package db
+package sqlite
 
 import (
 	"context"
@@ -21,11 +21,16 @@ var indexes string
 // connection served that call and leaves every other one with SQLite's default,
 // which is off — so the ON DELETE CASCADE on every child table was inert, and a
 // project deleted by a sync sweep left its memberships behind as orphans.
-const connectionPragmas = "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+//
+// A transaction takes the write lock when it begins, because a rule reads inside
+// it and then writes. SQLite refuses a deferred transaction's upgrade from read to
+// write outright once another writer has committed, with no busy wait. Beginning
+// immediate waits out busy_timeout instead, and what the rule read holds at commit.
+const connectionOptions = "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate"
 
 // Open creates a SQLite connection and ensures the schema exists.
 func Open(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path+connectionPragmas)
+	db, err := sql.Open("sqlite", path+connectionOptions)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}

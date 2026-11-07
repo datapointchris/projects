@@ -3,7 +3,7 @@ package backend
 import "github.com/datapointchris/projects/model"
 
 // Backend defines the interface for all data operations.
-// LocalBackend provides direct SQLite access; SyncBackend wraps it with background push/pull.
+// service.Service holds the rules over a store; SyncBackend wraps it with background push/pull.
 type Backend interface {
 	// Projects
 	// ListProjectsByStatus takes a status name or model.StatusAll.

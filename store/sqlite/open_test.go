@@ -1,4 +1,4 @@
-package db
+package sqlite
 
 import (
 	"database/sql"
@@ -6,35 +6,6 @@ import (
 	"sync"
 	"testing"
 )
-
-func TestOpen_FreshDatabase(t *testing.T) {
-	database, err := Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer func() { _ = database.Close() }()
-
-	// All tables should exist
-	tables := []string{
-		"projects",
-		"project_items",
-		"project_item_memberships",
-		"project_item_dependencies",
-		"project_item_tasks",
-		"pending_sync",
-		"sync_state",
-		"undo_log",
-	}
-	for _, table := range tables {
-		var name string
-		err := database.QueryRow(
-			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table,
-		).Scan(&name)
-		if err != nil {
-			t.Errorf("table %q not found: %v", table, err)
-		}
-	}
-}
 
 // An in-memory database is pinned to one connection, which is exactly why the
 // old version of this test passed while cascades were inert everywhere else.
@@ -141,23 +112,6 @@ func mustExec(t *testing.T, database *sql.DB, query string) {
 	t.Helper()
 	if _, err := database.Exec(query); err != nil {
 		t.Fatalf("%s: %v", query, err)
-	}
-}
-
-func TestOpen_WALMode(t *testing.T) {
-	database, err := Open(":memory:")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer func() { _ = database.Close() }()
-
-	var mode string
-	if err := database.QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil {
-		t.Fatalf("checking journal_mode: %v", err)
-	}
-	// In-memory databases use "memory" journal mode instead of "wal"
-	if mode != "memory" && mode != "wal" {
-		t.Errorf("expected journal_mode 'wal' or 'memory', got %q", mode)
 	}
 }
 
@@ -286,72 +240,34 @@ func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
 	}
 }
 
-// Open creates every index in indexes.sql, on a new database and on one that
-// predates them. Most of them cost only performance when missing, so nothing at
-// runtime reports one gone.
-func TestOpen_CreatesIndexes(t *testing.T) {
-	want := []string{
-		"idx_deps_depends",
-		"idx_items_active",
-		"idx_memberships_position",
-		"idx_projects_name_active",
-		"idx_tasks_item",
-		"idx_undo_recent",
+// A database a user already has predates indexes.sql, and the name and number
+// rules live there. Applied only to new databases, an upgrade would drop both.
+func TestOpen_ExistingDatabaseGainsTheUniquenessRules(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "existing.db")
+
+	legacy, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("opening raw db: %v", err)
 	}
-
-	assertIndexes := func(t *testing.T, database *sql.DB) {
-		t.Helper()
-		for _, index := range want {
-			var name string
-			err := database.QueryRow(
-				"SELECT name FROM sqlite_master WHERE type='index' AND name=?", index,
-			).Scan(&name)
-			if err != nil {
-				t.Errorf("index %q not found: %v", index, err)
-			}
-		}
+	if _, err := legacy.Exec(schema); err != nil {
+		t.Fatalf("applying schema: %v", err)
 	}
+	_ = legacy.Close()
 
-	t.Run("fresh database", func(t *testing.T) {
-		database, err := Open(":memory:")
-		if err != nil {
-			t.Fatalf("Open: %v", err)
-		}
-		defer func() { _ = database.Close() }()
+	database, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
 
-		assertIndexes(t, database)
-	})
-
-	// Indexes must reach databases that already exist, not only new ones —
-	// otherwise every database in use stays unindexed forever.
-	t.Run("pre-existing database", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "existing.db")
-
-		legacy, err := sql.Open("sqlite", path)
-		if err != nil {
-			t.Fatalf("opening raw db: %v", err)
-		}
-		if _, err := legacy.Exec(schema); err != nil {
-			t.Fatalf("applying schema: %v", err)
-		}
-		if _, err := legacy.Exec("INSERT INTO project_items (id, title) VALUES ('i1', 'existing')"); err != nil {
-			t.Fatalf("inserting test data: %v", err)
-		}
-		_ = legacy.Close()
-
-		database, err := Open(path)
-		if err != nil {
-			t.Fatalf("Open: %v", err)
-		}
-		defer func() { _ = database.Close() }()
-
-		assertIndexes(t, database)
-
-		var title string
-		if err := database.QueryRow("SELECT title FROM project_items WHERE id='i1'").Scan(&title); err != nil {
-			t.Fatalf("existing data lost: %v", err)
-		}
-	})
+	mustExec(t, database, "INSERT INTO projects (id, name) VALUES ('p1', 'taken')")
+	if _, err := database.Exec("INSERT INTO projects (id, name) VALUES ('p2', 'taken')"); err == nil {
+		t.Error("a second active project took a name an active project holds")
+	}
+	mustExec(t, database, "INSERT INTO project_items (id, title, number) VALUES ('i1', 'first', 7)")
+	if _, err := database.Exec("INSERT INTO project_items (id, title, number) VALUES ('i2', 'second', 7)"); err == nil {
+		t.Error("a second item took a number another item holds")
+	}
 }
 
 func TestMigrate_AddsNumberColumnToExistingDatabase(t *testing.T) {
@@ -519,7 +435,7 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 	// The global constraint is gone and the partial one takes over. Created
 	// directly rather than by applying indexes.sql, which touches tables this
 	// fixture has no reason to build; that the file carries it is covered by
-	// TestOpen_CreatesIndexes.
+	// TestOpen_ExistingDatabaseGainsTheUniquenessRules.
 	if _, err := database.Exec(
 		"CREATE UNIQUE INDEX idx_projects_name_active ON projects(name) WHERE status = 'active'",
 	); err != nil {

@@ -11,8 +11,8 @@ import (
 
 	"github.com/datapointchris/tuidrive"
 
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 // Each case runs the built binary under a scratch home, because the exit code and the
@@ -37,7 +37,7 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 		if got := readFile(t, filepath.Join(current, "dev.db")); got != "dev" {
 			t.Errorf("dev.db read %q after the move", got)
 		}
-		database, err := db.Open(filepath.Join(current, "projects.db"))
+		database, err := sqlite.Open(filepath.Join(current, "projects.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +178,7 @@ func (h scratchHome) run(t *testing.T, binary string, env ...string) (string, in
 func seedFormerDatabaseWithUnflushedWAL(t *testing.T, dir string) {
 	t.Helper()
 	live := filepath.Join(t.TempDir(), "live.db")
-	database, err := db.Open(live)
+	database, err := sqlite.Open(live)
 	if err != nil {
 		t.Fatal(err)
 	}

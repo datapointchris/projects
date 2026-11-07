@@ -52,7 +52,7 @@ jobs:
       # The sqlc version is the tool directive pinned in go.mod, the one that
       # generated the committed code. A newer sqlc can emit different output.
       - name: Check sqlc generated code is current
-        run: cd db && go tool sqlc diff
+        run: cd store/sqlite && go tool sqlc diff
 
       # Executes the Taskfile so its build paths cannot silently rot again, as
       # they did for 109 days after the package layout flatten.

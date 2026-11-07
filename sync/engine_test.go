@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/service"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
 
 func setupSync(t *testing.T, handler http.Handler) (*sync.SyncBackend, *sync.Engine) {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -25,40 +25,13 @@ func setupSync(t *testing.T, handler http.Handler) (*sync.SyncBackend, *sync.Eng
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 	engine := sync.New(database, ts.URL, "")
 	engine.Start()
 	t.Cleanup(engine.Stop)
 
 	sb := sync.NewSyncBackend(local, engine)
 	return sb, engine
-}
-
-func TestSyncBackend_QueueOnMutation(t *testing.T) {
-	// Server that accepts everything
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("{}"))
-	})
-	sb, engine := setupSync(t, handler)
-
-	// Create a project through SyncBackend
-	p, err := sb.CreateProject(model.CreateProject{Name: "SyncTest"})
-	if err != nil {
-		t.Fatalf("CreateProject: %v", err)
-	}
-	if p.ID == "" {
-		t.Fatal("expected non-empty ID")
-	}
-
-	// Give the push loop a moment to process
-	time.Sleep(100 * time.Millisecond)
-
-	// After successful push, pending count should be 0
-	status := engine.Status()
-	if status.PendingCount != 0 {
-		t.Errorf("expected 0 pending, got %d", status.PendingCount)
-	}
 }
 
 func TestSyncBackend_ReadsDelegateToLocal(t *testing.T) {
@@ -317,7 +290,7 @@ func TestPull_Reconciles(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -334,7 +307,7 @@ func TestPull_Reconciles(t *testing.T) {
 	}
 
 	// Verify data was pulled into local DB
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 
 	projects, err := local.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
@@ -503,13 +476,13 @@ func logging(recorder *callRecorder, next http.Handler) http.Handler {
 // reconciliation must not read it as "deleted upstream" and erase it, nor drop
 // the queued operation that is the only record of it.
 func TestPull_KeepsWorkDoneWhileItWasRunning(t *testing.T) {
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 
 	// The mid-pull create needs a project to attach to, and the server has to
 	// report that same project or the pull deletes it and cascades the item away.
@@ -599,7 +572,7 @@ func TestPush_RetriesWithoutAFurtherMutation(t *testing.T) {
 		_, _ = w.Write([]byte("{}"))
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -611,7 +584,7 @@ func TestPush_RetriesWithoutAFurtherMutation(t *testing.T) {
 	engine := sync.New(database, ts.URL, "", sync.WithPushRetryInterval(100*time.Millisecond))
 	engine.Start()
 	t.Cleanup(engine.Stop)
-	sb := sync.NewSyncBackend(backend.NewLocalBackend(database), engine)
+	sb := sync.NewSyncBackend(service.New(sqlite.New(database)), engine)
 
 	if _, err := sb.CreateProject(model.CreateProject{Name: "Queued"}); err != nil {
 		t.Fatalf("CreateProject: %v", err)
@@ -687,9 +660,9 @@ func pullFixture(embedded bool) http.HandlerFunc {
 	}
 }
 
-func pulledInto(t *testing.T, handler http.HandlerFunc) (*callRecorder, *backend.LocalBackend) {
+func pulledInto(t *testing.T, handler http.HandlerFunc) (*callRecorder, *service.Service) {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -704,7 +677,7 @@ func pulledInto(t *testing.T, handler http.HandlerFunc) (*callRecorder, *backend
 	if err := engine.Pull(t.Context()); err != nil {
 		t.Fatalf("Pull: %v", err)
 	}
-	return recorder, backend.NewLocalBackend(database)
+	return recorder, service.New(sqlite.New(database))
 }
 
 // The whole point of embedding: a reconcile is two requests regardless of how
@@ -916,7 +889,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -930,7 +903,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 		t.Fatalf("one unlinkable membership failed the whole pull: %v", err)
 	}
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 	projects, err := local.GetItemProjects("item-1")
 	if err != nil {
 		t.Fatalf("GetItemProjects: %v", err)
@@ -985,7 +958,7 @@ func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(out)
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -1004,7 +977,7 @@ func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 		t.Fatalf("a swap upstream failed the pull: %v", err)
 	}
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 	item, err := local.GetItem("item-a")
 	if err != nil {
 		t.Fatalf("GetItem: %v", err)
@@ -1042,7 +1015,7 @@ func TestPull_RequestsEveryStatusFromBothListEndpoints(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

@@ -5,12 +5,13 @@ import (
 
 	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/service"
 )
 
-// SyncBackend wraps LocalBackend and queues sync operations after mutations.
+// SyncBackend wraps the service and queues sync operations after mutations.
 // Read methods delegate directly; write methods delegate then queue + notify.
 type SyncBackend struct {
-	local  *backend.LocalBackend
+	local  *service.Service
 	engine *Engine
 }
 
@@ -18,7 +19,7 @@ type SyncBackend struct {
 var _ backend.Backend = (*SyncBackend)(nil)
 
 // NewSyncBackend creates a backend that writes locally and syncs to the remote API.
-func NewSyncBackend(local *backend.LocalBackend, engine *Engine) *SyncBackend {
+func NewSyncBackend(local *service.Service, engine *Engine) *SyncBackend {
 	return &SyncBackend{local: local, engine: engine}
 }
 

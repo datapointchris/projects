@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/service"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
 
@@ -37,7 +37,7 @@ func apiWith(t *testing.T, projects []model.Project, items []model.ProjectItemDe
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestPullRefusesADifferentAPI(t *testing.T) {
 			mismatch.Recorded, mismatch.Configured, real.URL, other.URL)
 	}
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 	projects, err := local.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
 		t.Fatalf("ListProjectsByStatus: %v", err)
@@ -212,7 +212,7 @@ func TestPullRefusesToDeleteMostOfTheDatabase(t *testing.T) {
 		}
 	}
 
-	local := backend.NewLocalBackend(database)
+	local := service.New(sqlite.New(database))
 	projects, err := local.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
 		t.Fatalf("ListProjectsByStatus: %v", err)
