@@ -108,7 +108,11 @@ projects sync | version | update | completion
 | `0` | Done |
 | `1` | Refused or failed: not found, not logged in, a rule said no |
 | `2` | A usage error: an unknown flag, a missing argument, a value the API refused as input |
-| `4` | The API never answered: refused connections, timeouts, `429` and `5xx` after three attempts |
+| `4` | The API gave no answer: a refused connection, a timeout, a `429` or a `5xx` |
+
+A read tries three times before it exits 4, on a failed connection, an answer cut short, or a `429`,
+`502`, `503` or `504`. A write tries again only where the connection never opened, so it is never sent
+twice.
 
 ## Through an API, a login on this machine carries every command
 
