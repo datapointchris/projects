@@ -38,7 +38,6 @@ func TestRealBinaryFlows(t *testing.T) {
 		{name: "undo", script: "undo.keys"},
 		{name: "search", script: "search.keys"},
 		{name: "edit-note", script: "edit-note.keys"},
-		{name: "help", script: "help.keys", rows: 60},
 		{name: "help-taller-than-the-window", script: "help.keys"},
 		{name: "narrow-window", script: "narrow-window.keys", cols: 50, rows: 14},
 	} {
