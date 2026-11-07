@@ -46,7 +46,9 @@ that opens the default database. A run naming its database moves nothing, so a r
 the real data where it is. An `.envrc` still exporting the old names is refused rather than ignored,
 which keeps it from falling through to the production database. On a machine upgrading, run `projects`
 once on the default database before editing `.envrc`, so `dev.db` moves with the rest. The `MIGRATION`
-marker there says when the file retires.
+marker there says when the file retires. Anything that opens the database stays after
+`MoveDataUnderFormerName` in `PersistentPreRunE`, because opening first creates an empty database, and
+the move refuses to run over one.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -68,7 +70,7 @@ go test -run TestRealBinaryFlows .                     # compare
 TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then read the diff
 ```
 
-- **`seedFixtureDatabase` writes through `backend.LocalBackend`**, the path the TUI writes through, so
+- **`seedFixtureDatabase` writes through `service.Service`**, the path the TUI writes through, so
   the fixture holds only what the tool's own rules allow. There is no stand-in of the sync API, and sync
   stays off because no `PROJECTS_SYNC` reaches the program.
 - **`PROJECTS_DB` is relative, and the program's working directory is the test's temporary directory.**
@@ -89,6 +91,46 @@ go build -o "$D/projects" . && tuidrive run look.keys --out frames --dir "$D" --
 
 `tuidrive run --help` states what reaches the program and what `--out` writes. Always name `PROJECTS_DB`
 under a temporary directory, whatever it says, because `projects` with none opens the production database.
+
+## Storage, service and entry point are three layers, and every rule is in `service`
+
+Ports and adapters at the storage seam, so a second store runs the same rules and a new rule lands once.
+
+```text
+tui, main.go
+    │ backend.Backend, which sync.SyncBackend also satisfies by wrapping the service
+    ▼
+service.Service      every rule
+    │ store.Store    model types only
+    ▼
+store/sqlite         Open, migrations, queries.sql, generated
+```
+
+- **`store/sqlite` opens the database and holds no decision.** It owns the schema, the migrations,
+  `queries.sql` and sqlc's `generated`. It turns the driver's no-row and unique answers into `model`
+  sentinels, so `service` matches no driver text and imports no `database/sql`.
+- **`service.Service` satisfies `backend.Backend`**, so the TUI depends on that interface alone.
+- **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
+  `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a
+  transaction cannot nest. A read inside one goes through `tx` too: `:memory:` holds one connection, so
+  `s.store` from inside `fn` deadlocks.
+- **Undo is a rule, so it is in `service`.** A store holds `previous_state` as text it never reads.
+  `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
+  and its `{"String":…,"Valid":…}` stays even though no store's types read that way.
+- **A store's statements carry what only a statement can do atomically.** `store/store.go` states each
+  on its method: a close's `closed_at`, a new row's position, an item's `updated_at`, a restore's handling
+  of a row already there. Any second store has to state them again.
+
+Two carve-outs are declared here rather than assumed:
+
+- **`sync` reaches `store/sqlite/generated` directly.** A pull rewrites rows wholesale, with no undo entry
+  and none of the rules, and the push queue and origin binding belong to no rule. Routing that through
+  `service` would give the rules a surface only the engine calls. It ends when the sync engine is deleted,
+  after production moves to this repo's API. `generated` can then move under `store/sqlite/internal`,
+  where the compiler enforces the seam.
+- **Local mode links `service` directly.** A client normally depends on the wire contract and never on a
+  server's types, because importing them couples deploy order. Local mode has no server, so that reason
+  does not reach it. Anything on the HTTP path keeps its own lean structs.
 
 ## `projects` is a TUI; there is no item CLI
 
@@ -138,7 +180,7 @@ started this.
 
 A missing registry bans nothing.
 
-Enforcement is on the backend (`RefusingRepoNames`), the one path every create
+Enforcement is on the service (`RefusingRepoNames`), the one path every create
 and rename takes.
 
 ## A project has a status, and it is not an `archived` flag

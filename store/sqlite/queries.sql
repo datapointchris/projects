@@ -134,8 +134,9 @@ ORDER BY p.name;
 -- name: UpdateItemPosition :exec
 UPDATE project_item_memberships SET position = ? WHERE item_id = ? AND project_id = ?;
 
--- Undo of a delete puts back rows whose counterpart may itself have been
--- deleted since. OR IGNORE drops those instead of failing the whole undo.
+-- Undo of a delete puts back rows that may already be there, and OR IGNORE leaves
+-- those alone. It does not cover a foreign key: a counterpart gone since fails
+-- the undo.
 -- name: RestoreMembership :exec
 INSERT OR IGNORE INTO project_item_memberships (item_id, project_id, position)
 VALUES (?, ?, ?);

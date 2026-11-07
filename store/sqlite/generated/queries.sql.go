@@ -1257,8 +1257,9 @@ type RestoreMembershipParams struct {
 	Position  int64
 }
 
-// Undo of a delete puts back rows whose counterpart may itself have been
-// deleted since. OR IGNORE drops those instead of failing the whole undo.
+// Undo of a delete puts back rows that may already be there, and OR IGNORE leaves
+// those alone. It does not cover a foreign key: a counterpart gone since fails
+// the undo.
 func (q *Queries) RestoreMembership(ctx context.Context, arg RestoreMembershipParams) error {
 	_, err := q.db.ExecContext(ctx, restoreMembership, arg.ItemID, arg.ProjectID, arg.Position)
 	return err

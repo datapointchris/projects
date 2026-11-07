@@ -269,9 +269,11 @@ TUI
     v
 Backend interface
     |
-    +-- LocalBackend (SQLite, always)
+    +-- service.Service (every rule, always)
+    |       |
+    |       +-- store.Store -> store/sqlite (SQLite)
     |
-    +-- SyncBackend (wraps LocalBackend, optional)
+    +-- SyncBackend (wraps the service, optional)
             |
             +-- Push: pending_sync queue -> HTTP to ichrisbirch
             +-- Pull: HTTP from ichrisbirch -> upsert local SQLite
