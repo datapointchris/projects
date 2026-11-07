@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  BINARY_NAME: todoui
+  BINARY_NAME: projects
   BUILD_DIR: .
   # The release installs into ~/go/bin, so the dev build replaces it there and
   # the next release replaces the dev build. A copy in ~/.local/bin, which
@@ -36,10 +36,10 @@ tasks:
         fi
 
   build:
-    desc: Build the todoui binary
+    desc: Build the projects binary
     cmds:
       - echo "Building {{.BINARY_NAME}}..."
-      - go build -ldflags "-s -w -X github.com/datapointchris/todoui/cli.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} .
+      - go build -ldflags "-s -w -X github.com/datapointchris/projects/cli.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} .
       - echo "Build complete{{":"}} {{.BUILD_DIR}}/{{.BINARY_NAME}}"
     sources:
       - "**/*.go"

@@ -27,4 +27,4 @@
 ┃                                      ┃│   ○ Day 3: walk the next neighborhood  13              │
 ┃                                      ┃│ 1/41                                                   │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────╯
-  [a]dd project [Enter]select [m]ove [Tab]items [T]ree [/]search          [?]help  LOCAL todoui.db
+  [a]dd project [Enter]select [m]ove [Tab]items [T]ree [/]search        [?]help  LOCAL projects.db

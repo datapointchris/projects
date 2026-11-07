@@ -8,14 +8,14 @@ import (
 
 	"github.com/datapointchris/tuidrive"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
 )
 
 // Each flow replays testdata/flows/<script> against the built binary on a pty, from
 // a freshly seeded database, and compares every frame it names with the goldens
-// under testdata/TestRealBinaryFlows/<flow>. TODOUI_DB is relative to the program's
+// under testdata/TestRealBinaryFlows/<flow>. PROJECTS_DB is relative to the program's
 // working directory, which is the test's temporary directory, so the status bar
 // reads the same on every run and no flow can reach a real database. Write the
 // goldens with TUIDRIVE_UPDATE=1.
@@ -43,11 +43,11 @@ func TestRealBinaryFlows(t *testing.T) {
 	} {
 		t.Run(flow.name, func(t *testing.T) {
 			dir := t.TempDir()
-			seedFixtureDatabase(t, filepath.Join(dir, "todoui.db"))
+			seedFixtureDatabase(t, filepath.Join(dir, "projects.db"))
 			term := tuidrive.Start(t, tuidrive.Program{
 				Path: binary,
 				Dir:  dir,
-				Env:  map[string]string{"TODOUI_DB": "todoui.db", "EDITOR": editor},
+				Env:  map[string]string{"PROJECTS_DB": "projects.db", "EDITOR": editor},
 				Cols: flow.cols,
 				Rows: flow.rows,
 			})
@@ -57,7 +57,7 @@ func TestRealBinaryFlows(t *testing.T) {
 }
 
 // seedFixtureDatabase writes through the backend the TUI writes through with sync off,
-// so the fixture holds what todoui's own rules allow. The export note runs long,
+// so the fixture holds what the tool's own rules allow. The export note runs long,
 // because a one-line note hides layout bugs.
 func seedFixtureDatabase(t *testing.T, path string) {
 	t.Helper()

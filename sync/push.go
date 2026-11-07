@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/datapointchris/todoui/db/generated"
+	"github.com/datapointchris/projects/db/generated"
 )
 
 // executePush translates a pending sync operation to an HTTP request.

@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
 )
 
 func newNumberTestDB(t *testing.T) *sql.DB {

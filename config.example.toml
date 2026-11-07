@@ -1,34 +1,34 @@
-# todoui configuration
-# Place at ~/.config/todoui/config.toml
+# projects configuration
+# Place at ~/.config/projects/config.toml
 # All values can be overridden with environment variables.
 
 # Repo registry, whose names a project may not take.
-# Set this when the registry is maintained outside todoui's data directory and
+# Set this when the registry is maintained outside the tool's data directory and
 # shared with other tools. A bare key, so it must stay above the first [section].
-# Env: TODOUI_REPOS_REGISTRY
-# Default: ~/.local/share/todoui/repos.json
+# Env: PROJECTS_REPOS_REGISTRY
+# Default: ~/.local/share/projects/repos.json
 # repos_registry = "/path/to/repos.json"
 
 [sync]
 # Enable background sync with ichrisbirch API
-# Env: TODOUI_SYNC
+# Env: PROJECTS_SYNC
 enabled = false
-# The API server's host, required when enabled. todoui adds /api/v1 itself.
-# Env: TODOUI_SYNC_URL
+# The API server's host, required when enabled. The tool adds /api/v1 itself.
+# Env: PROJECTS_SYNC_URL
 # api_url = "https://example.com"
 # Command printing a bearer token for api_url, split on spaces and run without a
-# shell. Unset sends no token. A URL from TODOUI_SYNC_URL takes its command from
-# TODOUI_SYNC_TOKEN_COMMAND alone, never from this file.
-# Env: TODOUI_SYNC_TOKEN_COMMAND
+# shell. Unset sends no token. A URL from PROJECTS_SYNC_URL takes its command from
+# PROJECTS_SYNC_TOKEN_COMMAND alone, never from this file.
+# Env: PROJECTS_SYNC_TOKEN_COMMAND
 # token_command = "<cli> auth token"
-# Longest todoui goes without reconciling: the TUI's background pull period.
+# Longest the tool goes without reconciling: the TUI's background pull period.
 # A duration such as "30s" or "5m". Anything below 15s is raised to 15s.
-# Env: TODOUI_SYNC_INTERVAL
+# Env: PROJECTS_SYNC_INTERVAL
 # Default: 2m
 # interval = "2m"
 
 [local]
 # Path to SQLite database
-# Env: TODOUI_DB
-# Default: ~/.local/share/todoui/todoui.db
-# db_path = "/custom/path/todoui.db"
+# Env: PROJECTS_DB
+# Default: ~/.local/share/projects/projects.db
+# db_path = "/custom/path/projects.db"

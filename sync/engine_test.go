@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/db"
-	"github.com/datapointchris/todoui/model"
-	"github.com/datapointchris/todoui/sync"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/db"
+	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/sync"
 )
 
 func setupSync(t *testing.T, handler http.Handler) (*sync.SyncBackend, *sync.Engine) {
@@ -732,7 +732,7 @@ func TestPull_UsesEmbeddedDetailAndStopsAtTwoRequests(t *testing.T) {
 	}
 }
 
-// Deploy order between todoui and ichrisbirch must not matter. Against a server
+// Deploy order between this tool and ichrisbirch must not matter. Against a server
 // that omits the fields, treating absent as empty would delete every task and
 // dependency locally, so the pull has to fall back to the per-item endpoints.
 func TestPull_FallsBackWhenTheServerOmitsEmbeddedFields(t *testing.T) {
@@ -960,7 +960,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 // swapping numbers upstream means one of them briefly needs a number the other
 // still holds. Writing the numbers after every row has been cleared makes the
 // pass order-independent — otherwise any renumbering upstream fails the entire
-// pull and todoui never syncs again.
+// pull and the tool never syncs again.
 func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 	numbers := map[string]int{"item-a": 1, "item-b": 2}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

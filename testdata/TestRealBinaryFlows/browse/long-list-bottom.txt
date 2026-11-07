@@ -27,4 +27,4 @@
 │                                      │┃> ○ Day 28: walk the next neighborhood  38              ┃
 │                                      │┃ 31/31                                                  ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]done [T]ree [a]dd [x]archive [e]dit [n]otes [t]ask … [?]help  LOCAL todoui.db
+  [Enter]read [space]done [T]ree [a]dd [x]archive [e]dit [n]otes …      [?]help  LOCAL projects.db

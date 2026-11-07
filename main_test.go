@@ -33,7 +33,7 @@ func find(t *testing.T, root *cobra.Command, path ...string) *cobra.Command {
 	return cmd
 }
 
-// The shells source `todoui completion zsh` from their rc files, so opening the
+// The shells source `projects completion zsh` from their rc files, so opening the
 // database here is paid by every shell that starts, and on a new machine it
 // creates one. cobra gives `completion` a subcommand per shell and executes the
 // leaf, so a check on the leaf's name alone misses it.
@@ -80,7 +80,7 @@ func TestAPositionalOnALeafIsAUsageError(t *testing.T) {
 		root := rootCmd()
 		root.SetOut(io.Discard)
 		root.SetErr(io.Discard)
-		os.Args = append([]string{"todoui"}, line...)
+		os.Args = append([]string{"projects"}, line...)
 
 		err := goclikit.Execute(context.Background(), root, autoupdate.Config{Suppress: true})
 		if !errors.Is(err, goclikit.ErrUsage) {
@@ -93,7 +93,7 @@ func TestNeedsBackendOpensTheDatabaseForTheTUIAndSync(t *testing.T) {
 	root := testRoot(t)
 
 	if !needsBackend(root) {
-		t.Error("bare todoui skipped the database, want the TUI to have one")
+		t.Error("bare `projects` skipped the database, want the TUI to have one")
 	}
 	if !needsBackend(find(t, root, "sync")) {
 		t.Error("sync skipped the database, want it opened")

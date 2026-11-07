@@ -27,4 +27,4 @@
 │                                      │┃                                                        ┃
 │                                      │┃                                                        ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [space]toggle [d]elete [t]ask [J/K]next/prev item [T]ree [/]search      [?]help  LOCAL todoui.db
+  [space]toggle [d]elete [t]ask [J/K]next/prev item [T]ree [/]search    [?]help  LOCAL projects.db

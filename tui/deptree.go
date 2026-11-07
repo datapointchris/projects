@@ -7,9 +7,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/graph"
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/graph"
+	"github.com/datapointchris/projects/model"
 )
 
 type depTreePane int

@@ -27,4 +27,4 @@
 │                                      │┃                                                        ┃
 │                                      │┃                                                        ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Undo: undid update on item <id>                                     [?]help  LOCAL todoui.db
+  Undo: undid update on item <id>                                   [?]help  LOCAL projects.db

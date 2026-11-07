@@ -1,6 +1,5 @@
 # Binaries
-/todoui
-/todoui-server
+/projects
 *.exe
 
 # Go

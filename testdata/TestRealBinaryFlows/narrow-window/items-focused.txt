@@ -11,4 +11,4 @@
 │                  │┃     └─ blocked by: S… (3)┃
 │                  │┃                          ┃
 ╰──────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read …         [?]help  LOCAL todoui.db
+  [Enter]read …       [?]help  LOCAL projects.db

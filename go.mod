@@ -1,4 +1,4 @@
-module github.com/datapointchris/todoui
+module github.com/datapointchris/projects
 
 go 1.26.5
 

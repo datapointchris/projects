@@ -2,10 +2,10 @@ version: 2
 
 builds:
   - main: .
-    binary: todoui
+    binary: projects
     ldflags:
       - -s -w
-      - -X github.com/datapointchris/todoui/cli.version={{ .Tag }}
+      - -X github.com/datapointchris/projects/cli.version={{ .Tag }}
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,7 +17,7 @@ builds:
 
 archives:
   - formats: [tar.gz]
-    name_template: "todoui_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "projects_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 changelog:
   sort: asc

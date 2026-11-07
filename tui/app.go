@@ -11,9 +11,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/datapointchris/todoui/backend"
-	"github.com/datapointchris/todoui/model"
-	"github.com/datapointchris/todoui/sync"
+	"github.com/datapointchris/projects/backend"
+	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/sync"
 )
 
 // App is the top-level Bubble Tea model for the TUI.

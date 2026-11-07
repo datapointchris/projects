@@ -16,7 +16,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	mdtext "github.com/yuin/goldmark/text"
 
-	"github.com/datapointchris/todoui/model"
+	"github.com/datapointchris/projects/model"
 )
 
 // The reader is a full screen showing one item or one project, its markdown
