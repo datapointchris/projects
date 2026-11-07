@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -192,22 +194,27 @@ func TestMultiProjectItem(t *testing.T) {
 	}
 }
 
-func TestListItemsByProjectIncludesPosition(t *testing.T) {
+func TestANewItemJoinsTheBottomOfItsProject(t *testing.T) {
 	b := newTestBackend(t)
 
 	p := mustCreateProject(t, b, "work")
-	mustCreateItem(t, b, model.CreateProjectItem{Title: "first", ProjectIDs: []string{p.ID}})
+	first := mustCreateItem(t, b, model.CreateProjectItem{Title: "first", ProjectIDs: []string{p.ID}})
 	mustCreateItem(t, b, model.CreateProjectItem{Title: "second", ProjectIDs: []string{p.ID}})
+	if err := b.ReorderItem(first.ID, p.ID, 9); err != nil {
+		t.Fatalf("reordering: %v", err)
+	}
+	mustCreateItem(t, b, model.CreateProjectItem{Title: "third", ProjectIDs: []string{p.ID}})
 
 	items, err := b.ListItemsByProject(p.ID)
 	if err != nil {
 		t.Fatalf("listing items: %v", err)
 	}
-	if len(items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(items))
+	titles := make([]string, len(items))
+	for i, item := range items {
+		titles[i] = item.Title
 	}
-	if items[0].Position == 0 && items[1].Position == 0 {
-		t.Error("expected items to have non-zero positions")
+	if got, want := strings.Join(titles, ","), "second,first,third"; got != want {
+		t.Errorf("order = %s, want %s", got, want)
 	}
 }
 
@@ -917,7 +924,7 @@ func TestUndoAcceptsPreSnapshotDeleteEntries(t *testing.T) {
 
 // previous_state is a format on disk that a round trip cannot pin: a field renamed
 // in the records still undoes what it wrote itself, and strands what is already in
-// the log. These two entries carry every record type, spelled the way it was written.
+// the log. These three entries carry every record type, spelled the way it was written.
 func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 	t.Run("project row", func(t *testing.T) {
 		b, database := newTestBackendWithDatabase(t)
@@ -943,6 +950,28 @@ func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 		}
 	})
 
+	t.Run("project snapshot", func(t *testing.T) {
+		b, database := newTestBackendWithDatabase(t)
+
+		const projectID = "project-from-the-log"
+		writeUndoEntry(t, database, "delete", "project", projectID, fmt.Sprintf(
+			`{"project":{"ID":%q,"Name":"as it was","Description":{"String":"","Valid":false},"Status":"active",`+
+				`"StatusReason":{"String":"","Valid":false},"ClosedAt":{"String":"","Valid":false},`+
+				`"Position":7,"CreatedAt":"2026-01-01 00:00:00"},"memberships":null}`,
+			projectID))
+		if _, err := b.Undo(); err != nil {
+			t.Fatalf("undoing: %v", err)
+		}
+
+		got, err := b.GetProject(projectID)
+		if err != nil {
+			t.Fatalf("getting project: %v", err)
+		}
+		if created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC); !got.CreatedAt.Equal(created) {
+			t.Errorf("restored created_at = %v, want %v", got.CreatedAt, created)
+		}
+	})
+
 	t.Run("item snapshot", func(t *testing.T) {
 		b, database := newTestBackendWithDatabase(t)
 		p := mustCreateProject(t, b, "work")
@@ -952,10 +981,10 @@ func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 		writeUndoEntry(t, database, "delete", "item", itemID, fmt.Sprintf(
 			`{"item":{"ID":%[1]q,"Number":{"Int64":41,"Valid":true},"Title":"as it was",`+
 				`"Notes":{"String":"its notes","Valid":true},"Repo":{"String":"its-repo","Valid":true},`+
-				`"Completed":1,"Archived":0,"CreatedAt":"2026-01-02T03:04:05.123Z","UpdatedAt":"2026-01-02T03:04:05.123Z"},`+
+				`"Completed":1,"Archived":1,"CreatedAt":"2026-01-02T03:04:05.123Z","UpdatedAt":"2026-01-03T04:05:06.456Z"},`+
 				`"memberships":[{"ItemID":%[1]q,"ProjectID":%[2]q,"Position":3}],`+
 				`"dependencies":[{"ItemID":%[1]q,"DependsOnID":%[3]q}],`+
-				`"tasks":[{"ID":%[4]q,"ItemID":%[1]q,"Title":"its task","Completed":1,"Position":2,"CreatedAt":"2026-01-02T03:04:05.123Z"}]}`,
+				`"tasks":[{"ID":%[4]q,"ItemID":%[1]q,"Title":"its task","Completed":1,"Position":2,"CreatedAt":"2026-01-04T05:06:07.789Z"}]}`,
 			itemID, p.ID, blocker.ID, taskID))
 		if _, err := b.Undo(); err != nil {
 			t.Fatalf("undoing: %v", err)
@@ -966,18 +995,28 @@ func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
 			t.Fatalf("getting item: %v", err)
 		}
 		created := time.Date(2026, 1, 2, 3, 4, 5, 123_000_000, time.UTC)
+		updated := time.Date(2026, 1, 3, 4, 5, 6, 456_000_000, time.UTC)
 		if *got.Number != 41 || got.Title != "as it was" || *got.Notes != "its notes" || *got.Repo != "its-repo" ||
-			!got.Completed || got.Archived || !got.CreatedAt.Equal(created) {
+			!got.Completed || !got.Archived || !got.CreatedAt.Equal(created) || !got.UpdatedAt.Equal(updated) {
 			t.Errorf("restored item = %+v", got)
 		}
 		if len(got.Projects) != 1 || got.Projects[0].ID != p.ID || len(got.DependencyIDs) != 1 || got.DependencyIDs[0] != blocker.ID {
 			t.Errorf("restored links: projects %+v, dependencies %v", got.Projects, got.DependencyIDs)
 		}
+		memberships, err := b.ListMemberships()
+		if err != nil {
+			t.Fatalf("listing memberships: %v", err)
+		}
+		if len(memberships) != 2 || !slices.Contains(memberships, model.Membership{ItemID: itemID, ProjectID: p.ID, Position: 3}) {
+			t.Errorf("restored memberships = %+v", memberships)
+		}
 		tasks, err := b.ListTasks(itemID)
 		if err != nil {
 			t.Fatalf("listing tasks: %v", err)
 		}
-		if len(tasks) != 1 || tasks[0].ID != taskID || tasks[0].Title != "its task" || !tasks[0].Completed || tasks[0].Position != 2 {
+		taskCreated := time.Date(2026, 1, 4, 5, 6, 7, 789_000_000, time.UTC)
+		if len(tasks) != 1 || tasks[0].ID != taskID || tasks[0].Title != "its task" || !tasks[0].Completed || tasks[0].Position != 2 ||
+			!tasks[0].CreatedAt.Equal(taskCreated) {
 			t.Errorf("restored tasks = %+v", tasks)
 		}
 	})
