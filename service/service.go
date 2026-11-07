@@ -161,17 +161,11 @@ func refuseTakenName(ctx context.Context, tx store.Operations, name, excludingID
 	return nil
 }
 
-// ListProjectsByStatus takes a status name or model.StatusAll, in board order.
+// ListProjectsByStatus is ListProjects in board order.
 func (s *Service) ListProjectsByStatus(status string) ([]model.ProjectWithItemCount, error) {
-	counted, _, err := s.projectsWithItemCounts(s.ctx())
+	kept, err := s.ListProjects(model.ProjectFilter{Status: status})
 	if err != nil {
 		return nil, err
-	}
-	kept := make([]model.ProjectWithItemCount, 0, len(counted))
-	for _, project := range counted {
-		if status == model.StatusAll || project.Status == status {
-			kept = append(kept, project)
-		}
 	}
 	model.SortProjectsForBoard(kept)
 	return kept, nil
@@ -462,16 +456,11 @@ func (s *Service) ListAllItemsIncludingArchived() ([]model.ProjectItem, error) {
 	return items, nil
 }
 
-// ListItemsByProject leaves out archived items, in project order.
+// ListItemsByProject is ListProjectItems without the archived items, in project order.
 func (s *Service) ListItemsByProject(projectRef string) ([]model.ProjectItemInProject, error) {
-	ctx := s.ctx()
-	project, err := resolveProject(ctx, s.store, projectRef)
+	items, err := s.ListProjectItems(projectRef, model.ItemFilter{Status: model.StatusAll})
 	if err != nil {
 		return nil, err
-	}
-	items, err := s.store.ListItemsInProject(ctx, project.ID)
-	if err != nil {
-		return nil, fmt.Errorf("listing items by project: %w", err)
 	}
 	return slices.DeleteFunc(items, func(item model.ProjectItemInProject) bool { return item.Archived }), nil
 }
@@ -534,13 +523,16 @@ func (s *Service) CreateItem(input model.CreateProjectItem) (*model.ProjectItemD
 	ctx := s.ctx()
 	var itemID string
 	err := s.store.InTx(ctx, func(tx store.Operations) error {
-		projects := make([]model.Project, len(input.ProjectIDs))
-		for i, ref := range input.ProjectIDs {
+		// A project named twice, by id and by name, is one membership.
+		projects := make([]model.Project, 0, len(input.ProjectIDs))
+		for _, ref := range input.ProjectIDs {
 			project, err := resolveProject(ctx, tx, ref)
 			if err != nil {
 				return err
 			}
-			projects[i] = project
+			if !slices.ContainsFunc(projects, func(held model.Project) bool { return held.ID == project.ID }) {
+				projects = append(projects, project)
+			}
 		}
 
 		var number *int
@@ -1077,9 +1069,9 @@ func (s *Service) DeleteTask(itemRef, taskID string) error {
 
 // Search leaves out archived items, which SearchItems keeps.
 func (s *Service) Search(query string) ([]model.ProjectItem, error) {
-	items, err := s.store.SearchItems(s.ctx(), query)
+	items, err := s.matchingItems(s.ctx(), query)
 	if err != nil {
-		return nil, fmt.Errorf("searching items: %w", err)
+		return nil, err
 	}
 	return slices.DeleteFunc(items, func(item model.ProjectItem) bool { return item.Archived }), nil
 }
@@ -1094,18 +1086,12 @@ func (s *Service) ListBlocked() ([]model.ProjectItem, error) {
 	return items, nil
 }
 
-// ListArchived orders by most recently updated.
+// ListArchived is ListProjectItems for the archived items, most recently updated first.
 func (s *Service) ListArchived(projectRef string) ([]model.ProjectItemInProject, error) {
-	ctx := s.ctx()
-	project, err := resolveProject(ctx, s.store, projectRef)
+	archived, err := s.ListProjectItems(projectRef, model.ItemFilter{Status: model.ItemStatusArchived})
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.store.ListItemsInProject(ctx, project.ID)
-	if err != nil {
-		return nil, fmt.Errorf("listing archived: %w", err)
-	}
-	archived := slices.DeleteFunc(items, func(item model.ProjectItemInProject) bool { return !item.Archived })
 	slices.SortStableFunc(archived, func(a, b model.ProjectItemInProject) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
 	return archived, nil
 }

@@ -211,21 +211,28 @@ func (s *Service) ListProjectItems(projectRef string, filter model.ItemFilter) (
 // ListBlockedItems is ListBlocked narrowed to a repo, each item carrying what is
 // filed against it.
 func (s *Service) ListBlockedItems(repo *string) ([]model.ProjectItemDetail, error) {
-	ctx := s.ctx()
-	items, err := s.store.ListBlockedItems(ctx)
+	items, err := s.ListBlocked()
 	if err != nil {
-		return nil, fmt.Errorf("listing blocked: %w", err)
+		return nil, err
 	}
-	return s.withEverythingFiled(ctx, keepRepo(items, repo))
+	return s.withEverythingFiled(s.ctx(), keepRepo(items, repo))
+}
+
+func (s *Service) matchingItems(ctx context.Context, query string) ([]model.ProjectItem, error) {
+	items, err := s.store.SearchItems(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("searching items: %w", err)
+	}
+	return items, nil
 }
 
 // SearchItems matches archived items too, narrowed to a repo, each carrying what
 // is filed against it.
 func (s *Service) SearchItems(query string, repo *string) ([]model.ProjectItemDetail, error) {
 	ctx := s.ctx()
-	items, err := s.store.SearchItems(ctx, query)
+	items, err := s.matchingItems(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("searching items: %w", err)
+		return nil, err
 	}
 	return s.withEverythingFiled(ctx, keepRepo(items, repo))
 }
@@ -324,8 +331,8 @@ func sortProjectsByPosition(projects []model.Project) {
 	})
 }
 
-// refuseUnknownKind reads the lookup table rather than a constant, so adding a kind
-// stays an insert.
+// refuseUnknownKind reads the lookup table, whose foreign key would refuse the row
+// anyway, so a client reads which kinds this store holds.
 func refuseUnknownKind(ctx context.Context, reader store.Operations, kind string) error {
 	known, err := reader.ListProjectKinds(ctx)
 	if err != nil {
