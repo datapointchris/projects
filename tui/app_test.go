@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	goSync "sync"
@@ -117,6 +118,37 @@ func runeKey(r rune) tea.KeyPressMsg {
 func pressKey(t *testing.T, app *App, key string) {
 	t.Helper()
 	send(t, app, runeKey([]rune(key)[0]))
+}
+
+// A position counts every member of a project and this list hides the archived
+// ones, so a drop has to count them or it lands that many rows too high.
+func TestAMovedItemLandsWhereItIsDroppedBelowAnArchivedOne(t *testing.T) {
+	app := newTestApp(t, 80, 24, "archived", "bravo", "charlie", "delta")
+	pressKey(t, app, "x")
+
+	visibleTitles := func() []string {
+		titles := make([]string, len(app.items))
+		for i, item := range app.items {
+			titles[i] = item.Title
+		}
+		return titles
+	}
+	move := func(keys string, want ...string) {
+		t.Helper()
+		pressKey(t, app, "m")
+		for _, key := range keys {
+			pressKey(t, app, string(key))
+		}
+		send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
+		if got := visibleTitles(); !slices.Equal(got, want) {
+			t.Errorf("after moving with %q the list reads %v, want %v", keys, got, want)
+		}
+	}
+
+	move("j", "charlie", "bravo", "delta")
+	move("k", "bravo", "charlie", "delta")
+	move("G", "charlie", "delta", "bravo")
+	move("g", "bravo", "charlie", "delta")
 }
 
 // The add-task prompt is an overlay, so it shows in a window too short for the

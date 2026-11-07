@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -804,9 +805,28 @@ func searchNavigateCmd(b backend.Backend, itemID string) tea.Cmd {
 	}
 }
 
-func reorderItemCmd(b backend.Backend, itemID, projectID string, newPos int) tea.Cmd {
+// reorderItemCmd lands an item just below above, or first with no row above it. A
+// position counts every member of the project, so the archived rows this list hides
+// count toward it.
+func reorderItemCmd(b backend.Backend, itemID, projectID string, above *model.ProjectItemInProject) tea.Cmd {
 	return func() tea.Msg {
-		if err := b.ReorderItem(itemID, projectID, newPos); err != nil {
+		position := 0
+		if above != nil {
+			unarchived, err := b.ListItemsByProject(projectID)
+			if err != nil {
+				return errMsg{err}
+			}
+			archived, err := b.ListArchived(projectID)
+			if err != nil {
+				return errMsg{err}
+			}
+			for _, member := range slices.Concat(unarchived, archived) {
+				if member.ID != itemID && member.Position <= above.Position {
+					position++
+				}
+			}
+		}
+		if err := b.ReorderItem(itemID, projectID, position); err != nil {
 			return errMsg{err}
 		}
 		return itemReorderedMsg{}
@@ -2025,7 +2045,11 @@ func (m *App) handleMoveKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.appMode = modeNormal
 		item := m.items[m.moveItemPos]
 		projectID := m.projects[m.projectCursor].ID
-		return m, reorderItemCmd(m.backend, item.ID, projectID, m.moveItemPos)
+		var above *model.ProjectItemInProject
+		if m.moveItemPos > 0 {
+			above = &m.items[m.moveItemPos-1]
+		}
+		return m, reorderItemCmd(m.backend, item.ID, projectID, above)
 
 	case "esc":
 		m.appMode = modeNormal
