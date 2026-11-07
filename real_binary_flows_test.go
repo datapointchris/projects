@@ -9,8 +9,8 @@ import (
 	"github.com/datapointchris/tuidrive"
 
 	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 // Each flow replays testdata/flows/<script> against the built binary on a pty, from
@@ -61,7 +61,7 @@ func TestRealBinaryFlows(t *testing.T) {
 // because a one-line note hides layout bugs.
 func seedFixtureDatabase(t *testing.T, path string) {
 	t.Helper()
-	database, err := db.Open(path)
+	database, err := sqlite.Open(path)
 	if err != nil {
 		t.Fatalf("opening %s: %v", path, err)
 	}

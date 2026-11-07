@@ -16,8 +16,8 @@ import (
 	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/cli"
 	"github.com/datapointchris/projects/config"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/repos"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 	"github.com/datapointchris/projects/tui"
 )
@@ -108,7 +108,7 @@ func rootCmd() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(cfg.Local.DBPath), 0o755); err != nil {
 				return fmt.Errorf("creating data directory: %w", err)
 			}
-			d, err := db.Open(cfg.Local.DBPath)
+			d, err := sqlite.Open(cfg.Local.DBPath)
 			if err != nil {
 				return fmt.Errorf("opening database: %w", err)
 			}

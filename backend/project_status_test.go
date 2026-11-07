@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 func mustSetStatus(t *testing.T, b *LocalBackend, id, status string, reason *string) *model.Project {
@@ -279,7 +279,7 @@ func backendRefusingRepos(t *testing.T, names ...string) *LocalBackend {
 	if err := os.WriteFile(path, []byte(`{"repos":[`+strings.Join(entries, ",")+`]}`), 0o600); err != nil {
 		t.Fatalf("writing registry: %v", err)
 	}
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}

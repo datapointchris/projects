@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/datapointchris/projects/db/generated"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite/generated"
 )
 
 // Pull fetches all data from the remote API and reconciles it with the local database.

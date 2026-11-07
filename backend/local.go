@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/datapointchris/projects/db/generated"
 	"github.com/datapointchris/projects/graph"
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/repos"
+	"github.com/datapointchris/projects/store/sqlite/generated"
 )
 
 // LocalBackend provides direct SQLite access for local mode.

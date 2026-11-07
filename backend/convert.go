@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/datapointchris/projects/db/generated"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite/generated"
 )
 
 func parseTime(s string) time.Time {

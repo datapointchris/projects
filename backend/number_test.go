@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 func newNumberTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

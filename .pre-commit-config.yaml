@@ -281,9 +281,9 @@ repos:
       # version is the tool directive pinned in go.mod, the same one CI runs.
       - id: sqlc-diff
         name: sqlc generated code is current
-        entry: bash -c 'cd db && go tool sqlc diff'
+        entry: bash -c 'cd store/sqlite && go tool sqlc diff'
         language: system
-        files: ^db/.*\.(sql|yaml)$
+        files: ^store/sqlite/.*\.(sql|yaml)$
         pass_filenames: false
         stages: [pre-commit]
 

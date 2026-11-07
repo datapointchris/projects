@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
 
@@ -37,7 +37,7 @@ func apiWith(t *testing.T, projects []model.Project, items []model.ProjectItemDe
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

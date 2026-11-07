@@ -5,13 +5,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 )
 
 func newTestBackend(t *testing.T) *LocalBackend {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}

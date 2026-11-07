@@ -9,14 +9,14 @@ import (
 	"time"
 
 	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
 
 func setupSync(t *testing.T, handler http.Handler) (*sync.SyncBackend, *sync.Engine) {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestPull_Reconciles(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -503,7 +503,7 @@ func logging(recorder *callRecorder, next http.Handler) http.Handler {
 // reconciliation must not read it as "deleted upstream" and erase it, nor drop
 // the queued operation that is the only record of it.
 func TestPull_KeepsWorkDoneWhileItWasRunning(t *testing.T) {
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -599,7 +599,7 @@ func TestPush_RetriesWithoutAFurtherMutation(t *testing.T) {
 		_, _ = w.Write([]byte("{}"))
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -689,7 +689,7 @@ func pullFixture(embedded bool) http.HandlerFunc {
 
 func pulledInto(t *testing.T, handler http.HandlerFunc) (*callRecorder, *backend.LocalBackend) {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -916,7 +916,7 @@ func TestPull_DropsLinksToEntitiesTheServerDidNotSend(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -985,7 +985,7 @@ func TestPull_SurvivesItemsSwappingNumbers(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(out)
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -1042,7 +1042,7 @@ func TestPull_RequestsEveryStatusFromBothListEndpoints(t *testing.T) {
 		}
 	})
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

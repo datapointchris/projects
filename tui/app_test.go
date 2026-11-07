@@ -15,8 +15,8 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/datapointchris/projects/backend"
-	"github.com/datapointchris/projects/db"
 	"github.com/datapointchris/projects/model"
+	"github.com/datapointchris/projects/store/sqlite"
 	"github.com/datapointchris/projects/sync"
 )
 
@@ -37,7 +37,7 @@ func newTestApp(t *testing.T, width, height int, itemTitles ...string) *App {
 func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateProjectItem) *App {
 	t.Helper()
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 
-	database, err := db.Open(":memory:")
+	database, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
