@@ -171,6 +171,9 @@ func (s *Service) UpdateProject(id string, input model.UpdateProject) (*model.Pr
 	err = s.store.InTx(ctx, func(tx store.Operations) error {
 		p, err := tx.UpdateProject(ctx, next)
 		if err != nil {
+			if errors.Is(err, model.ErrDuplicateName) {
+				return model.ErrDuplicateName
+			}
 			return fmt.Errorf("updating project: %w", err)
 		}
 		updated = p

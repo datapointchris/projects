@@ -107,8 +107,9 @@ store/sqlite         Open, migrations, queries.sql, generated
 ```
 
 - **`store/sqlite` opens the database and holds no decision.** It owns the schema, the migrations,
-  `queries.sql` and sqlc's `generated`. It turns the driver's no-row and unique answers into `model`
-  sentinels, so `service` matches no driver text and imports no `database/sql`.
+  `queries.sql` and sqlc's `generated`. It turns the driver's no-row answer, and each unique answer
+  `store/store.go` promises a sentinel for, into `model` sentinels, so `service` matches no driver text
+  and imports no `database/sql`.
 - **`service.Service` satisfies `backend.Backend`**, so the TUI depends on that interface alone.
 - **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
   `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a

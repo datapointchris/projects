@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+
+	modernc "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/store"
@@ -56,11 +58,14 @@ func rowError(err error) error {
 	return err
 }
 
-// duplicateNameError names a unique violation on a project write. Only active
-// projects hold a name, so a status change fires this only on the way back to
-// active. The driver has no sentinel for it, so the match is on its text.
+// duplicateNameError names a unique violation for the writes store.Store promises
+// ErrDuplicateName on. A project's only unique index beyond its id is the one on
+// an active project's name, and the driver answers an id collision with a
+// different code. Only active projects hold a name, so a status change fires this
+// only on the way back to active.
 func duplicateNameError(err error) error {
-	if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+	var driverErr *modernc.Error
+	if errors.As(err, &driverErr) && driverErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE {
 		return model.ErrDuplicateName
 	}
 	return rowError(err)
@@ -114,7 +119,7 @@ func (o operations) UpdateProject(ctx context.Context, project model.Project) (m
 		ID:          project.ID,
 	})
 	if err != nil {
-		return model.Project{}, rowError(err)
+		return model.Project{}, duplicateNameError(err)
 	}
 	return toModelProject(row), nil
 }
@@ -143,7 +148,7 @@ func (o operations) DeleteProject(ctx context.Context, id string) error {
 }
 
 func (o operations) RestoreProject(ctx context.Context, project model.Project) error {
-	return o.q.UpsertProject(ctx, generated.UpsertProjectParams{
+	return duplicateNameError(o.q.UpsertProject(ctx, generated.UpsertProjectParams{
 		ID:           project.ID,
 		Name:         project.Name,
 		Description:  toNullString(project.Description),
@@ -152,7 +157,7 @@ func (o operations) RestoreProject(ctx context.Context, project model.Project) e
 		ClosedAt:     toNullTime(project.ClosedAt),
 		Position:     int64(project.Position),
 		CreatedAt:    formatTime(project.CreatedAt),
-	})
+	}))
 }
 
 func (o operations) ListAllItems(ctx context.Context) ([]model.ProjectItem, error) {

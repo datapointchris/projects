@@ -38,18 +38,21 @@ type Operations interface {
 	// CreateProject writes ID, Name and Description, and places the project after
 	// every other. A name an active project holds answers model.ErrDuplicateName.
 	CreateProject(ctx context.Context, project model.Project) (model.Project, error)
-	// UpdateProject writes Name, Description and Position by ID.
+	// UpdateProject writes Name, Description and Position by ID. A name an active
+	// project holds answers model.ErrDuplicateName.
 	UpdateProject(ctx context.Context, project model.Project) (model.Project, error)
 	// SetProjectStatus derives closed_at and status_reason from the transition.
 	// Active and someday clear closed_at, and active clears the reason. A project
 	// already closed in this status keeps its date, and any other close stamps
-	// now. Reopening into a name a live project holds answers
+	// now. Reopening into a name an active project holds answers
 	// model.ErrDuplicateName.
 	SetProjectStatus(ctx context.Context, id, status string, reason *string) (model.Project, error)
 	UpdateProjectPosition(ctx context.Context, id string, position int) error
 	// DeleteProject cascades to the project's memberships.
 	DeleteProject(ctx context.Context, id string) error
 	// RestoreProject inserts the whole row, or overwrites it apart from CreatedAt.
+	// Restoring an active project into a name an active project holds answers
+	// model.ErrDuplicateName.
 	RestoreProject(ctx context.Context, project model.Project) error
 
 	// ListAllItems includes archived items, newest first.

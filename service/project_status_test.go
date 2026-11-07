@@ -193,6 +193,19 @@ func TestTwoActiveProjectsCannotShareAName(t *testing.T) {
 	}
 }
 
+// The project reader's edit reaches this through updateProjectCmd, which prints
+// whatever the service answers.
+func TestRenamingOntoATakenNameAnswersDuplicateName(t *testing.T) {
+	b := newTestBackend(t)
+	mustCreateProject(t, b, "clisteno")
+	other := mustCreateProject(t, b, "other")
+
+	name := "clisteno"
+	if _, err := b.UpdateProject(other.ID, model.UpdateProject{Name: &name}); !errors.Is(err, model.ErrDuplicateName) || err.Error() != model.ErrDuplicateName.Error() {
+		t.Errorf("got %v, want ErrDuplicateName as the whole message", err)
+	}
+}
+
 func TestReopeningIntoATakenNameIsRefused(t *testing.T) {
 	b := newTestBackend(t)
 	closed := mustCreateProject(t, b, "clisteno")
