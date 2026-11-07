@@ -44,7 +44,7 @@ Build, vet and unit tests check code correctness, not TUI correctness. A TUI cha
 driving the built binary, which the flows below do with nobody at the keyboard.
 
 `tui/app_test.go` drives the model directly: `newTestApp` builds an app over an in-memory DB, and a
-test feeds it `tea.KeyMsg` values and asserts on state or on `View()`. `send` follows the whole
+test feeds it `tea.KeyPressMsg` values and asserts on state or on `screen()`. `send` follows the whole
 command chain, so a create and its refresh have both landed before the assertion, and it abandons
 `tea.Tick` commands rather than sleeping out their duration. A layout bug that appears only at one
 window size is reproducible here and invisible in a manual pass. It does not replace driving the TUI.

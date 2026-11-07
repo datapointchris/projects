@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/datapointchris/todoui/backend"
 	"github.com/datapointchris/todoui/db"
@@ -110,9 +110,13 @@ func runCmd(cmd tea.Cmd) tea.Msg {
 	}
 }
 
+func runeKey(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
 func pressKey(t *testing.T, app *App, key string) {
 	t.Helper()
-	send(t, app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+	send(t, app, runeKey([]rune(key)[0]))
 }
 
 // The add-task prompt is an overlay, so it shows in a window too short for the
@@ -125,8 +129,8 @@ func TestAddTaskPromptVisibleInShortWindow(t *testing.T) {
 	if app.appMode != modeAddTask {
 		t.Fatalf("expected modeAddTask after 't', got %v", app.appMode)
 	}
-	if !strings.Contains(app.View(), "New task for") {
-		t.Errorf("add-task prompt not rendered in a 6-line window:\n%s", app.View())
+	if !strings.Contains(app.screen(), "New task for") {
+		t.Errorf("add-task prompt not rendered in a 6-line window:\n%s", app.screen())
 	}
 }
 
@@ -138,7 +142,7 @@ func TestAddTaskPromptNamesTargetItem(t *testing.T) {
 	if got := app.addTaskItemTitle; got != "ship the thing" {
 		t.Errorf("expected target title %q, got %q", "ship the thing", got)
 	}
-	if view := app.View(); !strings.Contains(view, "ship the thing") {
+	if view := app.screen(); !strings.Contains(view, "ship the thing") {
 		t.Errorf("prompt does not name the target item:\n%s", view)
 	}
 }
@@ -149,7 +153,7 @@ func TestAddTaskEscapeRestoresNavigation(t *testing.T) {
 	app := newTestApp(t, 80, 24, "first", "second")
 
 	pressKey(t, app, "t")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if app.appMode != modeNormal {
 		t.Fatalf("expected modeNormal after esc, got %v", app.appMode)
@@ -167,9 +171,9 @@ func TestAddTaskCreatesTaskOnTargetItem(t *testing.T) {
 
 	pressKey(t, app, "t")
 	for _, r := range "write tests" {
-		send(t, app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		send(t, app, runeKey(r))
 	}
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if app.appMode != modeNormal {
 		t.Fatalf("expected modeNormal after enter, got %v", app.appMode)
@@ -197,9 +201,9 @@ func TestCreatedTaskAppearsAsRow(t *testing.T) {
 
 	pressKey(t, app, "t")
 	for _, r := range "subtask" {
-		send(t, app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		send(t, app, runeKey(r))
 	}
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if len(app.rows) != rowsBefore+1 {
 		t.Fatalf("expected a new task row, rows went %d → %d", rowsBefore, len(app.rows))
@@ -207,8 +211,8 @@ func TestCreatedTaskAppearsAsRow(t *testing.T) {
 	if app.rows[len(app.rows)-1].kind != rowTask {
 		t.Errorf("expected the new row to be a task row")
 	}
-	if !strings.Contains(app.View(), "subtask") {
-		t.Errorf("new task not rendered:\n%s", app.View())
+	if !strings.Contains(app.screen(), "subtask") {
+		t.Errorf("new task not rendered:\n%s", app.screen())
 	}
 }
 
@@ -382,7 +386,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 func TestItemRowShowsTheNumber(t *testing.T) {
 	app := newTestApp(t, 100, 30, "First item", "Second item")
 
-	view := app.View()
+	view := app.screen()
 
 	items, err := app.backend.ListAllItemsIncludingArchived()
 	if err != nil {
@@ -405,8 +409,10 @@ func TestItemRowShowsTheNumber(t *testing.T) {
 
 func keys(t *testing.T, app *App, presses ...string) {
 	t.Helper()
-	for _, key := range presses {
-		send(t, app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+	for _, press := range presses {
+		for _, r := range press {
+			send(t, app, runeKey(r))
+		}
 	}
 }
 
@@ -414,7 +420,7 @@ func TestCompletedProjectLeavesTheProjectPane(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if app.appMode != modeReader || app.projectDetail == nil {
 		t.Fatalf("expected the reader on the project, got mode %v", app.appMode)
 	}
@@ -428,9 +434,9 @@ func TestCompletedProjectLeavesTheProjectPane(t *testing.T) {
 func TestShowClosedTogglesTheClosedProjectsBackIn(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "c")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	keys(t, app, "C")
 
@@ -440,8 +446,8 @@ func TestShowClosedTogglesTheClosedProjectsBackIn(t *testing.T) {
 	if app.projects[0].Status != model.StatusCompleted {
 		t.Errorf("status = %q, want done", app.projects[0].Status)
 	}
-	if !strings.Contains(app.View(), "completed") {
-		t.Errorf("the row must be labeled with its status:\n%s", app.View())
+	if !strings.Contains(app.screen(), "completed") {
+		t.Errorf("the row must be labeled with its status:\n%s", app.screen())
 	}
 
 	keys(t, app, "C")
@@ -455,9 +461,9 @@ func TestShowClosedTogglesTheClosedProjectsBackIn(t *testing.T) {
 func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "S")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if len(app.projects) != 0 {
 		t.Fatalf("shelving must take the project out of the pane, still have %d", len(app.projects))
@@ -468,7 +474,7 @@ func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 		t.Fatalf("C must bring the shelved project back as someday, got %v", app.projects)
 	}
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "c")
 	if app.projects[0].Status != model.StatusSomeday {
 		t.Errorf("c on a shelved project must be refused, status = %q", app.projects[0].Status)
@@ -484,7 +490,7 @@ func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 func TestDroppingAProjectAsksWhy(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	keys(t, app, "x")
 
@@ -496,7 +502,7 @@ func TestDroppingAProjectAsksWhy(t *testing.T) {
 	}
 
 	keys(t, app, "Go covers it")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if len(app.projects) != 0 {
 		t.Fatalf("the drop did not land, still have %d projects", len(app.projects))
@@ -520,7 +526,7 @@ func TestDroppingAProjectAsksWhy(t *testing.T) {
 // what must not happen is the window being placed where that line is not.
 func assertPaneInvariants(t *testing.T, app *App, context string) {
 	t.Helper()
-	view := app.View()
+	view := app.screen()
 	if got := lipgloss.Height(view); got > app.height {
 		t.Fatalf("%s: the view is %d lines in a %d-line window:\n%s", context, got, app.height, view)
 	}
@@ -679,7 +685,7 @@ func TestProjectPaneShowsOpenAndDoneCounts(t *testing.T) {
 	}
 
 	send(t, app, fetchProjectsCmd(app.backend, app.projectStatusFilter())())
-	if view := app.View(); !strings.Contains(view, "○2") || !strings.Contains(view, "✓1") {
+	if view := app.screen(); !strings.Contains(view, "○2") || !strings.Contains(view, "✓1") {
 		t.Errorf("project row does not show the open/done split:\n%s", view)
 	}
 }
@@ -701,7 +707,7 @@ func TestProjectPaneNeverOverflowsItsBox(t *testing.T) {
 
 	for range 20 {
 		pressKey(t, app, "j")
-		view := app.View()
+		view := app.screen()
 		if got := lipgloss.Height(view); got > 12 {
 			t.Fatalf("view rendered %d lines in a 12-line window:\n%s", got, view)
 		}
@@ -715,15 +721,64 @@ func TestProjectPaneNeverOverflowsItsBox(t *testing.T) {
 func TestCancellingTheDropPromptLeavesTheProjectAlone(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "x")
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if app.appMode != modeReader {
 		t.Errorf("Esc must return to the reader it came from, got mode %v", app.appMode)
 	}
 	if len(app.projects) != 1 {
 		t.Error("canceling must not drop anything")
+	}
+}
+
+// A paste arrives as one message rather than as keys, so each input has to be
+// handed it, and a filter has to narrow on it as it does on typing.
+func TestPasteGoesToTheFocusedInputAndNarrowsItsFilter(t *testing.T) {
+	app := newTestApp(t, 120, 30, "serve", "schema", "unrelated-a", "unrelated-b")
+	dependsOn(t, app, "serve", "schema")
+	dependsOn(t, app, "unrelated-a", "unrelated-b")
+	paste := func(text string) {
+		t.Helper()
+		send(t, app, tea.PasteMsg{Content: text})
+	}
+	escape := tea.KeyPressMsg{Code: tea.KeyEscape}
+
+	before := app.screen()
+	paste("nothing focused")
+	if app.screen() != before {
+		t.Error("a paste with no input focused must change nothing")
+	}
+
+	keys(t, app, "a")
+	app.errorMsg = "stale"
+	paste("Pasted title")
+	if got := app.titleInput.Value(); got != "Pasted title" {
+		t.Errorf("add prompt holds %q, want the pasted title", got)
+	}
+	if app.errorMsg != "" {
+		t.Errorf("a paste clears a transient message as a key does, got %q", app.errorMsg)
+	}
+	send(t, app, escape)
+
+	app.activePane = itemPane
+	keys(t, app, "b", "/")
+	paste("unrelated-a")
+	if got := app.depFilter.Value(); got != "unrelated-a" {
+		t.Errorf("dependency filter holds %q, want the pasted text", got)
+	}
+	if strings.Contains(app.screen(), "schema") {
+		t.Errorf("dependency filter did not narrow on the paste:\n%s", app.screen())
+	}
+	send(t, app, escape)
+	send(t, app, escape)
+
+	openTree(t, app)
+	keys(t, app, "/")
+	paste("unrelated-b")
+	if got := forestTitles(app); len(got) != 2 || got[1] != "unrelated-b" {
+		t.Errorf("tree search narrowed to %v, want the pasted match and the row above it", got)
 	}
 }

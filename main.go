@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate/autoupdate"
 	"github.com/spf13/cobra"
@@ -111,8 +111,7 @@ func rootCmd() *cobra.Command {
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			app := tui.NewApp(b, syncEngine, cfg.Local.DBPath, cfg.Sync.Interval)
-			p := tea.NewProgram(app, tea.WithAltScreen())
-			_, err := p.Run()
+			_, err := tea.NewProgram(app).Run()
 			return err
 		},
 		PersistentPostRunE: func(_ *cobra.Command, _ []string) error {

@@ -169,5 +169,5 @@ func (p *projectPicker) view(width int) string {
 		boxWidth = 40
 	}
 
-	return overlayBoxStyle.Width(boxWidth).Render(content)
+	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
 }

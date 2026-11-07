@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/datapointchris/todoui/backend"
 	"github.com/datapointchris/todoui/model"
@@ -133,10 +133,12 @@ type App struct {
 func NewApp(b backend.Backend, syncEngine *sync.Engine, dbPath string, syncInterval time.Duration) *App {
 	ti := textinput.New()
 	ti.CharLimit = 200
+	ti.SetStyles(inputStyles())
 
 	df := textinput.New()
 	df.Placeholder = "type to filter..."
 	df.CharLimit = 100
+	df.SetStyles(inputStyles())
 
 	return &App{
 		backend:      b,
@@ -967,8 +969,12 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		cmd := m.pasteIntoFocusedInput(msg)
+		return m, cmd
 
 	case projectsMsg:
 		m.projects = msg
@@ -1236,7 +1242,25 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- Key handling ---
 
-func (m *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// pasteIntoFocusedInput sends a paste where typing goes. Everywhere else a paste
+// does nothing, because its text is not a key press.
+func (m *App) pasteIntoFocusedInput(msg tea.PasteMsg) tea.Cmd {
+	m.errorMsg = ""
+	var cmd tea.Cmd
+	switch {
+	case m.appMode == modeAddItem, m.appMode == modeAddItemMulti, m.appMode == modeAddProject,
+		m.appMode == modeAddTask, m.appMode == modeEditTitle, m.appMode == modeEditProjectName,
+		m.appMode == modeDropProject, m.appMode == modeSearch && m.searchFocused:
+		m.titleInput, cmd = m.titleInput.Update(msg)
+	case (m.appMode == modeDepLink || m.appMode == modeDepUnlink) && m.depFiltering:
+		cmd = m.updateDepFilter(msg)
+	case m.appMode == modeDepTree && m.depTree.searching:
+		cmd = m.updateDepTreeSearch(msg)
+	}
+	return cmd
+}
+
+func (m *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
@@ -1273,7 +1297,7 @@ func (m *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	row := m.currentRow() // nil when item pane is empty
 
 	switch msg.String() {
@@ -1476,7 +1500,7 @@ func (m *App) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case " ":
+	case "space":
 		if m.activePane == projectPane {
 			return m.toggleProjectSelection()
 		}
@@ -1487,7 +1511,7 @@ func (m *App) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			tasks := m.itemTasks[m.items[row.itemIdx].ID]
 			return m, toggleTaskCmd(m.backend, m.items[row.itemIdx].ID, tasks[row.taskIdx])
 		}
-		cmd, _ := m.handleItemActionKey(" ", m.listActionTarget(), modeNormal)
+		cmd, _ := m.handleItemActionKey("space", m.listActionTarget(), modeNormal)
 		return m, cmd
 
 	case "d":
@@ -1655,7 +1679,7 @@ func (m *App) listActionTarget() itemActionTarget {
 func (m *App) handleItemActionKey(key string, target itemActionTarget, returnTo appMode) (cmd tea.Cmd, handled bool) {
 	item := target.item
 	switch key {
-	case " ":
+	case "space":
 		if !item.Completed && target.hasIncompleteTasks {
 			return m.flash("Cannot complete: item has incomplete tasks"), true
 		}
@@ -1721,7 +1745,7 @@ func (m *App) handleItemActionKey(key string, target itemActionTarget, returnTo 
 	return nil, false
 }
 
-func (m *App) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		value := strings.TrimSpace(m.titleInput.Value())
@@ -1801,7 +1825,7 @@ func (m *App) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handlePickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
 		m.picker.down()
@@ -1821,7 +1845,7 @@ func (m *App) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case " ":
+	case "space":
 		m.picker.toggle()
 		return m, nil
 
@@ -1856,7 +1880,7 @@ func (m *App) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "?", "q":
 		m.appMode = modeNormal
@@ -1864,7 +1888,7 @@ func (m *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.searchFocused {
 		switch msg.String() {
 		case "enter":
@@ -1936,7 +1960,7 @@ func (m *App) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleMoveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleMoveKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// moveItemPos is the item-space index of the item being moved.
 	// After every swap, rebuild m.rows and pin m.rowCursor to that
 	// item's new header row so the visible cursor follows the item.
@@ -2000,7 +2024,7 @@ func (m *App) handleMoveKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // change the current project's item list). On enter, the new position
 // is persisted via reorderProjectCmd. On esc, the project list is
 // refetched to revert any in-memory reordering.
-func (m *App) handleMoveProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleMoveProjectKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
 		if m.moveProjectPos < len(m.projects)-1 {
@@ -2047,7 +2071,21 @@ func (m *App) handleMoveProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleDepLinkKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// updateDepFilter hands typing or a paste to the filter and narrows the list to it.
+func (m *App) updateDepFilter(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	m.depFilter, cmd = m.depFilter.Update(msg)
+	query := m.depFilter.Value()
+	if query == "" {
+		m.depItems = flattenDepGroups(m.depAllItems)
+	} else {
+		m.depItems = flattenDepGroups(filterDepGroups(m.depAllItems, query))
+	}
+	m.depCursor = 0
+	return cmd
+}
+
+func (m *App) handleDepLinkKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// When filtering, route most keys to the text input
 	if m.depFiltering {
 		switch msg.String() {
@@ -2068,15 +2106,7 @@ func (m *App) handleDepLinkKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.depFiltering = false
 			return m, nil
 		default:
-			var cmd tea.Cmd
-			m.depFilter, cmd = m.depFilter.Update(msg)
-			query := m.depFilter.Value()
-			if query == "" {
-				m.depItems = flattenDepGroups(m.depAllItems)
-			} else {
-				m.depItems = flattenDepGroups(filterDepGroups(m.depAllItems, query))
-			}
-			m.depCursor = 0
+			cmd := m.updateDepFilter(msg)
 			return m, cmd
 		}
 	}
@@ -2290,7 +2320,24 @@ func (m *App) paneContentHeight() int {
 
 // --- View ---
 
-func (m *App) View() string {
+// View draws from the top of what it is given and drops what falls off the bottom,
+// so a screen taller than the window keeps its last rows, where an overlay's hints
+// are.
+func (m *App) View() tea.View {
+	v := tea.NewView(lastRows(m.screen(), m.height))
+	v.AltScreen = true
+	return v
+}
+
+func lastRows(screen string, height int) string {
+	rows := strings.Split(screen, "\n")
+	if height <= 0 || len(rows) <= height {
+		return screen
+	}
+	return strings.Join(rows[len(rows)-height:], "\n")
+}
+
+func (m *App) screen() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
@@ -2339,11 +2386,11 @@ func (m *App) View() string {
 
 	var leftBorder, rightBorder lipgloss.Style
 	if m.activePane == projectPane {
-		leftBorder = activeBorderStyle.Width(projectPaneWidth - 2).Height(paneHeight)
-		rightBorder = inactiveBorderStyle.Width(itemPaneWidth - 2).Height(paneHeight)
+		leftBorder = activeBorderStyle.Width(projectPaneWidth).Height(paneHeight + 2)
+		rightBorder = inactiveBorderStyle.Width(itemPaneWidth).Height(paneHeight + 2)
 	} else {
-		leftBorder = inactiveBorderStyle.Width(projectPaneWidth - 2).Height(paneHeight)
-		rightBorder = activeBorderStyle.Width(itemPaneWidth - 2).Height(paneHeight)
+		leftBorder = inactiveBorderStyle.Width(projectPaneWidth).Height(paneHeight + 2)
+		rightBorder = activeBorderStyle.Width(itemPaneWidth).Height(paneHeight + 2)
 	}
 
 	left := leftBorder.Render(leftPane)
@@ -2385,7 +2432,7 @@ func (m *App) renderInputOverlay() string {
 	var lines []string
 	lines = append(lines, overlayTitleStyle.Render(prompt))
 	lines = append(lines, "")
-	lines = append(lines, "  "+m.titleInput.View())
+	lines = append(lines, "  "+inputView(m.titleInput))
 	lines = append(lines, "")
 	lines = append(lines, dimStyle.Render("  [Enter] Confirm  [Esc] Cancel"))
 
@@ -2399,7 +2446,7 @@ func (m *App) renderInputOverlay() string {
 		boxWidth = 30
 	}
 
-	return overlayBoxStyle.Width(boxWidth).Render(content)
+	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
 }
 
 func (m *App) renderHelpOverlay() string {
@@ -2483,14 +2530,14 @@ func (m *App) renderHelpOverlay() string {
 	lines = append(lines, dimStyle.Render("  [Esc] or [?] Close"))
 
 	content := strings.Join(lines, "\n")
-	return overlayBoxStyle.Width(50).Render(content)
+	return overlayBoxStyle.Width(52).Render(content)
 }
 
 func (m *App) renderSearchOverlay() string {
 	var lines []string
 	lines = append(lines, overlayTitleStyle.Render("Search"))
 	lines = append(lines, "")
-	lines = append(lines, "  "+m.titleInput.View())
+	lines = append(lines, "  "+inputView(m.titleInput))
 	lines = append(lines, "")
 
 	if len(m.searchResults) == 0 && !m.searchFocused {
@@ -2524,7 +2571,7 @@ func (m *App) renderSearchOverlay() string {
 		boxWidth = 40
 	}
 
-	return overlayBoxStyle.Width(boxWidth).Render(content)
+	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
 }
 
 func (m *App) renderDepLinkOverlay() string {
@@ -2541,7 +2588,7 @@ func (m *App) renderDepLinkOverlay() string {
 
 	// Show filter input for link mode (not unlink, which has few items)
 	if m.appMode == modeDepLink {
-		lines = append(lines, "  "+m.depFilter.View())
+		lines = append(lines, "  "+inputView(m.depFilter))
 		lines = append(lines, "")
 	}
 
@@ -2645,7 +2692,7 @@ func (m *App) renderDepLinkOverlay() string {
 		boxWidth = 40
 	}
 
-	return overlayBoxStyle.Width(boxWidth).Render(content)
+	return overlayBoxStyle.Width(boxWidth + 2).Render(content)
 }
 
 // projectCounts renders a project's open and done tallies. The glyphs are the

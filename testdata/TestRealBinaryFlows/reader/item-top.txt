@@ -27,4 +27,4 @@
  3. Download every image the posts reference into static/images/<year>/<slug>/.
  4. Rewrite the image links to the new relative paths.
  5. Diff a sample of twenty rendered posts against the live site.
-  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        29/81
+  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        29/78

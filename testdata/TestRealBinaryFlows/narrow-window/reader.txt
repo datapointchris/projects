@@ -11,4 +11,4 @@
  ○ Convert HTML to markdown
  ○ Download the images
 
-  [esc]back [j/k]scroll …                 13/108
+  [esc]back [j/k]scroll …                 13/107

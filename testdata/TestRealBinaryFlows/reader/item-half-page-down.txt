@@ -25,6 +25,6 @@
 
  ## Where each field goes
 
-  Field                        │ Old CMS                           │ Static site
- ──────────────────────────────┼───────────────────────────────────┼─────────────────────────────
-  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        43/81
+  Field                         │ Old CMS                           │ Static site
+ ───────────────────────────────┼───────────────────────────────────┼──────────────────────────────
+  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        43/78

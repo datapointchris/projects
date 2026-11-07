@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/datapointchris/todoui/model"
@@ -51,7 +51,7 @@ func TestReaderScrollsALongNoteByRenderedRows(t *testing.T) {
 	pressKey(t, app, "j")
 	row := app.rowCursor
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if app.appMode != modeReader || app.itemDetail == nil || app.itemDetail.Title != "long note" {
 		t.Fatalf("enter did not open the reader on the item, mode %v", app.appMode)
 	}
@@ -71,10 +71,10 @@ func TestReaderScrollsALongNoteByRenderedRows(t *testing.T) {
 	if want := len(rows) - app.readerHeight(); app.readerScroll != want {
 		t.Errorf("G scrolled to row %d of %d, want %d so the last row sits at the bottom", app.readerScroll, len(rows), want)
 	}
-	if got := lipgloss.Height(app.View()); got > app.height {
+	if got := lipgloss.Height(app.screen()); got > app.height {
 		t.Errorf("the reader is %d lines in a %d-line window", got, app.height)
 	}
-	send(t, app, tea.KeyMsg{Type: tea.KeyCtrlU})
+	send(t, app, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if want := len(rows) - app.readerHeight() - app.readerHeight()/2; app.readerScroll != want {
 		t.Errorf("ctrl+u scrolled to row %d, want %d", app.readerScroll, want)
 	}
@@ -95,7 +95,7 @@ func TestReaderScrollsALongNoteByRenderedRows(t *testing.T) {
 		t.Error("u in the reader undid the change but the reader still shows the item done")
 	}
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if app.appMode != modeNormal || app.rowCursor != row {
 		t.Errorf("esc left mode %v on row %d, want the list on row %d", app.appMode, app.rowCursor, row)
 	}

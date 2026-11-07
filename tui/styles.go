@@ -1,11 +1,38 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
+)
+
+// inputStyles leaves a text input's prompt, text and cursor in the terminal's own
+// foreground, where the library's defaults would paint them white.
+func inputStyles() textinput.Styles {
+	s := textinput.DefaultDarkStyles()
+	s.Focused.Prompt = lipgloss.NewStyle()
+	s.Blurred.Prompt = lipgloss.NewStyle()
+	s.Blurred.Text = lipgloss.NewStyle()
+	s.Cursor.Color = nil
+	return s
+}
+
+// inputView draws a text input with its whole placeholder. With no width set,
+// bubbles draws only a placeholder's first character, so this copy gets the width
+// that draws the rest and adds no padding.
+func inputView(input textinput.Model) string {
+	if input.Value() == "" && input.Placeholder != "" {
+		input.SetWidth(lipgloss.Width(input.Placeholder) - 1)
+	}
+	return input.View()
+}
 
 // All colors use ANSI 0-15 so the TUI adapts to the terminal's theme.
 //
 //	0=black  1=red     2=green   3=yellow  4=blue    5=magenta  6=cyan    7=white
 //	8=bright black (dim)  9-15=bright variants of 1-7
+//
+// A style's Width and Height count its border, which is why a bordered box is sized
+// two wider and two taller than the text inside it.
 var (
 	// Pane borders
 	activeBorderStyle = lipgloss.NewStyle().

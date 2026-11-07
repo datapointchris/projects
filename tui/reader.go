@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	markdownansi "github.com/charmbracelet/glamour/ansi"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	markdownansi "charm.land/glamour/v2/ansi"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark"
 	mdast "github.com/yuin/goldmark/ast"
@@ -20,8 +20,8 @@ import (
 )
 
 // The reader is a full screen showing one item or one project, its markdown
-// rendered. Bubble Tea keeps only the last `height` lines of a view taller than
-// the terminal, so a long note drawn whole loses its top. The reader instead
+// rendered. A view keeps only the last `height` lines of a screen taller than the
+// terminal, so a long note drawn whole would lose its top. The reader instead
 // builds every row it could show, each already wrapped to the width, and draws
 // the window of them that fits.
 
@@ -106,9 +106,6 @@ func renderMarkdown(source string, width int) []string {
 	r, err := glamour.NewTermRenderer(
 		glamour.WithStyles(readerMarkdownStyle),
 		glamour.WithWordWrap(width),
-		// glamour assumes true color and never reads NO_COLOR, so it takes the
-		// profile lipgloss resolved for the rest of the screen.
-		glamour.WithColorProfile(lipgloss.ColorProfile()),
 	)
 	if err == nil {
 		if rendered, err := r.Render(htmlAsText(source)); err == nil {
@@ -403,7 +400,7 @@ func (m *App) renderReaderBar(total, height int) string {
 	return statusBarStyle.Render(fmt.Sprintf(" %s%s%s ", left, strings.Repeat(" ", padding), position))
 }
 
-func (m *App) handleReaderKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleReaderKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	half := max(m.readerHeight()/2, 1)
 	key := msg.String()
 	switch key {
