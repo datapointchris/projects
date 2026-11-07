@@ -227,8 +227,7 @@ func (f Form) Run(s Session) (Answers, error) {
 	answers := Answers{}
 	// By value, and ask takes it by value too. That is what keeps an Escape's
 	// mutation of Choices and made inside the run that made it, so a Form value
-	// can be run twice. TestForm_RunningOneFormTwiceDoesNotCarryTheFirstRunsEscapeOver
-	// is what holds it.
+	// can be run twice.
 	for _, field := range f.Fields {
 		values, err := ask(s, field)
 		if err != nil {
@@ -390,8 +389,8 @@ func askProse(s Session, field Field) ([]string, error) {
 }
 
 // maxListedChoices is where a list stops being a glance and becomes a scroll.
-// Past it the field says how many there are instead, because printing eighty
-// repo names unasked is the wall of text this form exists to replace.
+// Past it the field says how many there are instead, because a list that long
+// scrolls past the prompt it introduces.
 //
 // It is also what decides whether Tab lists: what the field could not show up
 // front is what Tab is there to show. See tooManyToList.
@@ -424,9 +423,8 @@ func writeChoices(s Session, field Field) {
 // reaches those choices, so a session without it gets the count and nothing else.
 func writeChoiceCount(s Session, field Field) {
 	if s.Completes() {
-		// Kept inside 80 columns: it prints directly above the prompt, and a
-		// field whose introduction wraps to two lines is a poor advertisement
-		// for a change about fitting output to the width.
+		// Kept inside 80 columns: it prints directly above the prompt, and
+		// wrapping would split the introduction from the field it introduces.
 		_, _ = fmt.Fprintf(s, "%s — %d to choose from. Tab lists them; type part of one to narrow.\n",
 			field.Label, len(field.Choices))
 		return

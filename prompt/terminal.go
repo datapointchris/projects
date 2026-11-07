@@ -75,7 +75,7 @@ func (s *TerminalSession) ReadLine(q Question) (string, error) {
 	// A list short enough to print unasked is on the screen already, and
 	// reprinting it under the prompt is noise. A list too long for that was
 	// never shown at all, which leaves Tab as the only way to find out what is
-	// in it — and walking 54 projects one keypress at a time is not finding
+	// in it — and walking a long list one keypress at a time is not finding
 	// out. The form decides which of those this field is.
 	if q.ListChoices {
 		completer.session = s
@@ -167,11 +167,10 @@ func (c *cycler) complete(line string, pos int, key rune) (string, int, bool) {
 //
 // One Write, because [TerminalSession.Write] erases the prompt line, writes,
 // and repaints the prompt — so every call is a repaint. Handing it a tabwriter
-// directly costs one per cell and per pad, which measured 123 for 54 choices.
-// A repaint against a row that already fills the terminal wraps, and the
-// wrapped remnant survives the next chunk's erase, so the listing came back
-// with fragments of the prompt sewn through it. Buffering makes it one repaint
-// against text the terminal has entirely.
+// directly costs one repaint per cell and per pad. A repaint against a row that
+// already fills the terminal wraps, and the wrapped remnant survives the next
+// chunk's erase, which sews fragments of the prompt through the listing.
+// Buffering makes it one repaint against text the terminal has entirely.
 //
 // The width is read here rather than when the read began. A pane resized while
 // the prompt was up would otherwise lay the listing out to the width it had
