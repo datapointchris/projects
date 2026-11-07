@@ -1,9 +1,11 @@
 package service
 
 import (
-	"encoding/json"
+	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/store/sqlite"
@@ -16,7 +18,7 @@ func newTestBackend(t *testing.T) *Service {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	return New(database)
+	return New(sqlite.New(database))
 }
 
 func mustCreateProject(t *testing.T, b *Service, name string) *model.Project {
@@ -831,33 +833,43 @@ func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {
 	}
 }
 
+// writeUndoEntry puts an entry in the log exactly as an earlier release left it.
+func writeUndoEntry(t *testing.T, database *sql.DB, action, entityType, entityID, previousState string) {
+	t.Helper()
+	if _, err := database.Exec(
+		`INSERT INTO undo_log (action, entity_type, entity_id, previous_state) VALUES (?, ?, ?, ?)`,
+		action, entityType, entityID, previousState,
+	); err != nil {
+		t.Fatalf("writing undo entry: %v", err)
+	}
+}
+
+func newTestBackendWithDatabase(t *testing.T) (*Service, *sql.DB) {
+	t.Helper()
+	database, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("opening test db: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	return New(sqlite.New(database)), database
+}
+
 // Undo logs are not pruned, so entries written before snapshots existed still
 // have to restore the row rather than failing or restoring an empty one.
 func TestUndoAcceptsPreSnapshotDeleteEntries(t *testing.T) {
-	b := newTestBackend(t)
+	b, database := newTestBackendWithDatabase(t)
 
 	p := mustCreateProject(t, b, "work")
 	item := mustCreateItem(t, b, model.CreateProjectItem{Title: "legacy", ProjectIDs: []string{p.ID}})
 
-	row, err := b.q.GetItem(b.ctx(), item.ID)
-	if err != nil {
-		t.Fatalf("getting raw item: %v", err)
-	}
-	legacy, err := json.Marshal(row)
-	if err != nil {
-		t.Fatalf("marshaling legacy state: %v", err)
-	}
-
 	if err := b.DeleteItem(item.ID); err != nil {
 		t.Fatalf("deleting item: %v", err)
 	}
-	// Rewrite the newest entry in the shape the old code wrote.
-	if _, err := b.db.Exec(
-		`UPDATE undo_log SET previous_state = ? WHERE id = (SELECT MAX(id) FROM undo_log)`,
-		string(legacy),
-	); err != nil {
-		t.Fatalf("rewriting undo log: %v", err)
-	}
+	writeUndoEntry(t, database, "delete", "item", item.ID, fmt.Sprintf(
+		`{"ID":%q,"Number":{"Int64":0,"Valid":false},"Title":"legacy",`+
+			`"Notes":{"String":"","Valid":false},"Repo":{"String":"","Valid":false},`+
+			`"Completed":0,"Archived":0,"CreatedAt":"2026-01-02 03:04:05","UpdatedAt":"2026-01-02 03:04:05"}`,
+		item.ID))
 
 	result, err := b.Undo()
 	if err != nil {
@@ -866,6 +878,74 @@ func TestUndoAcceptsPreSnapshotDeleteEntries(t *testing.T) {
 	if result.Restored == nil || result.Restored.Title != "legacy" {
 		t.Fatalf("expected the item restored from a pre-snapshot entry, got %+v", result.Restored)
 	}
+}
+
+// previous_state is a format on disk that a round trip cannot pin: a field renamed
+// in the records still undoes what it wrote itself, and strands what is already in
+// the log. These two entries carry every record type, spelled the way it was written.
+func TestUndoReadsEntriesAnEarlierReleaseWrote(t *testing.T) {
+	t.Run("project row", func(t *testing.T) {
+		b, database := newTestBackendWithDatabase(t)
+		p := mustCreateProject(t, b, "renamed since")
+
+		writeUndoEntry(t, database, "update", "project", p.ID, fmt.Sprintf(
+			`{"ID":%q,"Name":"as it was","Description":{"String":"its text","Valid":true},"Status":"dropped",`+
+				`"StatusReason":{"String":"its reason","Valid":true},"ClosedAt":{"String":"2026-01-02T03:04:05.000Z","Valid":true},`+
+				`"Position":7,"CreatedAt":"2026-01-01 00:00:00"}`,
+			p.ID))
+		if _, err := b.Undo(); err != nil {
+			t.Fatalf("undoing: %v", err)
+		}
+
+		got, err := b.GetProject(p.ID)
+		if err != nil {
+			t.Fatalf("getting project: %v", err)
+		}
+		closed := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+		if got.Name != "as it was" || *got.Description != "its text" || got.Status != model.StatusDropped ||
+			*got.StatusReason != "its reason" || !got.ClosedAt.Equal(closed) || got.Position != 7 {
+			t.Errorf("restored project = %+v", got)
+		}
+	})
+
+	t.Run("item snapshot", func(t *testing.T) {
+		b, database := newTestBackendWithDatabase(t)
+		p := mustCreateProject(t, b, "work")
+		blocker := mustCreateItem(t, b, model.CreateProjectItem{Title: "blocker", ProjectIDs: []string{p.ID}})
+
+		const itemID, taskID = "item-from-the-log", "task-from-the-log"
+		writeUndoEntry(t, database, "delete", "item", itemID, fmt.Sprintf(
+			`{"item":{"ID":%[1]q,"Number":{"Int64":41,"Valid":true},"Title":"as it was",`+
+				`"Notes":{"String":"its notes","Valid":true},"Repo":{"String":"its-repo","Valid":true},`+
+				`"Completed":1,"Archived":0,"CreatedAt":"2026-01-02T03:04:05.123Z","UpdatedAt":"2026-01-02T03:04:05.123Z"},`+
+				`"memberships":[{"ItemID":%[1]q,"ProjectID":%[2]q,"Position":3}],`+
+				`"dependencies":[{"ItemID":%[1]q,"DependsOnID":%[3]q}],`+
+				`"tasks":[{"ID":%[4]q,"ItemID":%[1]q,"Title":"its task","Completed":1,"Position":2,"CreatedAt":"2026-01-02T03:04:05.123Z"}]}`,
+			itemID, p.ID, blocker.ID, taskID))
+		if _, err := b.Undo(); err != nil {
+			t.Fatalf("undoing: %v", err)
+		}
+
+		got, err := b.GetItem(itemID)
+		if err != nil {
+			t.Fatalf("getting item: %v", err)
+		}
+		created := time.Date(2026, 1, 2, 3, 4, 5, 123_000_000, time.UTC)
+		if *got.Number != 41 || got.Title != "as it was" || *got.Notes != "its notes" || *got.Repo != "its-repo" ||
+			!got.Completed || got.Archived || !got.CreatedAt.Equal(created) {
+			t.Errorf("restored item = %+v", got)
+		}
+		if len(got.Projects) != 1 || got.Projects[0].ID != p.ID || len(got.DependencyIDs) != 1 || got.DependencyIDs[0] != blocker.ID {
+			t.Errorf("restored links: projects %+v, dependencies %v", got.Projects, got.DependencyIDs)
+		}
+		tasks, err := b.ListTasks(itemID)
+		if err != nil {
+			t.Fatalf("listing tasks: %v", err)
+		}
+		if len(tasks) != 1 || tasks[0].ID != taskID || tasks[0].Title != "its task" || !tasks[0].Completed || tasks[0].Position != 2 {
+			t.Errorf("restored tasks = %+v", tasks)
+		}
+	})
 }
 
 // Each mutation below writes to the undo log. A mutation that wrote nothing

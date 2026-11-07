@@ -284,7 +284,7 @@ func backendRefusingRepos(t *testing.T, names ...string) *Service {
 		t.Fatalf("opening test db: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	return New(database, RefusingRepoNames(path))
+	return New(sqlite.New(database), RefusingRepoNames(path))
 }
 
 func TestAProjectCannotBeNamedAfterARepo(t *testing.T) {

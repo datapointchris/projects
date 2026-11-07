@@ -22,7 +22,7 @@ func newNumberTestDB(t *testing.T) *sql.DB {
 // The work machine is never allowed to reach the API, so nothing upstream will
 // ever number its items. Its database is the authority instead.
 func TestCreateItem_AssignsNumbersWhenThisDatabaseIsTheAuthority(t *testing.T) {
-	b := service.New(newNumberTestDB(t), service.AssigningItemNumbers())
+	b := service.New(sqlite.New(newNumberTestDB(t)), service.AssigningItemNumbers())
 	project, err := b.CreateProject(model.CreateProject{Name: "Work"})
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
@@ -48,7 +48,7 @@ func TestCreateItem_AssignsNumbersWhenThisDatabaseIsTheAuthority(t *testing.T) {
 // With sync on the server owns the numbering. Guessing one locally would hand
 // the user a handle that changes the moment the push comes back.
 func TestCreateItem_LeavesTheNumberToTheServerWhenSyncIsOn(t *testing.T) {
-	b := service.New(newNumberTestDB(t))
+	b := service.New(sqlite.New(newNumberTestDB(t)))
 	project, err := b.CreateProject(model.CreateProject{Name: "Synced"})
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)

@@ -119,7 +119,7 @@ func TestPullRefusesADifferentAPI(t *testing.T) {
 			mismatch.Recorded, mismatch.Configured, real.URL, other.URL)
 	}
 
-	local := service.New(database)
+	local := service.New(sqlite.New(database))
 	projects, err := local.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
 		t.Fatalf("ListProjectsByStatus: %v", err)
@@ -212,7 +212,7 @@ func TestPullRefusesToDeleteMostOfTheDatabase(t *testing.T) {
 		}
 	}
 
-	local := service.New(database)
+	local := service.New(sqlite.New(database))
 	projects, err := local.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
 		t.Fatalf("ListProjectsByStatus: %v", err)

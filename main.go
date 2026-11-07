@@ -45,7 +45,7 @@ func main() {
 // localOnlyBackend is the backend with sync off, where this database is the
 // authority that numbers items.
 func localOnlyBackend(d *sql.DB, reposRegistryPath string) *service.Service {
-	return service.New(d, service.AssigningItemNumbers(), service.RefusingRepoNames(reposRegistryPath))
+	return service.New(sqlite.New(d), service.AssigningItemNumbers(), service.RefusingRepoNames(reposRegistryPath))
 }
 
 // needsBackend reports whether a command reads or writes the tool's own data.
@@ -116,7 +116,7 @@ func rootCmd() *cobra.Command {
 			database = d
 
 			if cfg.Sync.Enabled {
-				local := service.New(d, service.RefusingRepoNames(repos.DefaultPath()))
+				local := service.New(sqlite.New(d), service.RefusingRepoNames(repos.DefaultPath()))
 				syncEngine = sync.New(d, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
 				syncEngine.Start()
 				b = sync.NewSyncBackend(local, syncEngine)

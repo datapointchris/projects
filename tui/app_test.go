@@ -45,7 +45,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 
 	// AssigningItemNumbers because the harness passes a nil sync engine, which
 	// is the sync-off case: nothing upstream will number these items.
-	b := service.New(database, service.AssigningItemNumbers())
+	b := service.New(sqlite.New(database), service.AssigningItemNumbers())
 	project, err := b.CreateProject(model.CreateProject{Name: "work"})
 	if err != nil {
 		t.Fatalf("creating project: %v", err)
@@ -344,7 +344,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	engine := sync.New(database, ts.URL, "")
 	t.Cleanup(engine.Stop)
-	app := NewApp(service.New(database), engine, ":memory:", 20*time.Millisecond)
+	app := NewApp(service.New(sqlite.New(database)), engine, ":memory:", 20*time.Millisecond)
 	send(t, app, tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	countHits := func() int {

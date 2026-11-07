@@ -1,4 +1,4 @@
-package service
+package sqlite
 
 import (
 	"database/sql"
@@ -187,23 +187,11 @@ func toNullString(s *string) sql.NullString {
 	return sql.NullString{String: *s, Valid: true}
 }
 
-// repoToNullString stores an empty repo as NULL rather than "". A repo link is
-// either a registry name or absent — "" is neither, and it would render as an
-// empty "Repo:" line and never match a repo filter. The API server's own CLI
-// reads an empty repo flag the same way, as an unlink, because a flag cannot
-// send a JSON null.
-func repoToNullString(s *string) sql.NullString {
-	if s == nil || *s == "" {
-		return sql.NullString{}
+func boolToInt64(b bool) int64 {
+	if b {
+		return 1
 	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
-func boolToInt64(b *bool) int64 {
-	if b == nil || !*b {
-		return 0
-	}
-	return 1
+	return 0
 }
 
 // nullInt64ToIntPtr converts a nullable number column to the model's optional
@@ -215,4 +203,62 @@ func nullInt64ToIntPtr(n sql.NullInt64) *int {
 	}
 	v := int(n.Int64)
 	return &v
+}
+
+func toNullInt64(n *int) sql.NullInt64 {
+	if n == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*n), Valid: true}
+}
+
+// formatTime writes the text the schema's strftime defaults write whenever the
+// instant fits it. These columns sort as text, and RFC3339Nano trims trailing
+// zeros, so a restored .340Z written as .34Z sorts after a neighboring .343Z.
+func formatTime(t time.Time) string {
+	if t.Nanosecond()%int(time.Millisecond) == 0 {
+		return t.UTC().Format("2006-01-02T15:04:05.000Z")
+	}
+	return t.Format(time.RFC3339Nano)
+}
+
+func toNullTime(t *time.Time) sql.NullString {
+	if t == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: formatTime(*t), Valid: true}
+}
+
+func toModelMembership(m generated.ProjectItemMembership) model.Membership {
+	return model.Membership{ItemID: m.ItemID, ProjectID: m.ProjectID, Position: int(m.Position)}
+}
+
+func toModelMemberships(rows []generated.ProjectItemMembership) []model.Membership {
+	out := make([]model.Membership, len(rows))
+	for i, r := range rows {
+		out[i] = toModelMembership(r)
+	}
+	return out
+}
+
+func toModelDependencies(rows []generated.ProjectItemDependency) []model.Dependency {
+	out := make([]model.Dependency, len(rows))
+	for i, r := range rows {
+		out[i] = model.Dependency{ItemID: r.ItemID, DependsOnID: r.DependsOnID}
+	}
+	return out
+}
+
+func toModelUndoEntry(row generated.UndoLog) model.UndoEntry {
+	entry := model.UndoEntry{
+		ID:         row.ID,
+		Action:     row.Action,
+		EntityType: row.EntityType,
+		EntityID:   row.EntityID,
+		CreatedAt:  parseTime(row.CreatedAt),
+	}
+	if row.PreviousState.Valid {
+		entry.PreviousState = &row.PreviousState.String
+	}
+	return entry
 }
