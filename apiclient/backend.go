@@ -2,7 +2,6 @@ package apiclient
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/datapointchris/projects/api/wire"
@@ -102,7 +101,7 @@ func (b *Backend) ListItemsByProject(projectID string) ([]model.ProjectItemInPro
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(items, func(item model.ProjectItemInProject) bool { return item.Archived }), nil
+	return model.WithoutArchived(items), nil
 }
 
 func (b *Backend) projectItems(projectID, status string) ([]model.ProjectItemInProject, error) {
@@ -261,7 +260,7 @@ func (b *Backend) Search(query string) ([]model.ProjectItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(items, func(item model.ProjectItem) bool { return item.Archived }), nil
+	return model.WithoutArchived(items), nil
 }
 
 func (b *Backend) ListBlocked() ([]model.ProjectItem, error) {
@@ -273,7 +272,7 @@ func (b *Backend) ListArchived(projectID string) ([]model.ProjectItemInProject, 
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(archived, func(a, b model.ProjectItemInProject) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	model.SortArchivedForBoard(archived)
 	return archived, nil
 }
 

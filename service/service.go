@@ -462,7 +462,7 @@ func (s *Service) ListItemsByProject(projectRef string) ([]model.ProjectItemInPr
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(items, func(item model.ProjectItemInProject) bool { return item.Archived }), nil
+	return model.WithoutArchived(items), nil
 }
 
 // GetItem answers an item with everything filed against it.
@@ -1081,7 +1081,7 @@ func (s *Service) Search(query string) ([]model.ProjectItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(items, func(item model.ProjectItem) bool { return item.Archived }), nil
+	return model.WithoutArchived(items), nil
 }
 
 // --- Filters ---
@@ -1100,6 +1100,6 @@ func (s *Service) ListArchived(projectRef string) ([]model.ProjectItemInProject,
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(archived, func(a, b model.ProjectItemInProject) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+	model.SortArchivedForBoard(archived)
 	return archived, nil
 }
