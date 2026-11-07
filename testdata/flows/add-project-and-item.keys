@@ -1,0 +1,48 @@
+# Add a project, then items, through the overlays. A flash holds the hints back, so a
+# wait after a create names the row and the panes, not the hints.
+wait Export posts from the old CMS
+
+press a
+wait Enter project name
+frame project-prompt
+type Repaint the fence
+wait Repaint the fence
+frame project-prompt-typed
+press enter
+wait /Repaint the fence +○0 ✓0/
+frame project-added
+
+press G
+wait No items
+press tab
+wait /(?m)^╭.*┏/
+press a
+wait Enter item title
+frame item-prompt
+type Scrape and prime the boards
+press enter
+wait ○ Scrape and prime the boards
+frame item-added
+
+press A
+wait New item (multi-project)
+type Buy exterior paint
+press enter
+wait Projects for new item
+frame project-picker
+press j
+wait > [ ] Replace the kitchen faucet
+press space
+wait > [x] Replace the kitchen faucet
+frame project-picker-toggled
+press enter
+wait ○ Buy exterior paint
+frame item-in-two-projects
+
+press a
+wait Enter item title
+press esc
+gone Enter item title
+
+press q
+exits

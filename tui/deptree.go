@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/datapointchris/todoui/backend"
 	"github.com/datapointchris/todoui/graph"
@@ -259,7 +259,7 @@ func (s *depTreeState) pop() bool {
 
 // --- Keys ---
 
-func (m *App) handleDepTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleDepTreeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := &m.depTree
 	if s.searching {
 		return m.handleDepTreeSearchKey(msg)
@@ -381,7 +381,7 @@ func (m *App) handleDepTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *App) handleDepTreeSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *App) handleDepTreeSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := &m.depTree
 	switch msg.String() {
 	case "enter", "esc":
@@ -398,17 +398,24 @@ func (m *App) handleDepTreeSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		s.focusOn(s.forestID())
 		return m, nil
 	default:
-		var cmd tea.Cmd
-		m.titleInput, cmd = m.titleInput.Update(msg)
-		// Filter as you type, so the tree narrows under the keystrokes rather
-		// than only when the prompt is dismissed.
-		s.query = m.titleInput.Value()
-		s.forestCursor = 0
-		s.forestScroll = 0
-		s.rebuildForest()
-		s.focusOn(s.forestID())
+		cmd := m.updateFocusedInput(msg)
 		return m, cmd
 	}
+}
+
+// updateDepTreeSearch hands typing or a paste to the prompt and filters as it
+// changes, so the tree narrows under the keystrokes rather than only when the
+// prompt is dismissed.
+func (m *App) updateDepTreeSearch(msg tea.Msg) tea.Cmd {
+	s := &m.depTree
+	var cmd tea.Cmd
+	m.titleInput, cmd = m.titleInput.Update(msg)
+	s.query = m.titleInput.Value()
+	s.forestCursor = 0
+	s.forestScroll = 0
+	s.rebuildForest()
+	s.focusOn(s.forestID())
+	return cmd
 }
 
 // activeID is the item under whichever pane has focus.
@@ -525,16 +532,9 @@ func (m *App) renderDepTreeView() string {
 	left := m.renderForestPane(leftWidth-2, paneHeight)
 	right := m.renderFocusPane(rightWidth-2, paneHeight)
 
-	var leftBorder, rightBorder lipgloss.Style
-	if m.depTree.active == forestPane {
-		leftBorder = activeBorderStyle.Width(leftWidth - 2).Height(paneHeight)
-		rightBorder = inactiveBorderStyle.Width(rightWidth - 2).Height(paneHeight)
-	} else {
-		leftBorder = inactiveBorderStyle.Width(leftWidth - 2).Height(paneHeight)
-		rightBorder = activeBorderStyle.Width(rightWidth - 2).Height(paneHeight)
-	}
-
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftBorder.Render(left), rightBorder.Render(right))
+	leftBox := paneBox(m.depTree.active == forestPane, leftWidth, paneHeight).Render(left)
+	rightBox := paneBox(m.depTree.active != forestPane, rightWidth, paneHeight).Render(right)
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 	return lipgloss.JoinVertical(lipgloss.Left, panes, statusBar)
 }
 
@@ -549,7 +549,7 @@ func (m *App) renderForestPane(width, height int) string {
 	viewHeight := height - 1
 
 	if s.searching {
-		lines = append(lines, m.titleInput.View())
+		lines = append(lines, inputView(m.titleInput))
 		viewHeight--
 	} else if s.query != "" {
 		lines = append(lines, dimStyle.Render(fmt.Sprintf("/%s", s.query)))

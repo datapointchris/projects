@@ -1,0 +1,30 @@
+
+ • Posts before 2014 use <pre> blocks with hard tabs, which the converter turned
+ into a single long line.
+ • Three posts embed a video through an iframe. Those stay as raw HTML:
+   • the Vimeo ones still play
+   • the old Flash one is replaced by a link to the transcript
+ • The image download hit a rate limit around post 400, so it now sleeps between
+ requests and resumes from where it stopped.
+
+ ## Before calling this done
+
+ [✓] Dump taken and copied off the server
+ [ ] Every post renders without a converter warning
+ [ ] The twenty-post diff reviewed by eye
+
+ │ Keep the dump for a year. The one time an old post turned out to be missing, the dump was the
+ │ only copy left, and nobody remembered which table it came from.
+
+ ────────
+
+ The redirect table comes from this export, so finish it first. The hosting notes
+ https://example.com/hosting-notes say which headers the new host needs for the permanent
+ redirects, and the rewrite rule that broke last time was /archives/(\d+)/(.*)$.
+
+ One image path is longer than any screen and has to wrap on its own: static/images/2011/a-very-
+ long-slug-that-the-old-permalink-plugin-generated-from-the-entire-title-of-the-post-and-never-
+ shortened.png
+
+ Last line of the note.
+  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        78/78

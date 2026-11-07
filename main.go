@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate/autoupdate"
 	"github.com/spf13/cobra"
@@ -35,6 +35,12 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+// localOnlyBackend is the backend with sync off, where this database is the
+// authority that numbers items.
+func localOnlyBackend(d *sql.DB, reposRegistryPath string) *backend.LocalBackend {
+	return backend.NewLocalBackend(d, backend.AssigningItemNumbers(), backend.RefusingRepoNames(reposRegistryPath))
 }
 
 // needsBackend reports whether a command reads or writes todoui's own data.
@@ -98,21 +104,19 @@ func rootCmd() *cobra.Command {
 			}
 			database = d
 
-			banRepoNames := backend.RefusingRepoNames(repos.DefaultPath())
 			if cfg.Sync.Enabled {
-				local := backend.NewLocalBackend(d, banRepoNames)
+				local := backend.NewLocalBackend(d, backend.RefusingRepoNames(repos.DefaultPath()))
 				syncEngine = sync.New(d, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
 				syncEngine.Start()
 				b = sync.NewSyncBackend(local, syncEngine)
 			} else {
-				b = backend.NewLocalBackend(d, backend.AssigningItemNumbers(), banRepoNames)
+				b = localOnlyBackend(d, repos.DefaultPath())
 			}
 			return nil
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			app := tui.NewApp(b, syncEngine, cfg.Local.DBPath, cfg.Sync.Interval)
-			p := tea.NewProgram(app, tea.WithAltScreen())
-			_, err := p.Run()
+			_, err := tea.NewProgram(app).Run()
 			return err
 		},
 		PersistentPostRunE: func(_ *cobra.Command, _ []string) error {

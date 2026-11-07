@@ -1,0 +1,30 @@
+
+ # Export plan
+
+ The old CMS stores posts as HTML fragments in a single table, with images referenced by absolute
+ URLs. The export has to keep every published URL working, because search engines and a few old
+ forum threads still link to them. Drafts are not exported. They stay in the database dump in case
+ one is worth finishing.
+
+ ## Steps
+
+ 1. Dump the database from the read replica, never the primary.
+ 2. Convert each fragment to markdown with the script below.
+ 3. Download every image the posts reference into static/images/<year>/<slug>/.
+ 4. Rewrite the image links to the new relative paths.
+ 5. Diff a sample of twenty rendered posts against the live site.
+
+ ## Conversion script
+
+   mysqldump --single-transaction blog posts > posts.sql
+   python3 convert.py --input posts.sql --output content/posts
+   rg --count '<img' content/posts | sort -t: -k2 -n | tail -20
+
+ The converter is idempotent, so a rerun after fixing one post rewrites only that post. Run it from
+ the repository root, or the relative output path lands somewhere surprising.
+
+ ## Where each field goes
+
+  Field                         │ Old CMS                           │ Static site
+ ───────────────────────────────┼───────────────────────────────────┼──────────────────────────────
+  [esc]back [j/k]scroll [^d/^u]half page [g/G]top/bottom [space]done [e]dit [n]otes …        43/78

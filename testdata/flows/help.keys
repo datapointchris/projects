@@ -1,0 +1,20 @@
+# The help overlay from each pane, in a window shorter than the overlay. Its text
+# depends on the pane behind it.
+wait Export posts from the old CMS
+
+press ?
+wait [Esc] or [?] Close
+frame from-the-project-pane
+press ?
+gone [Esc] or [?] Close
+
+press tab
+wait [Enter]read
+press ?
+wait [Esc] or [?] Close
+frame from-the-item-pane
+press esc
+wait [Enter]read
+
+press q
+exits

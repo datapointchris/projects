@@ -161,13 +161,5 @@ func (p *projectPicker) view(width int) string {
 
 	content := strings.Join(lines, "\n")
 
-	boxWidth := width - 4
-	if boxWidth > 60 {
-		boxWidth = 60
-	}
-	if boxWidth < 40 {
-		boxWidth = 40
-	}
-
-	return overlayBoxStyle.Width(boxWidth).Render(content)
+	return overlayBox(content, width, 40, 60)
 }

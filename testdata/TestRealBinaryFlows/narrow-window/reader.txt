@@ -1,0 +1,14 @@
+ Export posts from the old CMS
+ Item 1 · ○ open
+ Projects: Move the blog to plain files
+ Created: <date>
+
+ ─── Blocks ───
+ ○ Set up redirects for the old URLs (3)
+
+ ─── Tasks (1/3) ───
+ ✓ Dump the database
+ ○ Convert HTML to markdown
+ ○ Download the images
+
+  [esc]back [j/k]scroll …                 13/107

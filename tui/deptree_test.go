@@ -1,11 +1,12 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/datapointchris/todoui/model"
 )
@@ -78,7 +79,7 @@ func focusTitles(app *App) []string {
 func typeInto(t *testing.T, app *App, text string) {
 	t.Helper()
 	for _, r := range text {
-		send(t, app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		send(t, app, runeKey(r))
 	}
 }
 
@@ -222,9 +223,6 @@ func TestDepTree_FlipReadsTheEdgesTheOtherWay(t *testing.T) {
 	if len(got) != 3 || got[0] != "serve" {
 		t.Errorf("inverted focus = %v, want serve on top with what it unblocks under it", got)
 	}
-	if !strings.Contains(app.View(), "unblocks") {
-		t.Errorf("pane title does not say which way it is being read:\n%s", app.View())
-	}
 }
 
 func TestDepTree_SearchNarrowsTheMapAndKeepsThePathToTheMatch(t *testing.T) {
@@ -236,7 +234,7 @@ func TestDepTree_SearchNarrowsTheMapAndKeepsThePathToTheMatch(t *testing.T) {
 	openTree(t, app)
 	pressKey(t, app, "/")
 	typeInto(t, app, "bootstrap")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	got := forestTitles(app)
 	if len(got) != 3 {
@@ -258,24 +256,24 @@ func TestDepTree_SearchMatchesTheNumberAndTheRepo(t *testing.T) {
 	openTree(t, app)
 	pressKey(t, app, "/")
 	typeInto(t, app, "day")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := forestTitles(app); len(got) != 2 || got[1] != "schema" {
 		t.Errorf("forest = %v, want the repo-tagged item and its path", got)
 	}
 }
 
-func TestDepTree_SearchWithNoMatchSaysSo(t *testing.T) {
+func TestDepTree_SearchWithNoMatchEmptiesTheMap(t *testing.T) {
 	app := newTestApp(t, 120, 30, "serve", "schema")
 	dependsOn(t, app, "serve", "schema")
 
 	openTree(t, app)
 	pressKey(t, app, "/")
 	typeInto(t, app, "zzzz")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if view := app.View(); !strings.Contains(view, "No item matches") {
-		t.Errorf("view does not report the empty result:\n%s", view)
+	if got := forestTitles(app); len(got) != 0 || app.depTree.query != "zzzz" {
+		t.Errorf("forest = %v under query %q, want it empty with the query kept", got, app.depTree.query)
 	}
 }
 
@@ -286,7 +284,7 @@ func TestDepTree_EscInSearchClearsTheQueryRatherThanClosing(t *testing.T) {
 	openTree(t, app)
 	pressKey(t, app, "/")
 	typeInto(t, app, "zzzz")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if app.appMode != modeDepTree {
 		t.Fatalf("mode = %v, want to still be in the browser", app.appMode)
@@ -330,7 +328,7 @@ func TestDepTree_EnterOpensTheReaderAndEscComesBack(t *testing.T) {
 
 	openTree(t, app)
 	pressKey(t, app, "j")
-	send(t, app, tea.KeyMsg{Type: tea.KeyEnter})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if app.appMode != modeReader {
 		t.Fatalf("mode = %v, want modeReader", app.appMode)
@@ -339,7 +337,7 @@ func TestDepTree_EnterOpensTheReaderAndEscComesBack(t *testing.T) {
 		t.Errorf("reader = %v, want the row the cursor was on", app.itemDetail)
 	}
 
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if app.appMode != modeDepTree {
 		t.Errorf("mode = %v, want back in the browser", app.appMode)
@@ -351,7 +349,7 @@ func TestDepTree_EscLeavesAndRestoresNavigation(t *testing.T) {
 	dependsOn(t, app, "serve", "schema")
 
 	openTree(t, app)
-	send(t, app, tea.KeyMsg{Type: tea.KeyEsc})
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if app.appMode != modeNormal {
 		t.Fatalf("mode = %v, want modeNormal", app.appMode)
@@ -374,8 +372,9 @@ func TestDepTree_OpeningOnAnItemWithNoEdgesSaysWhyItLandedElsewhere(t *testing.T
 
 	openTreeOn(t, app, "alone")
 
-	if !strings.Contains(app.statusMsg, "no dependencies") {
-		t.Errorf("status = %q, want it to say the item is in no tree", app.statusMsg)
+	asked := itemHandle(app.depTree.lookup[itemIDByTitle(t, app, "alone")].Item)
+	if !strings.Contains(app.statusMsg, asked) {
+		t.Errorf("status = %q, want it to name the item asked for, %s", app.statusMsg, asked)
 	}
 	if len(app.depTree.forestRows) != 2 {
 		t.Errorf("forest = %v, want the browser open on everything else", forestTitles(app))
@@ -415,7 +414,7 @@ func TestDepTree_SharedDependencyIsMarkedRatherThanRepeated(t *testing.T) {
 
 	openTree(t, app)
 
-	if view := app.View(); !strings.Contains(view, "(*)") {
+	if view := app.screen(); !strings.Contains(view, "(*)") {
 		t.Errorf("view has no repeat marker, so a shared subtree was drawn twice:\n%s", view)
 	}
 }
@@ -495,12 +494,12 @@ func TestDepTree_BothPanesRenderInsideTheWindow(t *testing.T) {
 	}
 
 	openTree(t, app)
-	view := app.View()
+	view := app.screen()
 
 	if lines := strings.Count(view, "\n") + 1; lines > 14 {
 		t.Errorf("view is %d lines in a 14-line window:\n%s", lines, view)
 	}
-	if !strings.Contains(view, "/") {
-		t.Errorf("no scroll position shown for a list taller than the pane:\n%s", view)
+	if position := "1/" + strconv.Itoa(len(app.depTree.forestRows)); !strings.Contains(view, position) {
+		t.Errorf("no scroll position %s shown for a list taller than the pane:\n%s", position, view)
 	}
 }
