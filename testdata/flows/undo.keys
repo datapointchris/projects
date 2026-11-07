@@ -1,0 +1,40 @@
+# Finish an item and undo it from the list, then archive one from the reader and
+# undo that.
+mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+mask /on item [0-9a-f]{8}/ "on item <id>"
+
+wait Export posts from the old CMS
+press tab
+wait [Enter]read
+press J J
+wait > ○ Set up redirects for the old URLs
+press J
+wait > ○ Point DNS at the new host
+
+press space
+wait Cannot complete: item has unresolved blockers
+frame refused-while-blocked
+
+press K K
+wait > ✓ Pick a theme
+press space
+wait Marked incomplete
+wait > ○ Pick a theme
+frame toggled
+press u
+wait Undo:
+wait > ✓ Pick a theme
+frame undone
+
+press enter
+wait Item 2 ·
+press x
+gone Pick a theme
+frame archived-from-the-reader
+press u
+wait Undo:
+wait Pick a theme
+frame archive-undone
+
+press q
+exits

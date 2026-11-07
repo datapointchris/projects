@@ -1,0 +1,30 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭────────────────────────────────────────────────────────╮
+┃ Projects                             ┃│ Selected (1)                                           │
+┃   All ○37 ✓1                         ┃│ ── Move the blog to plain files ──                     │
+┃> ● Move the blog to plain files ○3 ✓1┃│> ○ Export posts from the old CMS ≡ [1/3]  1            │
+┃   Replace the kitchen faucet ○3 ✓0   ┃│     ✓ Dump the database                                │
+┃   Plan the Lisbon trip ○31 ✓0        ┃│     ○ Convert HTML to markdown                         │
+┃                                      ┃│     ○ Download the images                              │
+┃                                      ┃│   ✓ Pick a theme  2                                    │
+┃                                      ┃│   ○ Set up redirects for the old URLs  3               │
+┃                                      ┃│     └─ blocked by: Move the blog…: Export posts fr… (1)│
+┃                                      ┃│   ○ Point DNS at the new host  4                       │
+┃                                      ┃│     └─ blocked by: Move the blog…: Set up redirect… (3)│
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┃                                      ┃│                                                        │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────╯
+  [a]dd project [Enter]select [m]ove [Tab]items [T]ree [/]search          [?]help  LOCAL todoui.db

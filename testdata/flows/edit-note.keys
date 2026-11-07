@@ -1,0 +1,21 @@
+# Hand the terminal to $EDITOR and take it back. The stand-in editor appends a line,
+# so the note the item did not have appears, and the screen is whole afterward.
+mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+
+wait Export posts from the old CMS
+press tab
+wait [Enter]read
+press J
+wait > ✓ Pick a theme
+
+press n
+wait /Pick a theme ≡/
+frame note-saved
+press enter
+wait Written from the editor.
+frame note-in-the-reader
+
+press q
+gone Written from the editor.
+press q
+exits

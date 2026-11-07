@@ -1,0 +1,37 @@
+# Add a task from the list and from the reader, then toggle and delete one.
+wait Export posts from the old CMS
+press tab
+wait [Enter]read
+
+press t
+wait New task for "Export posts from the old CMS"
+frame prompt
+type Check the image links
+press enter
+wait ○ Check the image links
+frame added-from-the-list
+
+press enter
+wait ─── Notes ───
+press t
+wait New task for "Export posts from the old CMS"
+type Spot-check twenty posts
+press enter
+wait ○ Spot-check twenty posts
+frame added-from-the-reader
+press esc
+wait [1/5]
+
+press j
+wait > ✓ Dump the database
+press j
+wait > ○ Convert HTML to markdown
+press space
+wait [2/5]
+frame task-toggled
+press d
+wait [1/4]
+frame task-deleted
+
+press q
+exits

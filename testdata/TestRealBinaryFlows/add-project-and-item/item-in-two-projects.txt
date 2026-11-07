@@ -1,0 +1,30 @@
+╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects                             │┃ Repaint the fence                                      ┃
+│   All ○40 ✓1                         │┃> ○ Scrape and prime the boards  39                     ┃
+│   Move the blog to plain files ○3 ✓1 │┃   ○ Buy exterior paint ◈  40                           ┃
+│   Replace the kitchen faucet ○4 ✓0   │┃                                                        ┃
+│   Plan the Lisbon trip ○31 ✓0        │┃                                                        ┃
+│> Repaint the fence ○2 ✓0             │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+│                                      │┃                                                        ┃
+╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  Item created                                                            [?]help  LOCAL todoui.db

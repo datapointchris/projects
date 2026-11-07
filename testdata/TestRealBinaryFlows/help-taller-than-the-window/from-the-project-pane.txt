@@ -1,0 +1,30 @@
+                        │    m              Move/reorder project           │
+                        │    C              Show/hide shelved and closed   │
+                        │  projects                                        │
+                        │    space          Toggle multi-select            │
+                        │    Esc            Clear selections               │
+                        │                                                  │
+                        │    Reading a project                             │
+                        │    e              Edit name                      │
+                        │    d              Edit description in $EDITOR    │
+                        │    c              Complete project               │
+                        │    x              Drop project (asks why)        │
+                        │    S              Shelve project for someday     │
+                        │    r              Reopen a shelved or closed     │
+                        │  project                                         │
+                        │                                                  │
+                        │    Global                                        │
+                        │    u              Undo last action               │
+                        │    /              Search                         │
+                        │    1              Filter: blocked only (toggle)  │
+                        │    2              Filter: all + archived         │
+                        │  (toggle)                                        │
+                        │    0              Filter: reset                  │
+                        │    R              Sync now (runs automatically   │
+                        │  too)                                            │
+                        │    q  Ctrl+C      Quit                           │
+                        │    ?              Toggle this help               │
+                        │                                                  │
+                        │    [Esc] or [?] Close                            │
+                        │                                                  │
+                        ╰──────────────────────────────────────────────────╯

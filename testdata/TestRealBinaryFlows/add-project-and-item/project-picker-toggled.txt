@@ -1,0 +1,23 @@
+
+
+
+
+
+
+
+                   ╭────────────────────────────────────────────────────────────╮
+                   │                                                            │
+                   │  Projects for new item: Buy exterior paint                 │
+                   │                                                            │
+                   │    Select projects (space to toggle, enter to confirm):    │
+                   │                                                            │
+                   │    [ ] Move the blog to plain files                        │
+                   │  > [x] Replace the kitchen faucet                          │
+                   │    [ ] Plan the Lisbon trip                                │
+                   │    [x] Repaint the fence                                   │
+                   │                                                            │
+                   │    Currently in 2 project(s). Must belong to at least 1.   │
+                   │                                                            │
+                   │    [Space] Toggle  [Enter] Confirm  [Esc] Cancel           │
+                   │                                                            │
+                   ╰────────────────────────────────────────────────────────────╯

@@ -5,8 +5,9 @@ Any path naming `./cmd/todoui` is stale.
 
 ## How to run and test
 
-**Use `direnv exec . go run .` from the repo root. Do not build throwaway
-binaries to `/tmp` and do not seed synthetic databases.**
+**A hand run is `direnv exec . go run .` from the repo root, against real data.
+Do not build a throwaway binary to `/tmp` for one, and do not seed a synthetic
+database for one.** A test fixture is allowed, and it holds real-length notes.
 
 `.envrc` pairs a dedicated dev database with the sync API's local dev stack, so
 nothing run here touches production data. This is the whole file:
@@ -39,15 +40,48 @@ direnv exec . go run . sync   # one reconcile against the dev API
 direnv exec . env | rg '^TODOUI'   # nothing printed: no .envrc here
 ```
 
-Build, vet and test check code correctness, not TUI correctness. Do not claim a TUI change
-verified without driving it with `go run .`; if you cannot, say so and hand the manual steps to
-the user rather than substituting a synthetic smoke test.
+Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
+driving the built binary, which the flows below do with nobody at the keyboard.
 
 `tui/app_test.go` drives the model directly: `newTestApp` builds an app over an in-memory DB, and a
 test feeds it `tea.KeyMsg` values and asserts on state or on `View()`. `send` follows the whole
 command chain, so a create and its refresh have both landed before the assertion, and it abandons
 `tea.Tick` commands rather than sleeping out their duration. A layout bug that appears only at one
 window size is reproducible here and invisible in a manual pass. It does not replace driving the TUI.
+
+## The flows drive the real binary
+
+`real_binary_flows_test.go` builds todoui and replays each `testdata/flows/*.keys` script against it
+on a pty with [tuidrive](https://github.com/datapointchris/tuidrive), at a fixed size. Each frame a
+script names compares with `testdata/TestRealBinaryFlows/<flow>/<frame>.txt` and `.style`.
+
+```bash
+go test -run TestRealBinaryFlows .                     # compare
+TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then read the diff
+```
+
+- **`seedFixtureDatabase` writes through `backend.LocalBackend`**, the path the TUI writes through, so
+  the fixture holds only what todoui's own rules allow. There is no stand-in of the sync API, and sync
+  stays off because no `TODOUI_SYNC` reaches the program.
+- **`TODOUI_DB` is relative, and the program's working directory is the test's temporary directory.**
+  The status bar prints the path, and the hints clip against its length. A relative path keeps every
+  frame the same on every machine.
+- **A wait after a create names the row, not the hints.** A status flash holds the hints back for three
+  seconds, and it lands before the refresh that draws the row.
+- **A script masks what moves**: a creation date, a project's UUID tail, the undo flash's UUID tail.
+- **Search results sort by a creation time the fixture cannot hold still**, so the search flow's query
+  matches one item.
+
+To look at something while developing, write the keys to a script and replay it. Each `frame` prints the
+screen, and `--out` also writes a PNG to read:
+
+```bash
+D=$(mktemp -d)
+go build -o "$D/todoui" . && tuidrive run look.keys --out frames --dir "$D" --env TODOUI_DB=todoui.db -- "$D/todoui"
+```
+
+tuidrive passes down `PATH` alone, so `.envrc` never reaches the program. Always name `TODOUI_DB` under a
+temporary directory all the same.
 
 ## todoui is a TUI; there is no item CLI
 
