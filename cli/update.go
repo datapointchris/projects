@@ -42,9 +42,10 @@ func UpdateCmd() *cobra.Command {
 
 func VersionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the current version",
-		Args:  cobra.NoArgs,
+		Use:     "version",
+		Short:   "Print the current version",
+		Example: "  todoui version    print the version of this binary, such as v1.4.0",
+		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
 			cmd.Println(Version())
 		},

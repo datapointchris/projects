@@ -136,6 +136,9 @@ func rootCmd() *cobra.Command {
 			"A pull deletes everything the server did not return, so the database is bound to\n" +
 			"the API it was first pulled from and refuses to reconcile against any other.\n" +
 			"--adopt rebinds it; --force allows a pull that would delete most of what is here.",
+		Example: "  todoui sync            push queued edits, then pull from the API now\n" +
+			"  todoui sync --adopt    bind this database to the configured API, then sync\n" +
+			"  todoui sync --force    sync even when the pull would delete most local rows",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if syncEngine == nil {
