@@ -5,9 +5,10 @@ Any path naming `./cmd/todoui` is stale.
 
 ## How to run and test
 
-**A hand run is `direnv exec . go run .` from the repo root, against real data.
-Do not build a throwaway binary to `/tmp` for one, and do not seed a synthetic
-database for one.** A test fixture is allowed, and it holds real-length notes.
+**A hand run is `direnv exec . go run .` from the repo root, against the dev
+database. Do not build a throwaway binary to `/tmp` for one, and do not seed a
+synthetic database for one.** A test fixture is allowed, and it needs at least one
+long note.
 
 `.envrc` pairs a dedicated dev database with the sync API's local dev stack, so
 nothing run here touches production data. This is the whole file:
@@ -66,22 +67,21 @@ TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then r
 - **`TODOUI_DB` is relative, and the program's working directory is the test's temporary directory.**
   The status bar prints the path, and the hints clip against its length. A relative path keeps every
   frame the same on every machine.
-- **A wait after a create names the row, not the hints.** A status flash holds the hints back for three
-  seconds, and it lands before the refresh that draws the row.
-- **A script masks what moves**: a creation date, a project's UUID tail, the undo flash's UUID tail.
+- **A wait after a create names the row, not the hints.** A status flash holds the hints back for
+  `statusFlashDuration`, and it lands before the refresh that draws the row.
+- **A script masks each value that changes between runs.** A date left in a golden fails the next day.
 - **Search results sort by a creation time the fixture cannot hold still**, so the search flow's query
   matches one item.
 
-To look at something while developing, write the keys to a script and replay it. Each `frame` prints the
-screen, and `--out` also writes a PNG to read:
+To look at something while developing, write the keys to a script and replay it:
 
 ```bash
 D=$(mktemp -d)
 go build -o "$D/todoui" . && tuidrive run look.keys --out frames --dir "$D" --env TODOUI_DB=todoui.db -- "$D/todoui"
 ```
 
-tuidrive passes down `PATH` alone, so `.envrc` never reaches the program. Always name `TODOUI_DB` under a
-temporary directory all the same.
+`tuidrive run --help` states what reaches the program and what `--out` writes. Always name `TODOUI_DB`
+under a temporary directory, whatever it says, because todoui with none opens the production database.
 
 ## todoui is a TUI; there is no item CLI
 
