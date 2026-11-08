@@ -281,36 +281,37 @@ func TestCreatedTaskAppearsAsRow(t *testing.T) {
 	}
 }
 
-// The reread timer re-arms itself from its own message. A tick that returns no
-// command ends the rereads for the rest of the session, so the skipped ticks
-// have to re-arm too — otherwise opening one modal at the wrong moment leaves the
-// board showing what the API held when it opened.
-func TestRereadTickRearmsEvenWhenItSkipsTheRead(t *testing.T) {
-	app := newTestApp(t, 80, 24, "Alpha")
-
-	for _, mode := range []appMode{modeNormal, modeAddItem, modeMove, modeHelp} {
-		app.appMode = mode
-		_, cmd := app.Update(rereadTickMsg{})
-		if cmd == nil {
-			t.Errorf("tick in mode %v returned no command: the reread timer is now dead", mode)
-		}
+// In API mode a tick reads the API again. One arriving mid-move waits for the
+// next tick, because a read replaces the rows being moved. It still re-arms, or
+// the board stops reading the API for the rest of the session.
+func TestAnAPIRereadWaitsOutAMoveAndLandsOnTheNextTick(t *testing.T) {
+	app := newTestApp(t, 80, 24, "here at launch")
+	app.where = Where{APIHost: "projects.example.com"}
+	projects, err := app.backend.ListProjectsByStatus(model.StatusActive)
+	if err != nil || len(projects) == 0 {
+		t.Fatalf("listing projects: %v", err)
 	}
-}
+	if _, err := app.backend.CreateItem(model.CreateProjectItem{Title: "written elsewhere", ProjectIDs: []string{projects[0].ID}}); err != nil {
+		t.Fatal(err)
+	}
+	shown := func() bool {
+		return slices.ContainsFunc(app.items, func(item model.ProjectItemInProject) bool { return item.Title == "written elsewhere" })
+	}
 
-// safeToReread gates the read, not the timer. A read replaces the lists and
-// their order, which would move the ground under a grab or a text entry.
-func TestRereadOnlyRunsInNormalMode(t *testing.T) {
-	app := newTestApp(t, 80, 24, "Alpha")
+	app.appMode = modeMove
+	_, cmd := app.Update(rereadTickMsg{})
+	if cmd == nil {
+		t.Fatal("a tick during a move returned no command, so the rereads stopped")
+	}
+	drain(t, app, cmd, 16)
+	if shown() {
+		t.Fatal("a tick during a move read the API under the rows being moved")
+	}
 
 	app.appMode = modeNormal
-	if !app.safeToReread() {
-		t.Error("normal mode must allow the background read")
-	}
-	for _, mode := range []appMode{modeAddItem, modeExternalEdit, modeMove, modeMoveProject, modeReader} {
-		app.appMode = mode
-		if app.safeToReread() {
-			t.Errorf("mode %v must defer the read to the next tick", mode)
-		}
+	send(t, app, rereadTickMsg{})
+	if !shown() {
+		t.Error("the tick after the move did not read the API")
 	}
 }
 
