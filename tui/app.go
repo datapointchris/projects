@@ -926,12 +926,8 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, saveCmd
 
-	case claudeSessionEndedMsg:
-		if msg.err != nil {
-			cmd := m.flash(fmt.Sprintf("The Claude session on %s, in %s, ended: %v", msg.handle, msg.ranIn, msg.err))
-			return m, cmd
-		}
-		cmd := m.flash(fmt.Sprintf("Back from the Claude session on %s, which ran in %s", msg.handle, msg.ranIn))
+	case gotermboard.ClaudeSessionOutcome:
+		cmd := m.tookClaudeOutcome(msg)
 		return m, cmd
 
 	case projectCreatedMsg:

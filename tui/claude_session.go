@@ -3,30 +3,18 @@ package tui
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
 )
 
-// The first message of the Claude session C opens. It names the record by its handle alone, so
-// the session reads the record's words as data with the command it names.
+// The first message of the Claude session C opens begins with these. They name the record by its
+// handle alone, so the session reads the record's words as data with the command they name.
 const (
-	itemSessionBrief = "This is projects item %[1]s, opened from `projects tui`. " +
-		"`projects items show %[1]s` prints it whole. Read it, say what it asks for and what you would do, " +
-		"then wait before changing anything."
-	projectSessionBrief = "This is the projects project %[1]s, opened from `projects tui`. " +
-		"`projects show %[1]s` prints it with its open items. Read it, say what it asks for and what you would do, " +
-		"then wait before changing anything."
+	itemSessionBrief    = "This is projects item %[1]s, opened from `projects tui`. `projects items show %[1]s` prints it whole."
+	projectSessionBrief = "This is the projects project %[1]s, opened from `projects tui`. `projects show %[1]s` prints it with its open items."
 )
-
-// claudeSessionEndedMsg is a Claude session that held the terminal giving it back. ranIn is the
-// directory it ran in, with why where it was not the record's checkout.
-type claudeSessionEndedMsg struct {
-	handle string
-	ranIn  string
-	err    error
-}
 
 func (m *App) claudeOnItem() tea.Cmd {
 	item := m.currentItem()
@@ -48,32 +36,27 @@ func (m *App) claudeOnProject() tea.Cmd {
 	return m.openClaudeSession(p.Name, repo, fmt.Sprintf(projectSessionBrief, p.ID))
 }
 
-// openClaudeSession is C: a Claude session in the repo's checkout. Inside tmux it opens in a
-// window of its own, so the board stays usable while the session works, and outside tmux it
-// takes the board's terminal until it ends. A session in the board's own directory is told so
-// in its brief, because that directory may hold another repo's code.
+// openClaudeSession is C: a Claude session in the repo's checkout, which gotermboard opens.
 func (m *App) openClaudeSession(handle, repo, brief string) tea.Cmd {
-	if _, err := exec.LookPath("claude"); err != nil {
-		return m.flash(fmt.Sprintf("claude is not on PATH, so no session opened on %s", handle))
-	}
 	directory, fallback, err := m.sessionDirectory(handle, repo)
 	if err != nil {
 		return m.flash(err.Error())
 	}
-	ranIn := directory
-	if fallback != "" {
-		ranIn += ", because " + fallback
-		brief += fmt.Sprintf(" This session runs in %s, because %s.", directory, fallback)
+	return gotermboard.OpenClaudeSession(gotermboard.ClaudeSession{On: handle, Dir: directory, Fallback: fallback, Brief: brief})
+}
+
+// tookClaudeOutcome flashes what came of C. A session that held the terminal may have changed
+// what the board shows, so the board reads again.
+func (m *App) tookClaudeOutcome(outcome gotermboard.ClaudeSessionOutcome) tea.Cmd {
+	said := []rune(outcome.Said)
+	if len(said) > 0 {
+		said[0] = unicode.ToUpper(said[0])
 	}
-	if os.Getenv("TMUX") != "" {
-		if err := gotermboard.OpenWindow("claude "+handle, directory, []string{"claude", brief}); err != nil {
-			return m.flash(err.Error())
-		}
-		return m.flash(fmt.Sprintf("Opened a Claude session on %s in a tmux window, in %s", handle, ranIn))
+	flash := m.flash(string(said))
+	if outcome.HeldTerminal {
+		return tea.Batch(flash, m.rereadCmd())
 	}
-	session := exec.Command("claude", brief)
-	session.Dir = directory
-	return tea.ExecProcess(session, func(err error) tea.Msg { return claudeSessionEndedMsg{handle: handle, ranIn: ranIn, err: err} })
+	return flash
 }
 
 // sessionDirectory is where C opens Claude: the checkout the registry names for the repo, else
