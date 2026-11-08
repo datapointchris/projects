@@ -119,6 +119,9 @@ var (
 	modeLocalStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("2")).
 			Bold(true)
+	modeAPIStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("4")).
+			Bold(true)
 	syncOKStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("2")).
 			Bold(true)

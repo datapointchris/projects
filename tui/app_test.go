@@ -58,7 +58,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 		}
 	}
 
-	app := NewApp(b, nil, ":memory:", 2*time.Minute)
+	app := NewApp(b, nil, Where{DatabasePath: ":memory:"}, 2*time.Minute)
 	send(t, app, tea.WindowSizeMsg{Width: width, Height: height})
 	send(t, app, app.Init()())
 	send(t, app, app.fetchItems()())
@@ -118,6 +118,34 @@ func runeKey(r rune) tea.KeyPressMsg {
 func pressKey(t *testing.T, app *App, key string) {
 	t.Helper()
 	send(t, app, runeKey([]rune(key)[0]))
+}
+
+// Through an API, an item another machine wrote reaches the board only when it
+// reads the API again, which R does at once.
+func TestRInAPIModeShowsAnItemAnotherMachineWrote(t *testing.T) {
+	app := newTestApp(t, 80, 24, "here at launch")
+	app.where = Where{APIHost: "projects.example.com"}
+	projects, err := app.backend.ListProjectsByStatus(model.StatusActive)
+	if err != nil || len(projects) == 0 {
+		t.Fatalf("listing projects: %v", err)
+	}
+	if _, err := app.backend.CreateItem(model.CreateProjectItem{Title: "written elsewhere", ProjectIDs: []string{projects[0].ID}}); err != nil {
+		t.Fatal(err)
+	}
+	titles := func() []string {
+		var held []string
+		for _, item := range app.items {
+			held = append(held, item.Title)
+		}
+		return held
+	}
+	if slices.Contains(titles(), "written elsewhere") {
+		t.Fatal("the board showed the item before reading the API again")
+	}
+	pressKey(t, app, "R")
+	if !slices.Contains(titles(), "written elsewhere") {
+		t.Errorf("after R the board holds %q, want the item written elsewhere", titles())
+	}
 }
 
 // A position counts every member of a project and this list hides the archived
@@ -389,7 +417,7 @@ func TestSyncTickReconcilesWithTheServer(t *testing.T) {
 
 	engine := sync.New(database, ts.URL, "")
 	t.Cleanup(engine.Stop)
-	app := NewApp(service.New(sqlite.New(database)), engine, ":memory:", 20*time.Millisecond)
+	app := NewApp(service.New(sqlite.New(database)), engine, Where{DatabasePath: ":memory:"}, 20*time.Millisecond)
 	send(t, app, tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	countHits := func() int {

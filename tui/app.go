@@ -126,13 +126,20 @@ type App struct {
 	syncStatus   sync.SyncStatus
 	syncInterval time.Duration
 
-	// Display info
-	dbPath string
+	where Where
 }
 
-// NewApp creates a new TUI application backed by the given Backend.
-// syncEngine may be nil when sync is disabled.
-func NewApp(b backend.Backend, syncEngine *sync.Engine, dbPath string, syncInterval time.Duration) *App {
+// Where names the data the board shows, for its status line: a database on this
+// machine, or the API at APIHost. A database with sync on is named by its engine.
+type Where struct {
+	DatabasePath string
+	APIHost      string
+}
+
+// NewApp creates a new TUI application backed by the given Backend. syncEngine
+// is nil unless the database syncs. syncInterval is how often the board rereads
+// what it shows: a pull with sync on, and a read of the API in API mode.
+func NewApp(b backend.Backend, syncEngine *sync.Engine, where Where, syncInterval time.Duration) *App {
 	ti := textinput.New()
 	ti.CharLimit = 200
 	ti.SetStyles(inputStyles())
@@ -150,7 +157,7 @@ func NewApp(b backend.Backend, syncEngine *sync.Engine, dbPath string, syncInter
 		depFilter:    df,
 		syncEngine:   syncEngine,
 		syncInterval: syncInterval,
-		dbPath:       dbPath,
+		where:        where,
 	}
 }
 
@@ -439,27 +446,9 @@ func fetchItemsCmd(b backend.Backend, projectID string, filter filterMode) tea.C
 			}
 		}
 
-		hasIncompleteTasks := make(map[string]bool)
-		taskCounts := make(map[string][2]int)
-		allTasks := make(map[string][]model.ProjectItemTask)
-		for _, item := range items {
-			tasks, err := b.ListTasks(item.ID)
-			if err != nil {
-				return errMsg{err}
-			}
-			if len(tasks) > 0 {
-				allTasks[item.ID] = tasks
-				done := 0
-				for _, t := range tasks {
-					if t.Completed {
-						done++
-					}
-				}
-				taskCounts[item.ID] = [2]int{done, len(tasks)}
-				if done < len(tasks) {
-					hasIncompleteTasks[item.ID] = true
-				}
-			}
+		allTasks, taskCounts, hasIncompleteTasks, err := taskSummary(b, items)
+		if err != nil {
+			return errMsg{err}
 		}
 
 		if filter == filterBlocked {
@@ -474,6 +463,42 @@ func fetchItemsCmd(b backend.Backend, projectID string, filter filterMode) tea.C
 
 		return itemsMsg{items: items, blocked: blockedSet, blockers: blockers, projectNames: projectNames, hasIncompleteTasks: hasIncompleteTasks, taskCounts: taskCounts, itemTasks: allTasks}
 	}
+}
+
+// taskSummary is each listed item's tasks, its done and total counts, and
+// whether any task is still open, from one read of every task.
+func taskSummary(b backend.Backend, items []model.ProjectItemInProject) (
+	tasks map[string][]model.ProjectItemTask, counts map[string][2]int, open map[string]bool, err error,
+) {
+	every, err := b.ListAllTasks()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	listed := make(map[string]bool, len(items))
+	for _, item := range items {
+		listed[item.ID] = true
+	}
+	tasks = make(map[string][]model.ProjectItemTask)
+	for _, task := range every {
+		if listed[task.ItemID] {
+			tasks[task.ItemID] = append(tasks[task.ItemID], task)
+		}
+	}
+	counts = make(map[string][2]int, len(tasks))
+	open = make(map[string]bool)
+	for id, held := range tasks {
+		done := 0
+		for _, task := range held {
+			if task.Completed {
+				done++
+			}
+		}
+		counts[id] = [2]int{done, len(held)}
+		if done < len(held) {
+			open[id] = true
+		}
+	}
+	return tasks, counts, open, nil
 }
 
 func fetchAllItemsCmd(b backend.Backend, projects []model.ProjectWithItemCount, filter filterMode) tea.Cmd {
@@ -537,32 +562,9 @@ func fetchAllItemsCmd(b backend.Backend, projects []model.ProjectWithItemCount, 
 			}
 		}
 
-		hasIncompleteTasks := make(map[string]bool)
-		taskCounts := make(map[string][2]int)
-		allTasks := make(map[string][]model.ProjectItemTask)
-		seen := make(map[string]bool)
-		for _, item := range allItems {
-			if seen[item.ID] {
-				continue
-			}
-			seen[item.ID] = true
-			tasks, err := b.ListTasks(item.ID)
-			if err != nil {
-				return errMsg{err}
-			}
-			if len(tasks) > 0 {
-				allTasks[item.ID] = tasks
-				done := 0
-				for _, t := range tasks {
-					if t.Completed {
-						done++
-					}
-				}
-				taskCounts[item.ID] = [2]int{done, len(tasks)}
-				if done < len(tasks) {
-					hasIncompleteTasks[item.ID] = true
-				}
-			}
+		allTasks, taskCounts, hasIncompleteTasks, err := taskSummary(b, allItems)
+		if err != nil {
+			return errMsg{err}
 		}
 
 		if filter == filterBlocked {
@@ -999,6 +1001,9 @@ func (m *App) Init() tea.Cmd {
 			syncPullTickCmd(m.syncInterval),
 		)
 	}
+	if m.where.APIHost != "" {
+		return tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), syncPullTickCmd(m.syncInterval))
+	}
 	return fetchProjectsCmd(m.backend, m.projectStatusFilter())
 }
 
@@ -1249,10 +1254,16 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case syncPullTickMsg:
 		next := syncPullTickCmd(m.syncInterval)
-		if m.syncEngine == nil || !m.safeToAutoPull() {
+		switch {
+		case !m.safeToAutoPull():
 			return m, next
+		case m.syncEngine != nil:
+			return m, tea.Batch(syncPullCmd(m.syncEngine, false), next)
+		case m.where.APIHost != "":
+			// Another client may have written since the last read.
+			return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), next)
 		}
-		return m, tea.Batch(syncPullCmd(m.syncEngine, false), next)
+		return m, next
 
 	case syncPullDoneMsg:
 		if !msg.manual {
@@ -1615,11 +1626,14 @@ func (m *App) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// --- Phase 6: Advanced ---
 
 	case "R":
-		if m.syncEngine == nil {
-			flashCmd := m.flash("Sync is disabled — running local-only")
-			return m, flashCmd
+		switch {
+		case m.syncEngine != nil:
+			return m, syncPullCmd(m.syncEngine, true)
+		case m.where.APIHost != "":
+			return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), m.flash("Read again from "+m.where.APIHost))
 		}
-		return m, syncPullCmd(m.syncEngine, true)
+		disabled := m.flash("Sync is disabled — running local-only")
+		return m, disabled
 
 	case "?":
 		m.appMode = modeHelp
@@ -3309,7 +3323,8 @@ func clipHints(hints string, maxWidth int) string {
 
 func (m *App) renderStatusBar() string {
 	var modeStr string
-	if m.syncEngine != nil {
+	switch {
+	case m.syncEngine != nil:
 		target := dimStyle.Render(" " + m.syncEngine.APIURL())
 		s := m.syncStatus
 		switch {
@@ -3322,8 +3337,10 @@ func (m *App) renderStatusBar() string {
 		default:
 			modeStr = syncOKStyle.Render("SYNCED") + target
 		}
-	} else {
-		modeStr = modeLocalStyle.Render("LOCAL") + dimStyle.Render(" "+m.dbPath)
+	case m.where.APIHost != "":
+		modeStr = modeAPIStyle.Render("API") + dimStyle.Render(" "+m.where.APIHost)
+	default:
+		modeStr = modeLocalStyle.Render("LOCAL") + dimStyle.Render(" "+m.where.DatabasePath)
 	}
 
 	// [?]help sits on the right, with the things that are always true, rather

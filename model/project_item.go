@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // An item's status is derived from two stored booleans. These three words and
 // StatusAll are the filter's whole vocabulary.
@@ -64,6 +67,20 @@ type ProjectItemInProject struct {
 	ProjectItem
 	Position     int `json:"position"`
 	ProjectCount int `json:"project_count,omitempty"`
+}
+
+func (i ProjectItem) archived() bool { return i.Archived }
+
+// WithoutArchived drops the archived items, which the board's item lists and its
+// search leave out.
+func WithoutArchived[T interface{ archived() bool }](items []T) []T {
+	return slices.DeleteFunc(items, func(item T) bool { return item.archived() })
+}
+
+// SortArchivedForBoard orders archived items most recently updated first, as the
+// board lists them.
+func SortArchivedForBoard(items []ProjectItemInProject) {
+	slices.SortStableFunc(items, func(a, b ProjectItemInProject) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
 }
 
 // ItemFilter narrows a list of items. Status is an item status or StatusAll. An

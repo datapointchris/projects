@@ -48,6 +48,9 @@ type Backend interface {
 
 	// Tasks
 	ListTasks(itemID string) ([]model.ProjectItemTask, error)
+	// ListAllTasks is every item's tasks in one read, so a view counting tasks
+	// across a list costs one read rather than one per item.
+	ListAllTasks() ([]model.ProjectItemTask, error)
 	CreateTask(itemID string, input model.CreateProjectItemTask) (*model.ProjectItemTask, error)
 	UpdateTask(itemID, taskID string, input model.UpdateProjectItemTask) (*model.ProjectItemTask, error)
 	DeleteTask(itemID, taskID string) error

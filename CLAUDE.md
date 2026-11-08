@@ -25,21 +25,27 @@ data carries notes one line long. A change about notes needs a real-length
 markdown note written into the dev API first.
 
 ⚠️ **`.envrc` is machine-local and is not in this repo. Check it exists before
-running anything here.** Without it nothing is overridden, so `go run .` opens
+running anything here.** Without it nothing is overridden, so `go run . tui` opens
 the production database against the production API — which is the accident the
 coupled-variables rule below exists to prevent, arrived at from the other
 direction. `task setup`, which `worktree new` runs, links the primary
 checkout's `.envrc` into a worktree.
 
 **A shell without direnv's hook ignores `.envrc`, and Claude Code's tool shell is
-one.** There, a bare `go run .` opens production even with the file in place.
+one.** There, a bare `go run . list` reads production even with the file in place.
 Load it explicitly:
 
 ```bash
-direnv exec . go run .        # TUI against dev.db
+direnv exec . go run . tui    # the board against dev.db
+direnv exec . go run . list   # a command against dev.db
 direnv exec . go run . sync   # one reconcile against the dev API
 direnv exec . env | rg '^PROJECTS'   # nothing printed: no .envrc here
 ```
+
+`.envrc` turns sync on, so a command that writes refuses there, naming `api`. Reads
+answer from `dev.db`. A write is checked in the board, or through `both_modes_test.go`.
+A config file that sets `api` beside the `PROJECTS_SYNC=true` from `.envrc` refuses
+every command, naming both, so the pair cannot cross into production that way either.
 
 **The former name is handled in one file.** `config/former_name.go` refuses a retired variable that is
 still set, and a config still at the former path. It moves the old data directory on the first run
@@ -48,8 +54,8 @@ the real data where it is. An `.envrc` still exporting the old names is refused 
 which keeps it from falling through to the production database. On a machine upgrading, run `projects`
 once on the default database before editing `.envrc`, so `dev.db` moves with the rest. The `MIGRATION`
 marker there says when the file retires. Anything that opens the database stays after
-`MoveDataUnderFormerName` in `PersistentPreRunE`, because opening first creates an empty database, and
-the move refuses to run over one.
+`MoveDataUnderFormerName` in `openDatabase` in `cli/data_source.go`, because opening first creates an
+empty database, and the move refuses to run over one.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -62,18 +68,26 @@ window size is reproducible here and invisible in a manual pass. It does not rep
 
 ## The flows drive the real binary
 
-`real_binary_flows_test.go` builds `projects` and replays each `testdata/flows/*.keys` script against it
-on a pty with [tuidrive](https://github.com/datapointchris/tuidrive), at a fixed size. Each frame a
-script names compares with `testdata/TestRealBinaryFlows/<flow>/<frame>.txt` and `.style`.
+`real_binary_flows_test.go` builds `projects` and replays each `testdata/flows/*.keys` script against
+`projects tui` on a pty with [tuidrive](https://github.com/datapointchris/tuidrive), at a fixed size.
+Each frame a script names compares with `testdata/TestRealBinaryFlows/<flow>/<frame>.txt` and `.style`.
 
 ```bash
 go test -run TestRealBinaryFlows .                     # compare
 TUIDRIVE_UPDATE=1 go test -run TestRealBinaryFlows .   # accept a change, then read the diff
+go test -run TestTheCommandsAnswerTheSameInBothModes . # the commands, in both modes
 ```
 
 - **`seedFixtureDatabase` writes through `service.Service`**, the path the TUI writes through, so
   the fixture holds only what the tool's own rules allow. There is no stand-in of the sync API, and sync
   stays off because no `PROJECTS_SYNC` reaches the program.
+- **`XDG_CONFIG_HOME` points under the test's temporary directory**, so the machine's own config file
+  never reaches the program.
+- **The API is `routes.New` over a seeded SQLite database in an `httptest.Server`.** `serveOverHTTP`
+  starts it and `writeAPIConfig` points the config file's `api` at it, with a `token_command` handing
+  a stand-in token. The `api-mode` flow drives the board through it, and `both_modes_test.go` runs the
+  same commands through it and through a database, checking each `--json` answer against
+  `cli/schemas`.
 - **`PROJECTS_DB` is relative, and the program's working directory is the test's temporary directory.**
   The status bar prints the path, and the hints clip against its length. A relative path keeps every
   frame the same on every machine.
@@ -87,22 +101,28 @@ To look at something while developing, write the keys to a script and replay it:
 
 ```bash
 D=$(mktemp -d)
-go build -o "$D/projects" . && tuidrive run look.keys --out frames --dir "$D" --env PROJECTS_DB=projects.db -- "$D/projects"
+go build -o "$D/projects" . && tuidrive run look.keys --out frames --dir "$D" \
+  --env PROJECTS_DB=projects.db --env XDG_CONFIG_HOME="$D/config" -- "$D/projects" tui
 ```
 
 `tuidrive run --help` states what reaches the program and what `--out` writes. Always name `PROJECTS_DB`
-under a temporary directory, whatever it says, because `projects` with none opens the production database.
+and `XDG_CONFIG_HOME` under a temporary directory, whatever it says. With neither, `projects tui` opens
+the production database, or reads the machine's config and talks to its API.
 
 ## Storage, service and entry point are three layers, and every rule is in `service`
 
 Ports and adapters at the storage seam, so a second store runs the same rules and a new rule lands once.
 
 ```text
-tui, main.go                 api/routes
-    │ backend.Backend, which     │ *service.Service, scoped to each request by WithContext
-    │ sync.SyncBackend also      │
-    │ satisfies by wrapping it   │
-    ▼                            ▼
+cli commands                tui                          api/main.go
+    │ apiclient.Client          │ backend.Backend, which        │
+    │                           │ sync.SyncBackend and          │
+    ▼                           │ apiclient.Backend also        ▼
+api/routes, in process          │ satisfy                    api/routes
+    │ in database mode;         │                               │ *service.Service, scoped
+    │ across HTTP to            │                               │ to each request by
+    │ projects-api otherwise    │                               │ WithContext
+    ▼                           ▼                               ▼
 service.Service      every rule
     │ store.Store    model types only
     ▼
@@ -116,6 +136,13 @@ store/postgres       the same, with goose migrations and an audit trigger
   and imports no `database/sql`.
 - **`service.Service` satisfies `backend.Backend`**, so the TUI reaches every rule through that
   interface, and outside its tests imports neither `service` nor a store.
+- **A command reaches the data only through `apiclient.Client`.** In database mode `openDatabase` in
+  `cli/data_source.go` serves `routes.New` over the local service through `apiclient.InProcess`. So a
+  command meets the API's routes, refusals and JSON in both modes, and a new command is written once.
+- **The binary links no server dependency.** `go list -deps .` holds no pgx, goose or goapiauth beyond
+  `goapiauth/clientid`, the import-free client-id prefixes goclilogin shares with the API. `api/routes`
+  and `api/wire` import none of them. The login settings sit in `cli/api_login.go` rather than
+  `config`, because `api/routes` reaches `config` through `service` and `repos`.
 - **`store.Store` in `store/store.go` takes and returns `model` types.** A rule that writes runs inside
   `InTx(ctx, func(tx store.Operations) error)` and calls `tx`. `Operations` has no `InTx`, so a
   transaction cannot nest. What a rule decides on, it reads through `tx` too, and `InTx` promises those
@@ -137,21 +164,55 @@ Two carve-outs are declared here rather than assumed:
   always carried, so on a synced database `kind` and `completed_at` are what that database set, and neither
   arrives from elsewhere. It ends when the sync engine is deleted. `generated` can then move under
   `store/sqlite/internal`, where the compiler enforces the seam.
-- **Local mode links `service` directly.** A client normally depends on the wire contract and never on a
-  server's types, because importing them couples deploy order. Local mode has no server, so that reason
-  does not reach it. Anything on the HTTP path keeps its own lean structs.
+- **Database mode links `service` and `api/routes` directly.** A client normally depends on the wire
+  contract and never on a server's types, because importing them couples deploy order. Database mode
+  serves itself, so that reason does not reach it. `apiclient` speaks `api/wire` and converts to
+  `model` for the board, and imports no route, service or store. The sync engine keeps its own lean
+  structs.
 
-## `projects` is a TUI; there is no item CLI
+## `projects` is a command line, and `projects tui` is the board
 
-`projects` is driven through the TUI. Agents and scripts reach the same projects and items through
-the API's own clients. The subcommands here are `sync`, `update`, `version` and `completion`, and none
-of them reads or writes an item. A verb added here would be a second front door onto rows those
-clients already own, spelled independently of them.
+Bare `projects` prints help. The project verbs sit at the root, and the item verbs under
+`projects items`, with `tasks`, `dependencies` and `memberships` as nouns under it. `cli/root.go`
+builds the tree. Help renders through `gotermstyle/cobrahelp`.
+
+- **The `api` key, or `--api`, chooses the mode, and neither means the database.** `decideMode` in
+  `cli/data_source.go` reads goclilogin's parse of the key, so the mode and the login read one
+  setting. It runs in each command's `RunE`, so `help`, `completion` and `version` open nothing.
+- **`api` beside sync refuses**, through `chooseMode`, the one check every command, `projects sync`
+  and `auth login` take. The two are two authorities for the same rows. The refusal names
+  `PROJECTS_SYNC` when the environment turned sync on, and the config file's `[sync]` otherwise.
+- **With sync on, a command that writes refuses before it asks anything.** `openForWriting` holds the
+  sentence, and `refusingWrites` answers 409 with it for any write that reaches the in-process routes
+  without it. A write there would land in the copy with nothing queued, and the next pull deletes it.
+- **Exit codes are 0, 1 for refused or failed, 2 for usage, and 4 for no answer.** `exitCodeFor` in
+  `cli/root.go` maps them, and `explain` in `cli/api_errors.go` words them. A 422 is usage.
+  A refused credential is 1.
+- **4 means running it again is safe.** That covers a read with no answer or a 5xx, a 429, a write
+  that never left, and a token request the login provider did not answer. `apiclient.Retrying`
+  returns `apiclient.Unanswered`, which records the method, the attempts made and whether any try
+  was sent.
+- **A write that was sent and got no answer, or got a 5xx, exits 1.** It may have been carried out,
+  and the message says to check before running it again.
+- **The token is fetched outside the retries.** `oauth2.Transport` wraps `Retrying`, so a failed token
+  request is not retried as though the API had not answered. `failedTokensMarked` tags the failure
+  as a `tokenFailure`, and `noToken` words it with the issuer or the `token_command`.
+- **A `--json` document this tool composes carries `schema_version`**, and its schema is under
+  `cli/schemas`. A new shape takes a file there and a row in `both_modes_test.go`. Every other
+  `--json` answer is the API's own, under `api/schemas`.
+- **Login is goclilogin**, configured in `cli/api_login.go`: the keyring service `projects`, the
+  client id `projects-cli-<host>`, and the client-credentials grant with `projects.items.read` when
+  `PROJECTS_CLIENT_SECRET` is set.
+- **The repo-name ban runs in database mode only.** `LocalService` sets `RefusingRepoNames`, and an API
+  sets none. `--repo` is checked against this machine's registry in database mode only too, because
+  an API serves tags written from every machine. `repoRegistry` on the data source answers an empty
+  registry in API mode.
 
 An item shows its **number**, the handle the API assigns and answers with. The UUID is the sync key
 and stops there.
 
-The number is assigned by whichever database is the authority. With sync on that is the API, and
+The number is assigned by whichever database is the authority. Through an API, the API numbers it as
+it creates it. With sync on that is the API, and
 `pushCreatedItem` writes the number from the create response into the local row, so the TUI shows
 it once the push lands rather than after the next pull. With sync off, `AssigningItemNumbers` makes
 `projects` allocate `max+1` itself, which cannot collide because that database is a disjoint universe.
@@ -190,8 +251,9 @@ started this.
 A missing registry bans nothing.
 
 Enforcement is on the service (`RefusingRepoNames`), the one path every create
-and rename takes. It is an option `main.go` sets. `api/main.go` does not, because a
-container holds no registry, so the API bans nothing, as a missing registry does.
+and rename takes. It is an option `cli.LocalService` sets for database mode. `api/main.go` does not,
+because a container holds no registry, so the API bans nothing, as a missing registry does. A
+command through an API therefore bans nothing either.
 
 ## A project has a status, and it is not an `archived` flag
 
@@ -314,7 +376,7 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
 - **A row's every field is always sent: an empty value as `null`, and an empty list as `[]`. Times are UTC
   with a `Z`.** `wire.Time` prints six fractional digits when there is a fraction, and none when there is
   not. Existing clients index these by name.
-- **`/api/v2` is this API's version signal, and no answer carries `schema_version`.** That is an exception
+- **`/api/v1` is this API's version signal, and no answer carries `schema_version`.** That is an exception
   to the rule that a shape names its version in the document, because a list answers a bare array, which
   has no place for the field. A field added is not a new version, and a field reshaped or removed is.
 - **A `PATCH` is read field by field**, by `requestBody`, because a struct cannot tell a field left out

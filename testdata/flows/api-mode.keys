@@ -1,0 +1,18 @@
+# The board in API mode: every read and write goes over HTTP to the API's routes.
+# The status line names the API's host, whose port changes between runs.
+mask /127\.0\.0\.1:\d+/ "127.0.0.1:<port>"
+wait Export posts from the old CMS
+wait /API 127\.0\.0\.1/
+frame opened
+
+press tab
+wait /(?m)^╭.*┏/
+press a
+wait Enter item title
+type Rotate the API keys
+press enter
+wait ○ Rotate the API keys
+frame item-added
+
+press q
+exits

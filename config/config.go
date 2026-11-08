@@ -24,6 +24,14 @@ type Config struct {
 	// the data directory below it are composed by repos.DefaultPath, so the whole
 	// resolution order reads in one place rather than half here and half there.
 	ReposRegistry string `mapstructure:"repos_registry"`
+
+	// API, Issuer, ClientID and TokenCommand are goclilogin's keys, and the mode
+	// follows its reading of them, so nothing reads these fields. They are declared
+	// because ErrorUnused refuses a key the struct has no home for.
+	API          string   `mapstructure:"api"`
+	Issuer       string   `mapstructure:"issuer"`
+	ClientID     string   `mapstructure:"client_id"`
+	TokenCommand []string `mapstructure:"token_command"`
 }
 
 // SyncConfig holds settings for background sync with the remote API.
@@ -66,7 +74,7 @@ func Load() (*Config, error) {
 	// Env var overrides
 	v.SetEnvPrefix("PROJECTS")
 	_ = v.BindEnv("local.db_path", "PROJECTS_DB")
-	_ = v.BindEnv("sync.enabled", "PROJECTS_SYNC")
+	_ = v.BindEnv("sync.enabled", SyncVariable)
 	_ = v.BindEnv("sync.api_url", "PROJECTS_SYNC_URL")
 	_ = v.BindEnv("sync.token_command", "PROJECTS_SYNC_TOKEN_COMMAND")
 	_ = v.BindEnv("sync.interval", "PROJECTS_SYNC_INTERVAL")
@@ -80,6 +88,9 @@ func Load() (*Config, error) {
 	// naming its registry under a key the tool does not read would fall back to the
 	// data directory, find no registry there, and lift the ban with nothing
 	// reporting why.
+	if err := refuseTokenCommandInTheOtherShape(v); err != nil {
+		return nil, err
+	}
 	var cfg Config
 	if err := v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.StringToTimeDurationHookFunc()), func(dc *mapstructure.DecoderConfig) {
 		dc.ErrorUnused = true
@@ -110,6 +121,27 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// SyncVariable turns sync on or off from the environment, over the file's
+// sync.enabled.
+const SyncVariable = "PROJECTS_SYNC"
+
+// refuseTokenCommandInTheOtherShape refuses a token_command written the way the
+// other key takes it. Beside api it is an argument list printing a JSON token
+// response; under [sync] it is one string printing a bare token. A command moved
+// from one to the other would otherwise fail on a type error naming neither.
+func refuseTokenCommandInTheOtherShape(v *viper.Viper) error {
+	if command, isString := v.Get("token_command").(string); isString {
+		return fmt.Errorf("token_command beside api is a list of arguments, run without a shell, that prints a JSON "+
+			"token response: token_command = [\"%s\"]; one string is [sync]'s form",
+			strings.Join(strings.Fields(command), `", "`))
+	}
+	if _, isList := v.Get("sync.token_command").([]any); isList {
+		return fmt.Errorf("[sync] token_command is one string, split on spaces, that prints a bare token, " +
+			"such as token_command = \"<cli> auth token\"; a list is the form beside api")
+	}
+	return nil
 }
 
 // minSyncInterval floors the reconcile period. A full pull is 2+2N requests, so

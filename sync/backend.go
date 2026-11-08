@@ -65,6 +65,10 @@ func (s *SyncBackend) ListTasks(itemID string) ([]model.ProjectItemTask, error) 
 	return s.local.ListTasks(itemID)
 }
 
+func (s *SyncBackend) ListAllTasks() ([]model.ProjectItemTask, error) {
+	return s.local.ListAllTasks()
+}
+
 func (s *SyncBackend) Search(query string) ([]model.ProjectItem, error) {
 	return s.local.Search(query)
 }

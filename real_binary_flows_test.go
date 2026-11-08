@@ -2,12 +2,17 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/datapointchris/tuidrive"
 
+	"github.com/datapointchris/projects/api/routes"
+	"github.com/datapointchris/projects/cli"
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
@@ -17,8 +22,9 @@ import (
 // a freshly seeded database, and compares every frame it names with the goldens
 // under testdata/TestRealBinaryFlows/<flow>. PROJECTS_DB is relative to the program's
 // working directory, which is the test's temporary directory, so the status bar
-// reads the same on every run and no flow can reach a real database. Write the
-// goldens with TUIDRIVE_UPDATE=1.
+// reads the same on every run and no flow can reach a real database. The api-mode
+// flow reads its seeded database through the API's routes over HTTP, and must open
+// none of its own. Write the goldens with TUIDRIVE_UPDATE=1.
 func TestRealBinaryFlows(t *testing.T) {
 	binary := tuidrive.Build(t, ".")
 	editor, err := filepath.Abs("testdata/flows/append-line-editor.sh")
@@ -29,6 +35,7 @@ func TestRealBinaryFlows(t *testing.T) {
 	for _, flow := range []struct {
 		name, script string
 		cols, rows   int
+		api          bool
 	}{
 		{name: "browse", script: "browse.keys"},
 		{name: "reader", script: "reader.keys"},
@@ -40,19 +47,64 @@ func TestRealBinaryFlows(t *testing.T) {
 		{name: "edit-note", script: "edit-note.keys"},
 		{name: "help-taller-than-the-window", script: "help.keys"},
 		{name: "narrow-window", script: "narrow-window.keys", cols: 50, rows: 14},
+		{name: "api-mode", script: "api-mode.keys", api: true},
 	} {
 		t.Run(flow.name, func(t *testing.T) {
 			dir := t.TempDir()
-			seedFixtureDatabase(t, filepath.Join(dir, "projects.db"))
+			if flow.api {
+				served := filepath.Join(t.TempDir(), "served.db")
+				seedFixtureDatabase(t, served)
+				writeAPIConfig(t, dir, serveOverHTTP(t, served))
+			} else {
+				seedFixtureDatabase(t, filepath.Join(dir, "projects.db"))
+			}
 			term := tuidrive.Start(t, tuidrive.Program{
 				Path: binary,
+				Args: []string{"tui"},
 				Dir:  dir,
-				Env:  map[string]string{"PROJECTS_DB": "projects.db", "EDITOR": editor},
+				Env: map[string]string{
+					"PROJECTS_DB":     "projects.db",
+					"EDITOR":          editor,
+					"XDG_CONFIG_HOME": filepath.Join(dir, "config"),
+				},
 				Cols: flow.cols,
 				Rows: flow.rows,
 			})
 			term.RunScript(filepath.Join("testdata", "flows", flow.script))
+			if _, err := os.Stat(filepath.Join(dir, "projects.db")); flow.api && err == nil {
+				t.Error("API mode opened a database")
+			}
 		})
+	}
+}
+
+// serveOverHTTP is the API's own routes over the database at path, reached the
+// way a deployed API is. It checks no token, as the API behind a proxy that
+// already did.
+func serveOverHTTP(t *testing.T, path string) string {
+	t.Helper()
+	database, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := httptest.NewServer(routes.New(cli.LocalService(database, ""), quiet))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+// writeAPIConfig puts the program in API mode, with a token_command standing in
+// for a login.
+func writeAPIConfig(t *testing.T, dir, api string) {
+	t.Helper()
+	path := filepath.Join(dir, "config", "projects", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config := fmt.Sprintf("api = %q\ntoken_command = [\"printf\", %q]\n", api, `{"access_token":"stand-in","token_type":"Bearer"}`)
+	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -70,7 +122,7 @@ func seedFixtureDatabase(t *testing.T, path string) {
 			t.Fatal(err)
 		}
 	}()
-	seed := fixtureSeeder{t: t, backend: localOnlyBackend(database, filepath.Join(filepath.Dir(path), "repos.json"))}
+	seed := fixtureSeeder{t: t, backend: cli.LocalService(database, filepath.Join(filepath.Dir(path), "repos.json"))}
 
 	blog := seed.project("Move the blog to plain files", fixtureText(t, "blog-project-description.md"))
 	faucet := seed.project("Replace the kitchen faucet", "")
