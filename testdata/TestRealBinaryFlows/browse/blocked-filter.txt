@@ -1,10 +1,10 @@
  By project   All items   Dependencies
 ╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Projects                             │┃ Move the blog to plain files [BLOCKED]                   ┃
-│> Move the blog to plain files ○3 ✓1  │┃>   ○ Set up redirects for the old URLs                   ┃
+│> Move the blog to plain files ○3 ✓1  │┃> ▸ ○ Set up redirects for the old URLs                   ┃
 │   Replace the kitchen faucet ○3 ✓0   │┃                                                         3┃
 │   Plan the Lisbon trip ○31 ✓0        │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
 │                                      │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [c]omplete [a]dd [n]ote [M]ove [Tab]view [/]filter …      [?]help  LOCAL projects.db
+  c complete  a add  n note  M move  tab view  / filter  0 reset …       ? keys  LOCAL projects.db

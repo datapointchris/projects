@@ -3,20 +3,20 @@
 wait Export posts from the old CMS
 
 press ?
-wait [Esc]close [q]quit
+wait esc close  q quit
 frame from-the-project-pane
 press ?
-gone [Esc]close [q]quit
+gone esc close  q quit
 
 press l
-wait [Enter]read
+wait c complete
 press ?
-wait [Esc]close [q]quit
+wait esc close  q quit
 press esc
-wait [Enter]read
+wait c complete
 
 press j
-wait [D]elete
+wait D delete
 press ?
 wait On a task
 press esc
@@ -24,7 +24,7 @@ press esc
 press k
 wait /> +▸ ○ Export posts from the old CMS/
 press M
-wait [Enter]drop
+wait enter drop
 press ?
 wait Moving a row
 press esc

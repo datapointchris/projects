@@ -17,8 +17,8 @@ require (
 	github.com/datapointchris/goclikit v0.5.3
 	github.com/datapointchris/goclilogin v0.9.0
 	github.com/datapointchris/goselfupdate v0.11.0
-	github.com/datapointchris/gotermboard v0.31.0
-	github.com/datapointchris/gotermstyle v0.4.0
+	github.com/datapointchris/gotermboard v0.43.0
+	github.com/datapointchris/gotermstyle v0.5.0
 	github.com/datapointchris/tuidrive v0.1.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0

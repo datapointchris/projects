@@ -40,9 +40,10 @@ type App struct {
 	// rows is the item pane's cursor stops: group headers, items and their tasks.
 	rows []paneRow
 	// folded holds each group folded under its header, by project ID, and opened each item
-	// whose note shows in place, by item ID.
-	folded map[string]bool
-	opened map[string]bool
+	// whose detail shows in place, by item ID. details is each such item's detail as last read.
+	folded  map[string]bool
+	opened  map[string]bool
+	details map[string]itemDetailMsg
 	// scrolled says ctrl+d, ctrl+u, J or K moved the item pane through an open note, and the
 	// pane holds that offset until the cursor moves.
 	scrolled bool
@@ -146,6 +147,7 @@ func NewApp(b backend.Backend, where Where) *App {
 		itemBlockers: make(map[string][]model.ProjectItem),
 		folded:       make(map[string]bool),
 		opened:       make(map[string]bool),
+		details:      make(map[string]itemDetailMsg),
 		titleInput:   ti,
 		depFilter:    df,
 		filterInput:  fi,
@@ -241,6 +243,7 @@ type itemProjectsMsg struct {
 }
 
 type itemDetailMsg struct {
+	opening      detailOpening
 	detail       *model.ProjectItemDetail
 	blockers     []model.ProjectItem
 	projectNames map[string][]string
@@ -622,7 +625,7 @@ func updateMembershipCmd(b backend.Backend, itemID string, toAdd, toRemove []str
 	}
 }
 
-func fetchItemDetailCmd(b backend.Backend, itemID string, isBlocked bool) tea.Cmd {
+func fetchItemDetailCmd(b backend.Backend, itemID string, isBlocked bool, opening detailOpening) tea.Cmd {
 	return func() tea.Msg {
 		detail, err := b.GetItem(itemID)
 		if err != nil {
@@ -668,7 +671,7 @@ func fetchItemDetailCmd(b backend.Backend, itemID string, isBlocked bool) tea.Cm
 		if err != nil {
 			return errMsg{err}
 		}
-		return itemDetailMsg{detail: detail, blockers: blockers, projectNames: pnames, dependents: dependents, tasks: tasks}
+		return itemDetailMsg{opening: opening, detail: detail, blockers: blockers, projectNames: pnames, dependents: dependents, tasks: tasks}
 	}
 }
 
@@ -891,11 +894,13 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case allItemsMsg:
 		m.takeItems(msg.itemsMsg, msg.groups)
-		return m, nil
+		cmd := m.readOpenDetailsAgain()
+		return m, cmd
 
 	case itemsMsg:
 		m.takeItems(msg, nil)
-		return m, nil
+		cmd := m.readOpenDetailsAgain()
+		return m, cmd
 
 	case taskCreatedMsg, taskUpdatedMsg, taskDeletedMsg:
 		cmd := m.fetchItems()
@@ -921,12 +926,8 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, saveCmd
 
-	case claudeSessionEndedMsg:
-		if msg.err != nil {
-			cmd := m.flash(fmt.Sprintf("The Claude session on %s, in %s, ended: %v", msg.handle, msg.ranIn, msg.err))
-			return m, cmd
-		}
-		cmd := m.flash(fmt.Sprintf("Back from the Claude session on %s, which ran in %s", msg.handle, msg.ranIn))
+	case gotermboard.ClaudeSessionOutcome:
+		cmd := m.tookClaudeOutcome(msg)
 		return m, cmd
 
 	case projectCreatedMsg:
@@ -942,7 +943,7 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case itemDetailMsg:
-		m.openReader(msg.detail.Title, m.itemDocument(msg))
+		m.tookDetail(msg)
 		return m, nil
 
 	case undoResultMsg:
@@ -1479,43 +1480,6 @@ func (m *App) moveBy(rows int) tea.Cmd {
 	return nil
 }
 
-func (m *App) cursorDown() tea.Cmd { return m.moveBy(1) }
-func (m *App) cursorUp() tea.Cmd   { return m.moveBy(-1) }
-
-func (m *App) cursorTop() tea.Cmd {
-	if m.view == viewProjects && m.activePane == projectPane {
-		return m.pointAtProject(0)
-	}
-	m.moveCursorTo(0)
-	return nil
-}
-
-func (m *App) cursorBottom() tea.Cmd {
-	if m.view == viewProjects && m.activePane == projectPane {
-		return m.pointAtProject(len(m.projects) - 1)
-	}
-	m.moveCursorTo(len(m.rows) - 1)
-	return nil
-}
-
-// halfScreen is ctrl+d and ctrl+u: half a screen through the note open on the cursor's row,
-// otherwise of the list.
-func (m *App) halfScreen(direction int) tea.Cmd {
-	half := max(m.paneContentHeight()/2, 1)
-	if m.onOpenText() {
-		m.scrollOpenText(direction * half)
-		return nil
-	}
-	return m.moveBy(direction * half)
-}
-
-// scrollOpenText moves the item pane through the open note by lines, and leaves the cursor
-// on its row.
-func (m *App) scrollOpenText(lines int) {
-	m.scrolled = true
-	m.rowScroll = max(m.rowScroll+lines, 0)
-}
-
 // paneContentHeight is how many lines a pane's list gets, under the header, its border, its
 // title and the status bar.
 func (m *App) paneContentHeight() int {
@@ -1528,11 +1492,6 @@ func (m *App) currentProject() model.ProjectWithItemCount { return m.projects[m.
 
 func (m *App) readProject() tea.Cmd {
 	return fetchProjectDetailCmd(m.backend, m.currentProject().ID)
-}
-
-func (m *App) readItem() tea.Cmd {
-	item := m.currentItem()
-	return fetchItemDetailCmd(m.backend, item.ID, m.blockedSet[item.ID])
 }
 
 func (m *App) toggleProjectMark() tea.Cmd {
@@ -1603,13 +1562,6 @@ func (m *App) shelveProject() tea.Cmd {
 
 func (m *App) reopenProject() tea.Cmd {
 	return setProjectStatusCmd(m.backend, m.currentProject().ID, model.StatusActive, nil)
-}
-
-func (m *App) toggleNote() tea.Cmd {
-	item := m.currentItem()
-	m.opened[item.ID] = !m.opened[item.ID]
-	m.scrolled = false
-	return nil
 }
 
 func (m *App) toggleGroup() tea.Cmd {
@@ -2038,9 +1990,9 @@ func (m *App) renderDepLinkOverlay() string {
 }
 
 // clipHints narrows a hint line to fit, dropping whole hints rather than
-// cutting one in half: a trailing "[T]re…" reads as a rendering fault, where a
-// dropped hint reads as a list that continues. Hints are split on the bracket
-// that opens each one, since several carry a space of their own.
+// cutting one in half: a trailing "T re…" reads as a rendering fault, where a
+// dropped hint reads as a list that continues. Hints are split on the gap
+// between them, since each carries a space of its own.
 func clipHints(hints string, maxWidth int) string {
 	if lipgloss.Width(hints) <= maxWidth {
 		return hints
@@ -2048,15 +2000,12 @@ func clipHints(hints string, maxWidth int) string {
 	if maxWidth < 4 {
 		return ""
 	}
-	parts := strings.Split(hints, " [")
+	parts := strings.Split(hints, hintGap)
 	kept, width := []string{}, 0
 	for i, part := range parts {
-		if i > 0 {
-			part = "[" + part
-		}
 		next := width + lipgloss.Width(part)
 		if i > 0 {
-			next++
+			next += len(hintGap)
 		}
 		if next+2 > maxWidth {
 			break
@@ -2066,7 +2015,7 @@ func clipHints(hints string, maxWidth int) string {
 	if len(kept) == 0 {
 		return ""
 	}
-	return strings.Join(kept, " ") + " …"
+	return strings.Join(kept, hintGap) + " …"
 }
 
 func (m *App) statusBarHints() string {
@@ -2088,10 +2037,10 @@ func (m *App) renderStatusBar() string {
 		modeStr = modeLocalStyle.Render("LOCAL") + dimStyle.Render(" "+m.where.DatabasePath)
 	}
 
-	// [?]help sits on the right, with the things that are always true, rather than at the end
-	// of the contextual list where clipping reaches it first. It is the one key that leads to
-	// every other key, so it is the last one that should disappear on a narrow window.
-	modeStr = "[?]help  " + modeStr
+	// ? sits on the right, with the things that are always true, rather than at the end of the
+	// contextual list where clipping reaches it first. It is the one key that leads to every
+	// other key, so it is the last one that should disappear on a narrow window.
+	modeStr = "? keys  " + modeStr
 	modeWidth := lipgloss.Width(modeStr)
 
 	var left string

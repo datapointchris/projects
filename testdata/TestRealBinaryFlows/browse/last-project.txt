@@ -1,30 +1,30 @@
  By project   All items   Dependencies
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭──────────────────────────────────────────────────────────╮
 ┃ Projects                             ┃│ Plan the Lisbon trip                                     │
-┃   Move the blog to plain files ○3 ✓1 ┃│>   ○ Ask Sam for a plumber and a place to stay ◈         │
+┃   Move the blog to plain files ○3 ✓1 ┃│> ▸ ○ Ask Sam for a plumber and a place to stay ◈         │
 ┃   Replace the kitchen faucet ○3 ✓0   ┃│       also in Replace the kitchen faucet                8│
-┃> Plan the Lisbon trip ○31 ✓0         ┃│     ○ Write up the trip on the new blog                  │
+┃> Plan the Lisbon trip ○31 ✓0         ┃│   ▸ ○ Write up the trip on the new blog                  │
 ┃                                      ┃│                                                         9│
 ┃                                      ┃│       └─ blocked by: Move the blog…: Point DNS at th… (4)│
-┃                                      ┃│     ○ Read every neighborhood guide and write down which…│
+┃                                      ┃│   ▸ ○ Read every neighborhood guide and write down which…│
 ┃                                      ┃│                                                        10│
-┃                                      ┃│     ○ Day 1: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 1: walk the next neighborhood                  │
 ┃                                      ┃│                                                        11│
-┃                                      ┃│     ○ Day 2: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 2: walk the next neighborhood                  │
 ┃                                      ┃│                                                        12│
-┃                                      ┃│     ○ Day 3: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 3: walk the next neighborhood                  │
 ┃                                      ┃│                                                        13│
-┃                                      ┃│     ○ Day 4: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 4: walk the next neighborhood                  │
 ┃                                      ┃│                                                        14│
-┃                                      ┃│     ○ Day 5: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 5: walk the next neighborhood                  │
 ┃                                      ┃│                                                        15│
-┃                                      ┃│     ○ Day 6: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 6: walk the next neighborhood                  │
 ┃                                      ┃│                                                        16│
-┃                                      ┃│     ○ Day 7: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 7: walk the next neighborhood                  │
 ┃                                      ┃│                                                        17│
-┃                                      ┃│     ○ Day 8: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 8: walk the next neighborhood                  │
 ┃                                      ┃│                                                        18│
-┃                                      ┃│     ○ Day 9: walk the next neighborhood                  │
+┃                                      ┃│   ▸ ○ Day 9: walk the next neighborhood                  │
 ┃                                      ┃│ 1/31                                                     │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────────────────────────────────────╯
-  [Enter]read [space]mark [a]dd [e]dit [M]ove [Tab]view [/]filter       [?]help  LOCAL projects.db
+  enter read  space mark  a add  e edit  M move  tab view  / filter …    ? keys  LOCAL projects.db

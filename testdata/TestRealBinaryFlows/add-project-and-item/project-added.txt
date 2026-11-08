@@ -6,12 +6,12 @@
 ┃   Plan the Lisbon trip ○31 ✓0        ┃│       ✓ Dump the database                                │
 ┃   Repaint the fence ○0 ✓0            ┃│       ○ Convert HTML to markdown                         │
 ┃                                      ┃│       ○ Download the images                              │
-┃                                      ┃│     ✓ Pick a theme                                       │
+┃                                      ┃│   ▸ ✓ Pick a theme                                       │
 ┃                                      ┃│                                                         2│
-┃                                      ┃│     ○ Set up redirects for the old URLs                  │
+┃                                      ┃│   ▸ ○ Set up redirects for the old URLs                  │
 ┃                                      ┃│                                                         3│
 ┃                                      ┃│       └─ blocked by: Export posts from the old CMS (1)   │
-┃                                      ┃│     ○ Point DNS at the new host                          │
+┃                                      ┃│   ▸ ○ Point DNS at the new host                          │
 ┃                                      ┃│                                                         4│
 ┃                                      ┃│       └─ blocked by: Set up redirects for the old UR… (3)│
 ┃                                      ┃│                                                          │
@@ -27,4 +27,4 @@
 ┃                                      ┃│                                                          │
 ┃                                      ┃│                                                          │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────────────────────────────────────╯
-  Project created                                                       [?]help  LOCAL projects.db
+  Project created                                                        ? keys  LOCAL projects.db

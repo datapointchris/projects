@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -435,12 +436,16 @@ func TestStatusBar_NeverWiderThanTheWindow(t *testing.T) {
 			t.Errorf("main bar is %d columns in a %d-column window", got, width)
 		}
 		// Clipping must not reach the one key that leads to every other key.
-		if !strings.Contains(bar, "[?]help") {
+		if !strings.Contains(bar, "? keys") {
 			t.Errorf("help key clipped off at %d columns: %s", width, bar)
 		}
 		// A hint is shown whole or dropped, never cut in half.
-		if plain := ansi.Strip(bar); strings.Count(plain, "[") != strings.Count(plain, "]") {
-			t.Errorf("hint cut mid-token at %d columns: %s", width, bar)
+		whole := strings.Split(app.footerHints(), hintGap)
+		shown, _, _ := strings.Cut(strings.TrimSpace(ansi.Strip(bar)), "     ")
+		for _, hint := range strings.Split(strings.TrimSuffix(shown, " …"), hintGap) {
+			if !slices.Contains(whole, hint) {
+				t.Errorf("hint %q cut mid-token at %d columns: %s", hint, width, bar)
+			}
 		}
 
 		openTree(t, app)

@@ -1,7 +1,7 @@
  By project   All items   Dependencies
 ╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Projects                             │┃ Repaint the fence                                        ┃
-│   Move the blog to plain files ○3 ✓1 │┃>   ○ Scrape and prime the boards                         ┃
+│   Move the blog to plain files ○3 ✓1 │┃> ▸ ○ Scrape and prime the boards                         ┃
 │   Replace the kitchen faucet ○3 ✓0   │┃                                                        39┃
 │   Plan the Lisbon trip ○31 ✓0        │┃                                                          ┃
 │> Repaint the fence ○1 ✓0             │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Item created                                                          [?]help  LOCAL projects.db
+  Item created                                                           ? keys  LOCAL projects.db

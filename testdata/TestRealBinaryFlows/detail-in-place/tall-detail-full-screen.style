@@ -1,0 +1,14 @@
+1: 2-30 bold
+2: 2-16 fg=8
+3: 2-39 fg=8
+6: 2-7 fg=12 bold
+9: 2-10 fg=12 bold
+10: 2-20 fg=8
+14: 2-6 fg=12 bold
+16: 2-7 fg=12 bold reverse
+16: 8-8 fg=12 reverse
+16: 9-12 fg=12 bold reverse
+18: 30-43 bold
+20: 47-49 italic
+23: 2-8 fg=12 bold
+27: 51-78 fg=11

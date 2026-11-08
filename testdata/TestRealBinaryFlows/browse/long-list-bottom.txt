@@ -1,30 +1,30 @@
  By project   All items   Dependencies
 ╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Projects                             │┃ Plan the Lisbon trip                                     ┃
-│   Move the blog to plain files ○3 ✓1 │┃     ○ Day 17: walk the next neighborhood                 ┃
+│   Move the blog to plain files ○3 ✓1 │┃   ▸ ○ Day 17: walk the next neighborhood                 ┃
 │   Replace the kitchen faucet ○3 ✓0   │┃                                                        27┃
-│> Plan the Lisbon trip ○31 ✓0         │┃     ○ Day 18: walk the next neighborhood                 ┃
+│> Plan the Lisbon trip ○31 ✓0         │┃   ▸ ○ Day 18: walk the next neighborhood                 ┃
 │                                      │┃                                                        28┃
-│                                      │┃     ○ Day 19: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 19: walk the next neighborhood                 ┃
 │                                      │┃                                                        29┃
-│                                      │┃     ○ Day 20: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 20: walk the next neighborhood                 ┃
 │                                      │┃                                                        30┃
-│                                      │┃     ○ Day 21: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 21: walk the next neighborhood                 ┃
 │                                      │┃                                                        31┃
-│                                      │┃     ○ Day 22: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 22: walk the next neighborhood                 ┃
 │                                      │┃                                                        32┃
-│                                      │┃     ○ Day 23: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 23: walk the next neighborhood                 ┃
 │                                      │┃                                                        33┃
-│                                      │┃     ○ Day 24: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 24: walk the next neighborhood                 ┃
 │                                      │┃                                                        34┃
-│                                      │┃     ○ Day 25: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 25: walk the next neighborhood                 ┃
 │                                      │┃                                                        35┃
-│                                      │┃     ○ Day 26: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 26: walk the next neighborhood                 ┃
 │                                      │┃                                                        36┃
-│                                      │┃     ○ Day 27: walk the next neighborhood                 ┃
+│                                      │┃   ▸ ○ Day 27: walk the next neighborhood                 ┃
 │                                      │┃                                                        37┃
-│                                      │┃>   ○ Day 28: walk the next neighborhood                  ┃
+│                                      │┃> ▸ ○ Day 28: walk the next neighborhood                  ┃
 │                                      │┃                                                        38┃
 │                                      │┃ 31/31                                                    ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [c]omplete [a]dd [n]ote [M]ove [Tab]view [/]filter        [?]help  LOCAL projects.db
+  c complete  a add  n note  M move  tab view  / filter  j/k move …      ? keys  LOCAL projects.db

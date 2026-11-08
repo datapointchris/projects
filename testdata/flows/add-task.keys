@@ -1,7 +1,7 @@
 # Add a task from the list, then toggle one and delete one.
 wait Export posts from the old CMS
 press l
-wait [Enter]read
+wait c complete
 
 press t
 wait New task for "Export posts from the old CMS"

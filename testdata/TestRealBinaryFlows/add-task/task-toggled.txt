@@ -7,12 +7,12 @@
 │                                      │┃     > ✓ Convert HTML to markdown                         ┃
 │                                      │┃       ○ Download the images                              ┃
 │                                      │┃       ○ Check the image links                            ┃
-│                                      │┃     ✓ Pick a theme                                       ┃
+│                                      │┃   ▸ ✓ Pick a theme                                       ┃
 │                                      │┃                                                         2┃
-│                                      │┃     ○ Set up redirects for the old URLs                  ┃
+│                                      │┃   ▸ ○ Set up redirects for the old URLs                  ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
 │                                      │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [a]dd [space]done [D]elete [Tab]view [/]filter                        [?]help  LOCAL projects.db
+  a add  space done  D delete  tab view  / filter  j/k move  [/] jump …  ? keys  LOCAL projects.db

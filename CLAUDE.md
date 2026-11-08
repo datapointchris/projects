@@ -171,9 +171,14 @@ builds the tree. Help renders through `gotermstyle/cobrahelp`.
 
 - **Every key the board takes is a row in `tui/action_table.go`, in every mode.** The key handler, the
   hints in the status bar and in each prompt, picker and overlay, and the `?` overlay all read it. So a
-  key added there shows in each, and a row's `applies` keeps it out of each where it does not act. A
-  mode with a text box binds only keys that type nothing, and `typesText` hands the rest to the box.
-  The hosted reader takes its own keys while it shows.
+  key added there shows in each, and a row's `Applies` keeps it out of each where it does not act. A
+  row is gotermboard's `KeyAction`. On the board, `j` `k` `g` `G`, `ctrl+d` `ctrl+u`, `J` `K`, `[`
+  `]`, Enter, space, `?` and `q` are gotermboard's `UniversalActions`, acting on `App` as a
+  `gotermboard.Host` in `tui/key_host.go`, and the board's own rows take a key ahead of them where
+  they apply. A mode with a text box binds only keys that type nothing, and `typesText` hands the
+  rest to the box. The hosted reader takes its own keys while it shows.
+- **Enter and space open an item's detail, the page its reader shows.** Space opens it under the
+  row however tall. Enter opens it there where it fits the pane, and full screen where it does not.
 - **The board hosts gotermboard's `Reader` and not its `Model`.** Its own panes, glyphs and footer are
   drawn in `tui`, so `App` forwards keys, pastes and window sizes to the reader while one shows, and
   `Reader.ClosesWith` hands the screen back.

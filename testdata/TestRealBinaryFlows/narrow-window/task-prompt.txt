@@ -7,6 +7,6 @@
  │                                              │
  │    > New task...                             │
  │                                              │
- │    [Enter]confirm [Esc]cancel                │
+ │    enter confirm  esc cancel                 │
  │                                              │
  ╰──────────────────────────────────────────────╯

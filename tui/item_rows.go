@@ -250,17 +250,6 @@ func (m *App) moveCursorTo(at int) {
 	m.scrolled = false
 }
 
-// onOpenText says the cursor's row shows its note open under it, which ctrl+d, ctrl+u, J and K
-// then read through.
-func (m *App) onOpenText() bool {
-	row := m.currentRow()
-	return row != nil && row.kind == rowItem && m.noteOpen(m.items[row.itemIdx].ProjectItem)
-}
-
-func (m *App) noteOpen(item model.ProjectItem) bool {
-	return m.opened[item.ID] && hasNote(item)
-}
-
 // --- Layout ---
 
 // paneLayout is where every row of the item pane lands in line space. Scrolling counts lines
@@ -305,8 +294,8 @@ func (m *App) itemPaneLayout(width int) paneLayout {
 		body := 1
 		if row.kind == rowItem {
 			body = 2
-			if item := m.items[row.itemIdx].ProjectItem; m.noteOpen(item) {
-				body += len(m.noteLines(item, width))
+			if item := m.items[row.itemIdx].ProjectItem; m.detailOpen(item.ID) {
+				body += len(m.detailLines(item.ID, width))
 			}
 		}
 		if row.kind != rowGroup && m.rowIsLastOfItem(i) {
@@ -509,8 +498,8 @@ func (m *App) renderRowBlock(i, width int) []string {
 	case rowItem:
 		item := m.items[row.itemIdx]
 		lines = append(lines, m.itemLines(item, row.group, i == m.rowCursor, width)...)
-		if m.noteOpen(item.ProjectItem) {
-			lines = append(lines, m.noteLines(item.ProjectItem, width)...)
+		if m.detailOpen(item.ID) {
+			lines = append(lines, m.detailLines(item.ID, width)...)
 		}
 	case rowTask:
 		lines = append(lines, m.taskLine(row, i == m.rowCursor, width))
@@ -574,8 +563,7 @@ func (m *App) itemLines(item model.ProjectItemInProject, group int, cursor bool,
 	if item.Completed {
 		status = "✓"
 	}
-	opens := hasNote(item.ProjectItem)
-	head := lead + chevron(opens, m.opened[item.ID]) + " " + status + " "
+	head := lead + chevron(true, m.detailOpen(item.ID)) + " " + status + " "
 
 	var glyphs []string
 	var plain string
@@ -583,7 +571,7 @@ func (m *App) itemLines(item model.ProjectItemInProject, group int, cursor bool,
 		plain += " ◈"
 		glyphs = append(glyphs, multiProjectStyle.Render(" ◈"))
 	}
-	if opens {
+	if hasNote(item.ProjectItem) {
 		plain += " ≡"
 		glyphs = append(glyphs, notesIndicatorStyle.Render(" ≡"))
 	}
@@ -676,15 +664,19 @@ func (m *App) taskLine(row paneRow, cursor bool, width int) string {
 	return lead + check + " " + title
 }
 
-// noteLines is an item's note laid out by gotermboard's markdown renderer, under its title.
-func (m *App) noteLines(item model.ProjectItem, width int) []string {
-	room := max(min(width-titleColumn-1, gotermboard.ReadingWidth), 10)
+// detailLines is the item's detail, as its reader shows it, laid out under its title.
+func (m *App) detailLines(itemID string, width int) []string {
 	indent := strings.Repeat(" ", titleColumn)
 	var lines []string
-	for _, line := range m.markdown.Lines(noteOf(item), room) {
+	for _, line := range m.itemDocument(m.details[itemID])(detailWidth(width)) {
 		lines = append(lines, ansi.Truncate(indent+line.Paint(m.palette), width, "…"))
 	}
 	return lines
+}
+
+// detailWidth is the width an item's detail lays out at in place, under its title.
+func detailWidth(paneWidth int) int {
+	return max(min(paneWidth-titleColumn-1, gotermboard.ReadingWidth), 10)
 }
 
 // blockerLines is what hangs below an item: each item that blocks it.

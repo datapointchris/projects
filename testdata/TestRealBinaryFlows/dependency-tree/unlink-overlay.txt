@@ -14,6 +14,6 @@
          │                                                                                │
          │  > ○ Buy the faucet  6                                                         │
          │                                                                                │
-         │    [Enter]unlink [Esc]cancel                                                   │
+         │    enter unlink  esc cancel                                                    │
          │                                                                                │
          ╰────────────────────────────────────────────────────────────────────────────────╯

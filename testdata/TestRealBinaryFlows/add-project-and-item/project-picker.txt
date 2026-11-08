@@ -18,6 +18,6 @@
                    │                                                            │
                    │    Currently in 1 project(s). Must belong to at least 1.   │
                    │                                                            │
-                   │    [space]toggle [Enter]confirm [Esc]cancel                │
+                   │    space toggle  enter confirm  esc cancel                 │
                    │                                                            │
                    ╰────────────────────────────────────────────────────────────╯
