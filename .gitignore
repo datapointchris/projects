@@ -8,6 +8,13 @@ vendor/
 # Task
 .task/
 
+# The web app's dependencies, build and Playwright output
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+
 # SQLite
 *.db
 *.db-journal

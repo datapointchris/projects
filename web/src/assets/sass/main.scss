@@ -1,0 +1,20 @@
+// The app's global styles. Partials resolve from this directory through Vite's
+// loadPaths, so a component's scoped style can `@use 'components/buttons'`.
+// FontAwesome is loaded as CSS imports in main.ts.
+
+@use 'abstracts/colors';
+@use 'abstracts/spacing';
+@use 'abstracts/effects';
+@use 'abstracts/shape';
+@use 'abstracts/card_shadows';
+
+@use 'base/reset';
+@use 'base/typography';
+@use 'base/base';
+
+@use 'layout/forms';
+
+@use 'components/buttons';
+@use 'components/flash_messages';
+@use 'components/add_edit_modal';
+@use 'components/listing_modal';

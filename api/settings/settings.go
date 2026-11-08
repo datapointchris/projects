@@ -13,6 +13,7 @@ import (
 const (
 	defaultListenPort   = "8000"
 	defaultPostgresPort = "5432"
+	defaultWebClientID  = "projects-web"
 )
 
 // Postgres is where the database is.
@@ -42,8 +43,17 @@ type Server struct {
 	OIDCIssuer string
 	// PublicURL is the address clients reach the API at. Set, the API serves RFC
 	// 9728 metadata naming the issuer, so a client can find where to log in.
-	PublicURL  string
-	ListenPort string
+	PublicURL string
+	// WebClientID and WebClientSecret are the confidential client the API logs
+	// the web app's browsers in as. The secret set turns that login on.
+	WebClientID     string
+	WebClientSecret string
+	ListenPort      string
+}
+
+// BrowserLogin is whether the API logs browsers in, which the secret decides.
+func (s Server) BrowserLogin() bool {
+	return s.WebClientSecret != ""
 }
 
 // LoadPostgres reads the database's settings, the only ones the migration job needs.
@@ -79,12 +89,18 @@ func LoadServer() (Server, error) {
 	if issuer == "" {
 		return Server{}, fmt.Errorf("settings not set: OIDC_ISSUER")
 	}
-	return Server{
-		Postgres:   postgres,
-		OIDCIssuer: issuer,
-		PublicURL:  os.Getenv("PUBLIC_URL"),
-		ListenPort: orDefault("PORT", defaultListenPort),
-	}, nil
+	loaded := Server{
+		Postgres:        postgres,
+		OIDCIssuer:      issuer,
+		PublicURL:       os.Getenv("PUBLIC_URL"),
+		WebClientID:     orDefault("WEB_CLIENT_ID", defaultWebClientID),
+		WebClientSecret: os.Getenv("WEB_CLIENT_SECRET"),
+		ListenPort:      orDefault("PORT", defaultListenPort),
+	}
+	if loaded.BrowserLogin() && loaded.PublicURL == "" {
+		return Server{}, fmt.Errorf("WEB_CLIENT_SECRET is set and PUBLIC_URL is not: the browser login's callback is PUBLIC_URL/api/auth/callback")
+	}
+	return loaded, nil
 }
 
 func orDefault(name, fallback string) string {

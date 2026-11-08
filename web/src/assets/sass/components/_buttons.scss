@@ -1,0 +1,428 @@
+@use '../base/typography';
+
+:root {
+  --button-border-radius: var(--radius-lg);
+  // The corner a panel, card or code block takes.
+  --border-radius: var(--button-border-radius);
+
+  // ─── Neumorphic shadow system ───────────────────────────────────────
+  //
+  // Three shadow states for interactive elements: resting, hover, pressed.
+  // These are CSS custom properties (not SCSS variables) because they use
+  // oklch(from var(--clr-primary) ...) which resolves at RUNTIME based on
+  // the active theme. SCSS variables would bake values at compile time.
+  //
+  // ARCHITECTURE:
+  //   CSS vars (here)  → define the shadow VALUES (adapt to theme)
+  //   SCSS mixin below → defines the BEHAVIOR (which var for which state)
+  //   Consumer         → includes the mixin, provides only layout
+  //
+  // SHADOW LAYER RULES:
+  //   - Resting and hover MUST have the same number of layers (10)
+  //   - Each layer position MUST match inset/outer across both states
+  //   - CSS can only interpolate between shadows with identical layer
+  //     counts and types — mismatches cause instant snapping not smooth transition
+  //   - Unused layers: pad with `0px 0px 0px transparent` (inset or outer to match)
+  //   - Pressed has a different inset/outer pattern (snaps, doesn't interpolate)
+  //     which is fine — press is a discrete state, not a continuous hover
+  //
+  // HIGHLIGHT COLORS:
+  //   Uses --clr-shadow-highlight-* (defined in _colors.scss) which derive
+  //   from --clr-primary via OKLCH relative color syntax. This means highlights
+  //   carry the theme's hue instead of neutral gray, avoiding simultaneous
+  //   contrast artifacts (e.g. yellow cast on purple backgrounds).
+  //
+  // PHYSICAL MODEL (light source top-left):
+  //   Resting: sitting on surface — dark bottom-right, highlight top-left
+  //   Hover:   lifted off surface — larger/softer shadows, translateY(-2px)
+  //   Pressed: pushed into surface — inset shadows, translateY(1px)
+
+  // prettier-ignore
+  --shadow-button:
+        0 -2px 2px var(--clr-black-trans-200),
+        0px 4px 4px var(--clr-black-trans-400),
+        0px 16px 16px var(--clr-black-trans-600),
+        16px 8px 16px var(--clr-black-trans-600),
+        inset 5px 5px 10px var(--clr-black-trans-200),
+        inset -10px -10px 10px var(--clr-black-trans-200),
+        inset -6px -6px 14px var(--clr-black-trans-600),
+        -4px -4px 10px var(--clr-shadow-highlight-md),
+        0px 0px 0px transparent,
+        inset 6px 6px 10px var(--clr-shadow-highlight-md);
+
+  // prettier-ignore
+  --shadow-button-hover:
+        0 -3px 3px var(--clr-black-trans-200),
+        0px 7px 7px var(--clr-black-trans-400),
+        0px 18px 18px var(--clr-black-trans-600),
+        18px 10px 18px var(--clr-black-trans-600),
+        inset 0px 0px 0px transparent,
+        inset 0px 0px 0px transparent,
+        inset -10px -10px 16px var(--clr-black-trans-600),
+        -5px -5px 12px var(--clr-shadow-highlight-lg),
+        0px 0px 0px transparent,
+        inset 10px 10px 16px var(--clr-shadow-highlight-lg);
+
+  // prettier-ignore
+  --shadow-button-active:
+        inset 2px 2px 5px var(--clr-black-trans-800),
+        -2px -2px 5px var(--clr-black-trans-800),
+        inset 4px 4px 8px var(--clr-black-trans-800),
+        -8px -8px 12px var(--clr-black-trans-600),
+        inset 8px 8px 32px var(--clr-black-trans-400),
+        inset -2px -2px 5px var(--clr-shadow-highlight-sm),
+        2px 2px 5px var(--clr-shadow-highlight-md),
+        inset -4px -4px 8px var(--clr-shadow-highlight-md),
+        8px 8px 24px var(--clr-shadow-highlight-lg),
+        inset -8px -8px 32px var(--clr-shadow-highlight-md);
+}
+
+// ─── Neumorphic button mixin ────────────────────────────────────────
+//
+// Applies the complete --shadow-button-* system with hover lift, pressed
+// sink, and consistent transitions. Consumer provides layout (padding,
+// flex, font) — this mixin provides the effect.
+//
+// $active-class:     CSS class suffix for pressed state (e.g., '--active', '--selected')
+//                    If null, uses :active pseudo-class instead
+// $hover-transform:  any CSS transform on hover (default: scale(1.02))
+// $pressed-transform: any CSS transform when pressed (default: scale(0.99) — subtle shrink)
+//                    Set to none for shadow-only state changes
+// $hover-color:      text color on hover (default: brighten to --clr-text)
+// $active-color:     text color when active/selected (default: accent)
+@mixin neu-button(
+  $active-class: null,
+  $hover-transform: scale(1.02),
+  $pressed-transform: scale(0.99),
+  $hover-color: var(--clr-text),
+  $active-color: var(--clr-accent)
+) {
+  border-radius: var(--button-border-radius);
+  background-color: var(--clr-primary);
+  box-shadow: var(--shadow-button);
+  color: var(--clr-gray-100);
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+  will-change: transform;
+  position: relative;
+
+  @if $active-class {
+    &:hover:not(&#{$active-class}) {
+      box-shadow: var(--shadow-button-hover);
+      color: $hover-color;
+      transform: $hover-transform;
+      z-index: 2;
+    }
+
+    &#{$active-class} {
+      box-shadow: var(--shadow-button-active);
+      background-color: var(--clr-primary--darker);
+      color: $active-color;
+      transform: $pressed-transform;
+    }
+  } @else {
+    &:hover {
+      box-shadow: var(--shadow-button-hover);
+      color: $hover-color;
+      transform: $hover-transform;
+      z-index: 2;
+    }
+
+    &:active {
+      box-shadow: var(--shadow-button-active);
+      background-color: var(--clr-primary--darker);
+      color: $active-color;
+      transform: $pressed-transform;
+    }
+  }
+}
+
+@mixin button-boxy($bottom-color: var(--clr-gray-200), $right-color: var(--clr-gray-050)) {
+  box-shadow:
+    1px 0 0 $right-color,
+    1px 1px 0 $bottom-color,
+    2px 1px 0 $right-color,
+    2px 2px 0 $bottom-color,
+    3px 2px 0 $right-color,
+    3px 3px 0 $bottom-color,
+    4px 3px 0 $right-color,
+    4px 4px 0 $bottom-color;
+}
+
+@mixin button-textbox {
+  margin: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-m);
+  font-size: var(--fs-400);
+  color: var(--clr-text);
+  background-color: var(--clr-gray-800);
+  border-radius: var(--button-border-radius);
+  box-shadow:
+    5px 5px 5px 0px var(--clr-black-trans-1000),
+    inset 0px 0px 5px 0px var(--clr-gray-400),
+    inset -5px -5px 4px -2px var(--clr-gray-400);
+}
+
+.button {
+  @include button-textbox;
+  text-shadow: 2px 4px 1px var(--clr-black-trans-800);
+  transition: all var(--transition-fast) ease-in-out;
+
+  &--pressed {
+    // invert the regular button-3d box-shadow
+    transform: scale(1.05); /* a depressed button looks smaller */
+    color: var(--clr-accent-light);
+    box-shadow: var(--shadow-card-active);
+  }
+
+  &--hidden {
+    // for submit buttons that are using an icon
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  &--success {
+    &:hover {
+      color: var(--clr-success);
+    }
+  }
+
+  &--warning {
+    &:hover {
+      color: var(--clr-warning);
+    }
+  }
+
+  &--danger {
+    &:hover {
+      color: var(--clr-error);
+    }
+  }
+
+  &:hover:not(.button--pressed, .button--success, .button--warning, .button--danger) {
+    @include typography.text-glow-colored;
+  }
+
+  &__text {
+    display: inline-block;
+    padding-bottom: 2px; /*the space for the gradient*/
+    background: linear-gradient(var(--clr-text), var(--clr-text)) center bottom;
+    background-size: 0% 2px;
+    background-repeat: no-repeat;
+    transition: all var(--transition-fast) ease-in-out;
+
+    &:hover {
+      background-size: 100% 2px;
+    }
+
+    &--success {
+      background: linear-gradient(var(--clr-success), var(--clr-success)) center bottom;
+      background-size: 0% 2px;
+      background-repeat: no-repeat;
+
+      &:hover {
+        background-size: 100% 2px;
+      }
+    }
+    &--warning {
+      background: linear-gradient(var(--clr-warning), var(--clr-warning)) center bottom;
+      background-size: 0% 2px;
+      background-repeat: no-repeat;
+
+      &:hover {
+        background-size: 100% 2px;
+      }
+    }
+    &--danger {
+      background: linear-gradient(var(--clr-error), var(--clr-error)) center bottom;
+      background-size: 0% 2px;
+      background-repeat: no-repeat;
+
+      &:hover {
+        background-size: 100% 2px;
+      }
+    }
+  }
+}
+
+.button-icon {
+  // for submit buttons that are using a fontawesome icon
+  transition: all var(--transition-medium) ease-in-out;
+  color: var(--clr-text);
+
+  &:hover:not(.pressed) {
+    transform: scale(1.8);
+    transition: all var(--transition-medium) ease-in-out;
+    color: var(--clr-accent-light);
+  }
+  &.pressed {
+    color: var(--clr-accent);
+  }
+
+  &.success {
+    &:hover {
+      color: var(--clr-success);
+    }
+  }
+
+  &.warning {
+    &:hover {
+      color: var(--clr-warning);
+    }
+  }
+
+  &.danger {
+    &:hover {
+      color: var(--clr-error);
+    }
+  }
+}
+
+.button-toggle-selector {
+  padding: var(--space-s);
+  border-radius: var(--button-border-radius);
+  background-color: var(--clr-primary);
+  box-shadow: var(--shadow-card);
+  font-size: var(--fs-400);
+  color: var(--clr-text);
+  text-align: center;
+
+  &.pressed {
+    // invert the regular button-3d box-shadow
+    transform: scale(1.05); /* a depressed button looks smaller */
+    color: var(--clr-accent-light);
+    box-shadow: var(--shadow-card-active);
+  }
+
+  &.left {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  &.right {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
+@mixin action-button(
+  $button-size: 75px,
+  $button-step-blend: 1px,
+  $button-press-time: 0.4s,
+  $content-ratio: 0.3,
+  $text-and-icon-color: var(--clr-accent-light),
+  $selected-color: var(--clr-accent)
+) {
+  position: relative;
+  width: $button-size;
+  height: $button-size;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: $button-size;
+
+  color: $text-and-icon-color;
+  transition: all $button-press-time ease-in-out;
+
+  $button-outline-width: calc($button-size / 2);
+  $button-outline-size: $button-size + $button-outline-width;
+  $button-press-delay: $button-press-time * 0.3;
+
+  &__text {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+    font-size: $button-size * $content-ratio;
+    line-height: 1;
+    text-align: center;
+  }
+
+  &__icon {
+    /* This works with svg but not fontawesome ie (fa-solid fa-code)
+        must use class names for sizing */
+    width: $button-size * $content-ratio;
+    height: $button-size * $content-ratio;
+  }
+
+  &:hover {
+    color: $selected-color;
+    transition: all $button-press-time ease-in-out;
+  }
+
+  &::before {
+    /* GRAY BUTTON ON TOP */
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: $button-size;
+    height: $button-size;
+    content: '';
+    border-radius: $button-size;
+    background-color: var(--clr-gray-800);
+    filter: blur($button-step-blend * 0.5);
+    transition: all $button-press-time ease-in-out;
+    box-shadow:
+      8px 8px 20px var(--clr-black-trans-600),
+      -8px -8px 20px var(--clr-shadow-highlight-lg),
+      inset -8px -8px 20px var(--clr-black-trans-1000),
+      inset 8px 8px 20px var(--clr-shadow-highlight-md);
+  }
+
+  &:hover::before {
+    background-color: var(--clr-gray-900);
+    filter: blur($button-step-blend * 3);
+    transition: all $button-press-time ease-in-out;
+    box-shadow:
+      -8px -8px 20px var(--clr-black-trans-600),
+      4px 4px 20px var(--clr-shadow-highlight-lg),
+      inset 8px 8px 20px var(--clr-black-trans-1000),
+      inset -8px -8px 20px var(--clr-shadow-highlight-md);
+  }
+
+  &::after {
+    /* OUTER RING
+        The outer ring has a delay for the press animation to make it appear
+        that it is being depressed by the inner button.
+        */
+
+    position: absolute;
+    translate: transform(-50%, -50%);
+    display: block;
+    width: $button-outline-size;
+    height: $button-outline-size;
+    content: '';
+    cursor: pointer;
+    border-radius: $button-outline-size;
+    filter: blur($button-step-blend);
+    transition: all $button-press-time ease-in-out $button-press-delay;
+    box-shadow:
+      8px 8px 20px var(--clr-black-trans-600),
+      -4px -4px 20px var(--clr-gray-trans-800),
+      inset -8px -8px 20px var(--clr-black-trans-1000),
+      inset 8px 8px 20px var(--clr-gray-trans-600);
+  }
+
+  &:hover::after {
+    transform: scale(1.01); /* changing the shadow makes the button appear smaller, so scale up */
+    filter: blur($button-step-blend * 3);
+    transition: all $button-press-time ease-in-out $button-press-delay;
+    box-shadow:
+      -8px -8px 20px var(--clr-black-trans-600),
+      4px 4px 20px var(--clr-shadow-highlight-lg),
+      inset 8px 8px 20px var(--clr-black-trans-1000),
+      inset -8px -8px 20px var(--clr-shadow-highlight-md);
+  }
+}
+
+.button-sidebar-toggle {
+  $button-size: 50px;
+  margin: var(--space-xs) auto;
+  @include action-button($button-size);
+}
+
+.button-sidebar-tab {
+  $button-size: 40px;
+  @include action-button($button-size);
+}

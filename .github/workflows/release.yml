@@ -33,8 +33,8 @@ jobs:
       # converged while leaving the old binary in place.
       prime-module-proxy: true
 
-  api-publish:
-    name: Publish the API image and its manifests
+  publish:
+    name: Publish the API and web images and their manifests
     needs: release
     # The version is empty on a push that cut no release.
     if: needs.release.outputs.version != ''
@@ -50,6 +50,7 @@ jobs:
     env:
       VERSION: ${{ needs.release.outputs.version }}
       IMAGE: ghcr.io/${{ github.repository }}
+      WEB_IMAGE: ghcr.io/${{ github.repository }}-web
       MANIFESTS: ghcr.io/${{ github.repository }}/manifests
     # A named bash runs with pipefail.
     defaults:
@@ -71,7 +72,8 @@ jobs:
       # A version already on ghcr is never rebuilt, so one tag names one image,
       # and :latest moves only to the newest version. Only "not found" builds:
       # any other error fails the step, so a transient one never republishes a
-      # version under a new digest.
+      # version under a new digest. Each image is decided alone, so a re-run
+      # after one of the two pushed builds only the other.
       - name: Decide what to publish
         id: publish
         run: |
@@ -82,20 +84,27 @@ jobs:
           else
             echo "latest=false" >>"$GITHUB_OUTPUT"
           fi
-          if answer=$(docker buildx imagetools inspect "$IMAGE:$VERSION" 2>&1 >/dev/null); then
-            echo "::notice::$IMAGE:$VERSION is already published"
-            echo "build=false" >>"$GITHUB_OUTPUT"
-          elif grep -q ': not found$' <<<"$answer"; then
-            echo "build=true" >>"$GITHUB_OUTPUT"
-          else
+          published() {
+            local answer
+            if answer=$(docker buildx imagetools inspect "$1" 2>&1 >/dev/null); then
+              echo "::notice::$1 is already published"
+              return 0
+            elif grep -q ': not found$' <<<"$answer"; then
+              return 1
+            fi
             echo "$answer" >&2
             exit 1
-          fi
+          }
+          build_api=true build_web=true
+          if published "$IMAGE:$VERSION"; then build_api=false; fi
+          if published "$WEB_IMAGE:$VERSION"; then build_web=false; fi
+          echo "api=$build_api" >>"$GITHUB_OUTPUT"
+          echo "web=$build_web" >>"$GITHUB_OUTPUT"
 
       # The version for a deployment to pin, :sha-<short> for a person to
       # trace, and :latest for `docker run`. A manifest names the digest.
       - name: Resolve the tags
-        if: steps.publish.outputs.build == 'true'
+        if: steps.publish.outputs.api == 'true'
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
@@ -109,7 +118,7 @@ jobs:
       # The provenance and SBOM attestations ride in the image's index, so the
       # digest a manifest pins carries them.
       - name: Build and push
-        if: steps.publish.outputs.build == 'true'
+        if: steps.publish.outputs.api == 'true'
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -124,19 +133,60 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The web image is tagged as the API's is, under the same version.
+      - name: Resolve the web image's tags
+        if: steps.publish.outputs.web == 'true'
+        id: web-meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.WEB_IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ steps.publish.outputs.latest == 'true' }}
+
+      # Its own cache scope, because two builds writing the default scope
+      # replace each other's cache on every release.
+      - name: Build and push the web image
+        if: steps.publish.outputs.web == 'true'
+        id: web-build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: web
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.web-meta.outputs.tags }}
+          labels: ${{ steps.web-meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
       # A re-run that built nothing reads the published version's digest.
-      - name: Name the image by its digest
+      - name: Name each image by its digest
         id: image
         env:
           BUILT: ${{ steps.build.outputs.digest }}
+          WEB_BUILT: ${{ steps.web-build.outputs.digest }}
         run: |
-          pinned=$BUILT
-          if [ -z "$pinned" ]; then
-            pinned=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
-          fi
-          [[ $pinned == sha256:* ]] || { echo "no digest for $IMAGE:$VERSION: '$pinned'" >&2; exit 1; }
-          echo "ref=$IMAGE@$pinned" >>"$GITHUB_OUTPUT"
-          echo "Image \`$IMAGE@$pinned\`" >>"$GITHUB_STEP_SUMMARY"
+          pin() {
+            local pinned=$2
+            if [ -z "$pinned" ]; then
+              pinned=$(docker buildx imagetools inspect "$1:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+            fi
+            [[ $pinned == sha256:* ]] || { echo "no digest for $1:$VERSION: '$pinned'" >&2; exit 1; }
+            echo "$1@$pinned"
+          }
+          api=$(pin "$IMAGE" "$BUILT")
+          web=$(pin "$WEB_IMAGE" "$WEB_BUILT")
+          echo "ref=$api" >>"$GITHUB_OUTPUT"
+          echo "web_ref=$web" >>"$GITHUB_OUTPUT"
+          {
+            echo "API image \`$api\`"
+            echo
+            echo "Web image \`$web\`"
+          } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Install flux, kustomize and cosign
         run: |
@@ -150,9 +200,10 @@ jobs:
         id: manifests
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
+          WEB_IMAGE_REF: ${{ steps.image.outputs.web_ref }}
         run: |
           work=$RUNNER_TEMP/manifests
-          release/pin-manifests --image "$IMAGE_REF" --version "$VERSION" --out "$work"
+          release/pin-manifests --image "$IMAGE_REF" --web-image "$WEB_IMAGE_REF" --version "$VERSION" --out "$work"
           pushed=$(flux push artifact "oci://$MANIFESTS:$VERSION" --path="$work" \
             --source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --revision="$VERSION@sha1:$GITHUB_SHA" \
             --reproducible --output=json | jq -r .digest)
@@ -162,25 +213,28 @@ jobs:
 
       # Keyless, so the signing certificate names this workflow on this ref and
       # no key exists to keep. A deployment verifies the artifact against that
-      # identity before applying it. The verify proves the pair the release
-      # notes print is the one a consumer can check. A re-run signs again, and
+      # identity before applying it. The verify proves the refs the release
+      # notes print are the ones a consumer can check. A re-run signs again, and
       # either signature verifies.
-      - name: Sign the image and the manifests
+      - name: Sign the images and the manifests
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
+          WEB_IMAGE_REF: ${{ steps.image.outputs.web_ref }}
           MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
         run: |
           cosign sign --yes "$IMAGE_REF"
+          cosign sign --yes "$WEB_IMAGE_REF"
           cosign sign --yes "$MANIFESTS_REF"
           cosign verify --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "$IMAGE_REF" "$MANIFESTS_REF" >/dev/null
+            "$IMAGE_REF" "$WEB_IMAGE_REF" "$MANIFESTS_REF" >/dev/null
 
       # A re-run finds the section already written, and leaves it.
       - name: Name what was published in the release notes
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_REF: ${{ steps.image.outputs.ref }}
+          WEB_IMAGE_REF: ${{ steps.image.outputs.web_ref }}
           MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
         run: |
           notes=$RUNNER_TEMP/notes.md
@@ -190,7 +244,8 @@ jobs:
               echo
               echo '## Published'
               echo
-              echo "- Image: \`$IMAGE_REF\`"
+              echo "- API image: \`$IMAGE_REF\`"
+              echo "- Web image: \`$WEB_IMAGE_REF\`"
               echo "- Manifests: \`$MANIFESTS_REF\`, with \`migrate/\` to apply before \`app/\`"
             } >>"$notes"
             gh release edit "v$VERSION" --notes-file "$notes"

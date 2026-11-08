@@ -1,0 +1,20 @@
+:root {
+  // prettier-ignore
+  --deep-3d-box-shadow:
+        1px 1px 0px var(--clr-gray-200),
+        2px 2px 0px var(--clr-gray-300),
+        3px 3px 0px var(--clr-gray-400),
+        4px 4px 0px var(--clr-gray-500),
+        5px 5px 0px var(--clr-gray-600),
+        6px 6px 0px var(--clr-gray-700),
+        7px 7px 0px var(--clr-gray-800),
+        8px 8px 0px var(--clr-gray-900),
+        9px 9px 0px var(--clr-gray-1000),
+        28px 28px 30px var(--clr-black-trans-800),
+        20px 30px 35px var(--clr-black-trans-600),
+        30px 40px 40px var(--clr-black-trans-600);
+}
+
+@mixin deep-3d-box {
+  box-shadow: var(--deep-3d-box-shadow);
+}

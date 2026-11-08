@@ -1,0 +1,72 @@
+@use '../components/buttons';
+
+.textbox {
+  @include buttons.button-textbox;
+  width: 90%; // no need to specify columns or size with this
+  border: var(--border-input);
+  border-radius: var(--button-border-radius);
+  font-size: var(--fs-400);
+  padding: 0.5em 1.75em;
+  color: var(--clr-text);
+  background-color: var(--clr-gray-800);
+
+  &--error {
+    border: 2px solid var(--clr-error);
+    animation: textbox-error-flash 1s ease forwards;
+  }
+}
+
+@keyframes textbox-error-flash {
+  0% {
+    border-color: white;
+    box-shadow:
+      0 0 20px rgba(255, 255, 255, 0.8),
+      0 0 40px rgba(255, 60, 60, 0.6);
+  }
+
+  100% {
+    border-color: var(--clr-error);
+    box-shadow: none;
+  }
+}
+
+.add-item-wrapper {
+  width: clamp(50svw, 50rem, 80svw);
+  margin: auto;
+  margin-bottom: var(--space-2xl);
+  padding: var(--space-m);
+
+  text-align: center;
+  font-size: var(--fs-400);
+  line-height: 1.5em;
+
+  border-radius: var(--button-border-radius);
+  background-color: var(--clr-black-trans-600);
+  box-shadow:
+    var(--shadow-card),
+    -1px -2px 3px var(--clr-black-trans-200),
+    inset -5px -5px 12px var(--clr-gray-trans-900),
+    inset 3px 3px 12px var(--clr-shadow-highlight-lg);
+}
+
+.add-item-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+  justify-content: center;
+
+  &__item {
+    flex-grow: 1; // Allow the item to grow to fill the container
+    flex-shrink: 0; // Prevent the item from shrinking
+    flex-basis: 40%; // Specify the initial size of the item
+    label {
+      display: block;
+    }
+
+    &--full-width {
+      flex-grow: 1;
+      flex-shrink: 0;
+      flex-basis: 80%;
+    }
+  }
+}

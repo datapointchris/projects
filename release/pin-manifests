@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# Copies deploy/ with the image pinned and the version labeled in every kustomize path, and builds each.
+# Copies deploy/ with the images pinned and the version labeled in every kustomize path, and builds each.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: pin-manifests --image <name@sha256:...> --version <version> --out <directory>
+Usage: pin-manifests --image <name@sha256:...> --web-image <name@sha256:...>
+                     --version <version> --out <directory>
 
 Copies deploy/ into <directory>, which must be empty or absent. In each
-kustomize path under it, names the image projects as --image, and labels every
-object and pod template app.kubernetes.io/version: --version. Then builds each
-path, so one that will not build fails here, and prints the paths, one a line.
+kustomize path under it, names the image projects as --image, and the image
+projects-web as --web-image wherever the path lists it. Labels every object
+and pod template app.kubernetes.io/version: --version. Then builds each path,
+so one that will not build fails here, and prints the paths, one a line.
 
 The release pushes <directory> as the manifests artifact. validate.yml checks
 each path it prints.
@@ -32,12 +34,13 @@ if [ $# -eq 0 ]; then
   exit 0
 fi
 
-image='' version='' out=''
+image='' web_image='' version='' out=''
 while [ $# -gt 0 ]; do
   case $1 in
-    --image | --version | --out)
+    --image | --web-image | --version | --out)
       [ $# -ge 2 ] || usage_error "$1 needs a value"
-      printf -v "${1#--}" '%s' "$2"
+      name=${1#--}
+      printf -v "${name//-/_}" '%s' "$2"
       shift 2
       ;;
     -h | --help)
@@ -47,10 +50,11 @@ while [ $# -gt 0 ]; do
     *) usage_error "unknown argument $1" ;;
   esac
 done
-for name in image version out; do
-  [ -n "${!name}" ] || usage_error "--$name is required"
+for name in image web_image version out; do
+  [ -n "${!name}" ] || usage_error "--${name//_/-} is required"
 done
 [[ $image == *@sha256:* ]] || usage_error "--image names no digest: $image"
+[[ $web_image == *@sha256:* ]] || usage_error "--web-image names no digest: $web_image"
 
 deploy=$(cd "$(dirname "${BASH_SOURCE[0]}")/../deploy" && pwd)
 mkdir -p "$out"
@@ -64,9 +68,15 @@ for kustomization in "${kustomizations[@]}"; do
   path=$(dirname "$kustomization")
   (
     cd "$path"
+    # Read before any edit, which rewrites the file in kustomize's own layout.
+    lists_web=false
+    if grep -Eq '^ *- name: projects-web$' kustomization.yaml; then lists_web=true; fi
     kustomize edit set image "projects=$image"
+    if $lists_web; then kustomize edit set image "projects-web=$web_image"; fi
     kustomize edit add label --without-selector --include-templates "app.kubernetes.io/version:$version"
   )
-  kustomize build "$path" >/dev/null
+  rendered=$(kustomize build "$path")
+  unpinned=$(sed -n 's/^[ -]*image: //p' <<<"$rendered" | grep -v '@sha256:' || true)
+  [ -z "$unpinned" ] || die "$path runs an image no flag pinned: $unpinned"
   echo "$path"
 done

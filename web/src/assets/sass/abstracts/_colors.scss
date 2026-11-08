@@ -1,0 +1,69 @@
+:root {
+  // Theme hue — change this single value to shift the entire primary palette
+  // Default: 224 (turquoise in OKLCH space, equivalent to HSL 194)
+  --base-hue: 224;
+
+  // Primary colors generated from --base-hue using OKLCH
+  // Lightness and chroma are fixed; hue rotates with the theme
+  --clr-primary--darker: oklch(0.254 0.05 var(--base-hue));
+  --clr-primary: oklch(0.269 0.05 var(--base-hue));
+  --clr-primary--lighter: oklch(0.298 0.05 var(--base-hue));
+
+  // Accent colors generated from --accent-hue using OKLCH
+  // Default: 62 (orange in OKLCH space, equivalent to HSL 31)
+  --accent-hue: 62;
+  --clr-accent: oklch(0.75 0.157 var(--accent-hue));
+  --clr-accent-light: oklch(0.94 0.045 var(--accent-hue));
+  --clr-accent-dark: oklch(0.34 0.076 var(--accent-hue));
+
+  // Semantic palette — foreground colors derive from accent-hue
+  // Neovim role mapping: Type (secondary), String (tertiary), DiagInfo (info), Comment (subtle)
+  --clr-secondary: oklch(0.65 0.12 calc(var(--accent-hue) + 120));
+  --clr-tertiary: oklch(0.65 0.1 calc(var(--accent-hue) + 240));
+  --clr-info: oklch(0.7 0.08 calc(var(--accent-hue) + 180));
+  --clr-subtle: oklch(0.55 0.04 var(--base-hue));
+
+  --clr-text: hsl(0 0% 87%);
+
+  // Status colors at full brightness
+  // Glow consumers (box-shadows) apply their own dimming via oklch(from var(...) ...)
+  --clr-error: oklch(0.63 0.25 29);
+  --clr-warning: oklch(0.75 0.15 85);
+  --clr-success: oklch(0.55 0.15 145);
+  --clr-critical: var(--clr-error);
+  --clr-overdue: oklch(0.58 0.2 35);
+
+  --clr-gray-050: hsl(0, 0%, 87%);
+  --clr-gray-100: hsl(0, 0%, 67%);
+  --clr-gray-200: hsl(0, 0%, 60%);
+  --clr-gray-300: hsl(0, 0%, 53%);
+  --clr-gray-400: hsl(0, 0%, 47%);
+  --clr-gray-500: hsl(0, 0%, 40%);
+  --clr-gray-600: hsl(0, 0%, 33%);
+  --clr-gray-700: hsl(0, 0%, 27%);
+  --clr-gray-800: hsl(0, 0%, 20%);
+  --clr-gray-900: hsl(0, 0%, 13%);
+  --clr-gray-1000: hsl(0, 0%, 7%);
+
+  --clr-gray-trans-400: hsla(0 0% 100% / 0.5);
+  --clr-gray-trans-500: hsla(0 0% 100% / 0.5);
+  --clr-gray-trans-600: hsla(0 0% 100% / 0.2);
+  --clr-gray-trans-700: hsla(0 0% 50% / 0.5);
+  --clr-gray-trans-800: hsla(0 0% 50% / 0.3);
+  --clr-gray-trans-850: hsla(0 0% 50% / 0.2);
+  --clr-gray-trans-875: hsla(0 0% 50% / 0.1);
+  --clr-gray-trans-900: hsla(0 0% 15% / 0.95);
+
+  // Shadow highlights — derived from theme primary via OKLCH relative color syntax
+  // Lighter, less chromatic version of primary for natural neumorphic highlights
+  // that adapt to every theme hue without simultaneous contrast artifacts
+  --clr-shadow-highlight-sm: oklch(from var(--clr-primary) calc(l + 0.2) calc(c * 0.5) h / 0.12);
+  --clr-shadow-highlight-md: oklch(from var(--clr-primary) calc(l + 0.2) calc(c * 0.5) h / 0.25);
+  --clr-shadow-highlight-lg: oklch(from var(--clr-primary) calc(l + 0.2) calc(c * 0.5) h / 0.35);
+
+  --clr-black-trans-200: hsl(0 0% 5% / 0.2);
+  --clr-black-trans-400: hsl(0 0% 5% / 0.4);
+  --clr-black-trans-600: hsl(0 0% 5% / 0.6);
+  --clr-black-trans-800: hsl(0 0% 5% / 0.8);
+  --clr-black-trans-1000: hsl(0 0% 5% / 1);
+}

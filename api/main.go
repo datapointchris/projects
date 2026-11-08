@@ -11,10 +11,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
 	"github.com/datapointchris/goapiauth"
+	"github.com/datapointchris/goapiauth/tokenorsession"
+	"github.com/datapointchris/gobrowserlogin"
+	"github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/datapointchris/projects/api/authentication"
 	"github.com/datapointchris/projects/api/requestlog"
@@ -83,17 +87,35 @@ func serve(ctx context.Context, log *slog.Logger) error {
 	}
 	go provider.Run(ctx, log)
 
+	checks := []routes.ReadinessCheck{
+		{Name: "postgres", Check: postgresStore.Ping},
+		{Name: "identity provider", Check: func(context.Context) error { return provider.Ready() }},
+	}
+	public := routes.PublicPaths
+	var browserLogin *gobrowserlogin.Connecting
+	if loaded.BrowserLogin() {
+		browserLogin, err = authentication.NewBrowserLogin(stdlib.OpenDBFromPool(pool), loaded.OIDCIssuer, loaded.WebClientID, loaded.WebClientSecret, loaded.PublicURL, log)
+		if err != nil {
+			return fmt.Errorf("reading the browser login's settings: %w", err)
+		}
+		go browserLogin.Run(ctx)
+	} else {
+		log.WarnContext(ctx, "WEB_CLIENT_SECRET is unset, so the API logs no browser in and only a bearer token reaches it")
+	}
+
 	svc := service.New(postgresStore, service.AssigningItemNumbers())
-	mux := routes.New(svc, log,
-		routes.ReadinessCheck{Name: "postgres", Check: postgresStore.Ping},
-		routes.ReadinessCheck{Name: "identity provider", Check: func(context.Context) error { return provider.Ready() }},
-	)
+	mux := routes.New(svc, log, checks...)
 	if loaded.PublicURL != "" {
 		authentication.Metadata(mux, loaded.PublicURL, loaded.OIDCIssuer)
 	} else {
 		log.WarnContext(ctx, "PUBLIC_URL is unset, so no RFC 9728 metadata is served and a client cannot discover the issuer")
 	}
-	protected := authentication.Protect(mux, routes.ServiceScopes, provider, log, routes.PublicPaths...)
+	var sessions tokenorsession.Sessions
+	if browserLogin != nil {
+		public = append(slices.Clone(public), authentication.MountBrowserLogin(mux, browserLogin, log)...)
+		sessions = browserLogin
+	}
+	protected := authentication.Protect(mux, routes.ServiceScopes, provider, sessions, loaded.WebClientID, log, public...)
 
 	server := &http.Server{
 		Addr:         net.JoinHostPort("", loaded.ListenPort),

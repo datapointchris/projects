@@ -1,6 +1,6 @@
-// Package authentication assembles who may reach the API, in one place a browser
-// login can replace. A person's client acts as that person, and a service client
-// reaches only what its scopes list.
+// Package authentication assembles who may reach the API: a bearer token, or a
+// session the API's own browser login started. A person's client and a session
+// act as that person, and a service client reaches only what its scopes list.
 package authentication
 
 import (
@@ -9,6 +9,7 @@ import (
 
 	"github.com/datapointchris/goapiauth"
 	"github.com/datapointchris/goapiauth/clientid"
+	"github.com/datapointchris/goapiauth/tokenorsession"
 
 	"github.com/datapointchris/projects/api/requestlog"
 	"github.com/datapointchris/projects/store"
@@ -32,17 +33,23 @@ func Metadata(mux *http.ServeMux, publicURL, issuer string) {
 	mux.Handle("GET "+goapiauth.ProtectedResourcePath, goapiauth.ProtectedResourceMetadata{Resource: publicURL, Issuer: issuer})
 }
 
-// Protect puts a bearer token in front of routes, and limits a service client to
-// what scopes lists for it.
-func Protect(routes *http.ServeMux, scopes map[string][]string, verifier goapiauth.TokenVerifier, log *slog.Logger, public ...string) http.Handler {
-	limited := goapiauth.LimitServices(routes, scopes, log)
-	return goapiauth.RequireBearer(verifier, log, public...)(bindWriter(limited))
+// Protect puts a bearer token, or a browser session where sessions is not nil, in
+// front of routes, and limits a service client to what scopes lists for it. A
+// session acts as its person and reaches every route, as a person's token does.
+// webClientID names the client a session logged in through, in each request's log.
+func Protect(routes *http.ServeMux, scopes map[string][]string, verifier goapiauth.TokenVerifier, sessions tokenorsession.Sessions, webClientID string, log *slog.Logger, public ...string) http.Handler {
+	limited := bindWriter(goapiauth.LimitServices(routes, scopes, log), webClientID)
+	if sessions == nil {
+		return goapiauth.RequireBearer(verifier, log, public...)(limited)
+	}
+	return tokenorsession.Require(verifier, sessions, log, public...)(limited)
 }
 
 // bindWriter names the caller on the request's context, so the audit trail records
 // who each write was for. A person is recorded by subject and a service by client
-// id, because a service token's subject is only the client's own id or nothing.
-func bindWriter(next http.Handler) http.Handler {
+// id, because a service token's subject is only the client's own id or nothing. A
+// session carries no client id, so its request's log names webClientID.
+func bindWriter(next http.Handler, webClientID string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		writer := store.Writer{
@@ -55,7 +62,11 @@ func bindWriter(next http.Handler) http.Handler {
 			if identity.Service {
 				writer.Actor = identity.ClientID
 			}
-			requestlog.NoteCaller(ctx, writer.Actor, identity.ClientID, identity.Service)
+			clientID := identity.ClientID
+			if clientID == "" {
+				clientID = webClientID
+			}
+			requestlog.NoteCaller(ctx, writer.Actor, clientID, identity.Service)
 		}
 		next.ServeHTTP(w, r.WithContext(store.WithWriter(ctx, writer)))
 	})

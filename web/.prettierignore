@@ -1,0 +1,7 @@
+# Prettier walks everything but node_modules, and from this directory it reads
+# no .gitignore. Build and test output stays as the tools wrote it.
+dist/
+coverage/
+test-results/
+playwright-report/
+package-lock.json

@@ -1,0 +1,92 @@
+# The web app's development stack, built from this checkout: Postgres, the
+# schema migration, the API, the web image, and a stand-in identity provider.
+# The browser reaches only the web image, at http://localhost:8096, as it reaches
+# the real route in production.
+#
+#   docker compose -f docker-compose.dev.yml up --build --wait
+#
+# `task dev-stack:start` runs it, `task web:dev` serves the app from source
+# against it, and `task web:test:e2e` runs the smoke through a fresh one.
+# Nothing here holds real data.
+
+name: projects-web-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: projects
+      POSTGRES_USER: projects
+      POSTGRES_PASSWORD: projects
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Over TCP, because a first start runs a socket-only server through init,
+    # and a check on the socket passes before the port opens.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U projects -d projects']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+    command: [projects-api, migrate]
+    environment: &database
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: projects
+      POSTGRES_PASSWORD: projects
+      POSTGRES_DB: projects
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Named as the cluster's Service is, because the web image's Caddyfile proxies to it.
+  projects-api:
+    build:
+      context: .
+    environment:
+      <<: *database
+      # The browser and the API have to name the provider by one URL, and the
+      # login takes http only on a loopback host. So the provider shares this
+      # container's network, where localhost reaches it, and its port is
+      # published here, where localhost reaches it from the browser.
+      OIDC_ISSUER: http://localhost:8097/projects
+      # The login returns the browser here. `task web:dev` names Vite's address
+      # instead, so a login started from source lands back on it.
+      PUBLIC_URL: ${PROJECTS_PUBLIC_URL:-http://localhost:8096}
+      WEB_CLIENT_ID: projects-web
+      WEB_CLIENT_SECRET: projects-web-dev-secret
+    ports:
+      - '127.0.0.1:8097:8097'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8000/ready']
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # It grants a code to any login with no page to fill in, and puts the claims
+  # below on every token, so every login is the same person.
+  identity-provider:
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.4@sha256:647dd8c78a54f0e6fcd58d79c884e612f8f998a0662276f3e1db22e464a50192
+    network_mode: service:projects-api
+    environment:
+      SERVER_PORT: '8097'
+      JSON_CONFIG: >-
+        {"interactiveLogin": false, "tokenCallbacks": [{"issuerId": "projects", "requestMappings": [{"requestParam": "grant_type", "match": "*",
+        "claims": {"sub": "projects-dev-person", "preferred_username": "dev", "name": "Dev Person"}}]}]}
+
+  web:
+    build:
+      context: web
+    ports:
+      - '127.0.0.1:8096:8080'
+    depends_on:
+      projects-api:
+        condition: service_started
+
+volumes:
+  pgdata:

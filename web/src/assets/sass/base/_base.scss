@@ -1,0 +1,25 @@
+html {
+  height: 100%;
+  background-color: var(--clr-primary--darker);
+}
+
+body {
+  min-height: 100%;
+  background-color: var(--clr-primary--darker);
+  color: var(--clr-text);
+  font-family: var(--ff-base);
+  font-weight: 300;
+  line-height: 1.5em;
+}
+
+h1 {
+  font-size: var(--fs-900);
+}
+
+h2 {
+  font-size: var(--fs-700);
+}
+
+h3 {
+  font-size: var(--fs-600);
+}

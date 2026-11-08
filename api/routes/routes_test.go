@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/datapointchris/goapiauth/authtest"
@@ -17,6 +19,7 @@ import (
 	"github.com/datapointchris/projects/api/authentication"
 	"github.com/datapointchris/projects/api/requestlog"
 	"github.com/datapointchris/projects/api/routes"
+	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
 )
@@ -44,7 +47,7 @@ func newAPI(t *testing.T) api {
 	verifier := provider.Verifier(t, config.PersonPrefix, config.ServicePrefix)
 	mux := routes.New(service.New(sqlite.New(database), service.AssigningItemNumbers()), log)
 	authentication.Metadata(mux, "https://projects.example.com", provider.URL)
-	protected := authentication.Protect(mux, routes.ServiceScopes, verifier, log, routes.PublicPaths...)
+	protected := authentication.Protect(mux, routes.ServiceScopes, verifier, nil, "", log, routes.PublicPaths...)
 
 	return api{
 		handler: requestlog.Middleware(log, protected),
@@ -108,6 +111,70 @@ func schema(t *testing.T, name string) *jsonschema.Schema {
 		t.Fatalf("compiling %s: %v", path, err)
 	}
 	return compiled
+}
+
+// A client builds its kind and status choices from the schemas, so each lists what
+// model holds, and the kind a project gets when its create names none.
+func TestTheSchemasListTheKindsAndStatusesModelHolds(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "schemas", "*.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites := 0
+	var walk func(path string, node any)
+	walk = func(path string, node any) {
+		switch node := node.(type) {
+		case []any:
+			for _, child := range node {
+				walk(path, child)
+			}
+		case map[string]any:
+			description, _ := node["description"].(string)
+			var want []string
+			switch {
+			case strings.Contains(description, "project_kinds table"):
+				want = model.ProjectKinds
+				if node["default"] != model.KindLife {
+					t.Errorf("%s: a kind's default is %v, where model's is %s", path, node["default"], model.KindLife)
+				}
+			case strings.Contains(description, "project_statuses table"):
+				want = model.ProjectStatuses
+			}
+			if want != nil {
+				sites++
+				listed, _ := node["enum"].([]any)
+				if !slices.Equal(stringsOf(listed), want) {
+					t.Errorf("%s: %q lists %v, where model holds %v", path, description, listed, want)
+				}
+			}
+			for _, child := range node {
+				walk(path, child)
+			}
+		}
+	}
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document any
+		if err := json.Unmarshal(raw, &document); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		walk(path, document)
+	}
+	if sites == 0 {
+		t.Fatal("no schema names the project_kinds or project_statuses table")
+	}
+}
+
+func stringsOf(values []any) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		text, _ := value.(string)
+		out = append(out, text)
+	}
+	return out
 }
 
 // Every shape the API answers with is a real answer checked against its file, so

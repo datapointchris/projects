@@ -7,7 +7,8 @@ The config file chooses where the data lives. With no `api` key, every command r
 SQLite database on this machine, so it works with no network at all. With `api` set, every command
 reads and writes that API and opens no database. `projects-api`, in this repo, is that API, on
 Postgres. Both modes run the API's own routes: in database mode they are served inside the process,
-so a refusal, an exit code and a `--json` answer are the same in both.
+so a refusal, an exit code and a `--json` answer are the same in both. `web/` is a browser page over
+that server, served beside it.
 
 ```bash
 projects                      # help: every command, grouped
@@ -419,7 +420,9 @@ Every setting comes from the environment:
 | Variable | Default | |
 | -------- | ------- | |
 | `OIDC_ISSUER` | required | The provider whose RFC 9068 access tokens the API accepts |
-| `PUBLIC_URL` | unset | The address clients reach the API at. Set, it serves RFC 9728 metadata naming the issuer |
+| `PUBLIC_URL` | unset | The address clients reach the API at. Set, it serves RFC 9728 metadata naming the issuer. Required with `WEB_CLIENT_SECRET` |
+| `WEB_CLIENT_ID` | `projects-web` | The confidential client the API logs a browser in as |
+| `WEB_CLIENT_SECRET` | unset | That client's secret. Set, the API logs browsers in. Unset, only a bearer token reaches it |
 | `POSTGRES_HOST` | required | |
 | `POSTGRES_PORT` | `5432` | |
 | `POSTGRES_USERNAME` | required | |
@@ -446,7 +449,8 @@ object per line on stdout, and each request's line names its caller, its `X-Requ
 **A client's id says who it is.** A token from a client whose id starts `projects-cli-` acts as the person
 who logged in, and reaches every route. One starting `projects-svc-` is a service, and reaches only what
 its scopes list in `routes.ServiceScopes`. `projects.items.read` is the read scope. A client with neither
-prefix answers 401, whatever it holds, so moving a caller onto this API takes a client of its own.
+prefix answers 401, whatever it holds, so moving a caller onto this API takes a client of its own. A
+browser's session acts as its person, as a `projects-cli-` token does.
 
 **`{id}` takes more than an id.** A project answers to its UUID or its name, and an item to its UUID or
 its number. A name holding a slash is reached by escaping it, as `/api/v1/projects/web%2Fapi`.
@@ -458,14 +462,61 @@ A refusal is `{"error": <status phrase>, "message": <why>}`. A refused input add
 field with its `loc` and `msg`. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
 `api/wire` holds the Go structs.
 
-**Each release publishes the image and its manifests under one version.** `ghcr.io/datapointchris/projects`
-is the image, and `ghcr.io/datapointchris/projects/manifests` is an OCI artifact holding `migrate/` and
-`app/`. Apply `migrate/` and wait for its Job before applying `app/`. Both are signed keylessly through
+**Each release publishes both images and their manifests under one version.**
+`ghcr.io/datapointchris/projects` is the API's image, `ghcr.io/datapointchris/projects-web` is the web
+app's, and `ghcr.io/datapointchris/projects/manifests` is an OCI artifact holding `migrate/` and `app/`.
+Apply `migrate/` and wait for its Job before applying `app/`. All three are signed keylessly through
 Sigstore, and the release's notes name each by digest:
 
 ```bash
 cosign verify --certificate-identity https://github.com/datapointchris/projects/.github/workflows/release.yml@refs/heads/main \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/datapointchris/projects:latest
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/datapointchris/projects-web:latest
 ```
 
-`deploy/app/api.yaml` lists what a cluster supplies around those manifests.
+`deploy/app/api.yaml` and `deploy/app/web.yaml` list what a cluster supplies around those manifests.
+
+## The web app — one page, on the API's own origin
+
+`web/` is a Vue page at `/`: the projects on the left, the open project's items on the right, and a
+search over every item. It holds no rule. Each change is a call to the API, and the page shows what the
+API answers.
+
+The `projects-web` image is Caddy on port 8080, serving the built page and passing `/api` and
+`/.well-known` to `projects-api:8000`. A host's route sends every path to it, so the browser sees one
+origin and needs no CORS. A path escaped as `%2F` reaches the API escaped.
+
+```text
+browser ──→ projects-web:8080 ── /api, /.well-known ──→ projects-api:8000
+                 │
+                 └── every other path: the page
+```
+
+**The API logs the browser in, and the browser never holds a token.** `/api/auth/login` sends it to the
+provider as the `WEB_CLIENT_ID` client, and `/api/auth/callback` sets an httpOnly, SameSite=Strict
+session cookie. The session lives in Postgres, in `browser_sessions`. Every request the page sends
+carries `X-CSRF: 1`, and the API refuses a session's request without it. The provider's client needs
+`PUBLIC_URL` + `/api/auth/callback` as its redirect URI, the `authorization_code` grant with S256 PKCE,
+`client_secret_basic` at the token endpoint, and the `openid` and `profile` scopes. A provider that
+advertises pushed authorization requests receives the login that way.
+
+When a session ends, a change fails where it was made, with a message, rather than leaving the page and
+losing it. So does a search, whose query exists nowhere else. Any other read goes to the login and
+comes back, at most twice a minute.
+
+The page's Log out button posts `/api/auth/logout`, which ends the session at the API. The provider
+keeps its own, so logging in again may complete without asking for anything. Ending that one is the
+provider's logout page.
+
+While the API cannot yet reach the provider or the session tables, it serves every bearer request. A
+login answers a 503 page, and a request carrying a session answers 503. A `PUBLIC_URL` that is not
+https, or http on a loopback host, stops the API at start, because no browser would keep its cookie.
+
+`docker-compose.dev.yml` runs the whole stack from this checkout at <http://localhost:8096>, with a
+stand-in provider that logs every login in as one person:
+
+```bash
+task dev-stack:start   # Postgres, the migration, the API, the web image and the provider
+task web:dev           # the page from source at http://localhost:3002, reloading on each edit
+task web:test:e2e      # a fresh stack, one Playwright roundtrip through it, then the stack removed
+task dev-stack:stop    # stops it and deletes its database
+```

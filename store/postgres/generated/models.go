@@ -22,6 +22,22 @@ type AuditTrail struct {
 	Baggage     *string
 }
 
+type BrowserLoginAttempt struct {
+	StateSha256  []byte
+	Nonce        string
+	CodeVerifier string
+	ReturnTo     string
+	ExpiresAt    time.Time
+}
+
+type BrowserSession struct {
+	CookieSha256 []byte
+	Identity     []byte
+	CreatedAt    time.Time
+	SeenAt       time.Time
+	ExpiresAt    time.Time
+}
+
 type Project struct {
 	ID           string
 	Name         string

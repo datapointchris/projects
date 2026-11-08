@@ -76,7 +76,7 @@ func TestEveryWriteIsAuditedWithItsWriter(t *testing.T) {
 // unrecorded with nothing to say so.
 func TestEveryTableIsAuditedButWhatOptsOut(t *testing.T) {
 	pool := postgrestest.Pool(t)
-	optsOut := []string{"audit_trail", "goose_db_version", "undo_log"}
+	optsOut := []string{"audit_trail", "browser_login_attempts", "browser_sessions", "goose_db_version", "undo_log"}
 
 	rows, err := pool.Query(context.Background(), `
 		SELECT c.relname, EXISTS (

@@ -1,0 +1,134 @@
+@use '../abstracts/breakpoints';
+
+.flash-messages {
+  position: fixed;
+  right: var(--space-m);
+  bottom: var(--space-m);
+  width: 40%;
+  z-index: 9999;
+
+  @include breakpoints.phone {
+    left: var(--space-xs);
+    right: var(--space-xs);
+    bottom: calc(var(--space-xs) + env(safe-area-inset-bottom));
+    width: auto;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__dismiss-all {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &__dismiss-all-button {
+    padding: var(--space-3xs) var(--space-s);
+    border-radius: var(--button-border-radius);
+    background-color: var(--clr-primary--lighter);
+    box-shadow:
+      inset -8px -8px 20px var(--clr-black-trans-1000),
+      inset 8px 8px 20px var(--clr-shadow-highlight-md);
+    color: var(--clr-gray-300);
+    font-size: var(--fs-200);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3xs);
+    transition: all var(--transition-medium) ease;
+
+    &:hover {
+      color: var(--clr-error);
+    }
+  }
+
+  &__message {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xs);
+    padding: var(--space-3xs) var(--space-s);
+    border-radius: var(--button-border-radius);
+    background-color: var(--clr-primary--lighter);
+    box-shadow:
+      inset -8px -8px 20px var(--clr-black-trans-1000),
+      inset 8px 8px 20px var(--clr-shadow-highlight-md);
+    font-size: var(--fs-300);
+    line-height: 1.5em;
+    color: var(--clr-text);
+    border-left: 3px solid transparent;
+
+    &--success {
+      border-left-color: var(--clr-success);
+    }
+
+    &--warning {
+      border-left-color: var(--clr-warning);
+    }
+
+    &--error {
+      border-left-color: var(--clr-error);
+    }
+  }
+
+  &__text {
+    flex: 1;
+  }
+
+  &__close-button {
+    background: none;
+    color: var(--clr-gray-400);
+    font-size: var(--fs-300);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: var(--space-3xs);
+    transition: color var(--transition-medium) ease;
+
+    &:hover {
+      color: var(--clr-error);
+    }
+  }
+}
+
+// Vue TransitionGroup animations for notifications
+//
+// WHY GLOBAL (not scoped): <Teleport to="body"> moves DOM outside the component
+// tree, so scoped styles (which add data-v-xxx attribute selectors) don't match.
+//
+// WHY NO position:absolute ON LEAVE: TransitionGroup's FLIP move animation sets
+// inline `transform: translate()` which overwrites our `transform: scale(0)`.
+// The CSS `scale` property (individual transform) should compose independently,
+// but doesn't work reliably across browsers. Without position:absolute, the
+// leaving element keeps its layout space so siblings jump instead of sliding —
+// an acceptable tradeoff for working leave animations.
+//
+// WHY v-show + delayed hide ON CONTAINER: v-if destroys the DOM immediately when
+// the last notification is removed, killing its leave animation. v-show keeps the
+// DOM alive, and a 1.5s JS timer hides the container after the animation finishes.
+//
+// WHY appear ON TransitionGroup: without it, the first notification (which causes
+// TransitionGroup to mount via v-show) renders without an enter animation.
+
+.notification-enter-active {
+  transition:
+    opacity 1s ease,
+    transform 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.notification-leave-active {
+  transition:
+    opacity 0.6s ease-in 0.4s,
+    transform 1s cubic-bezier(0.36, 0, 0.66, -0.56);
+}
+
+.notification-move {
+  transition: transform 1s ease;
+}
+
+.notification-enter-from,
+.notification-leave-to {
+  opacity: 0;
+  transform: scale(0);
+}

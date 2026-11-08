@@ -1,0 +1,125 @@
+# The web app: Caddy serving the built page, and passing /api and /.well-known
+# to the projects-api Service beside it. So the browser sees one origin, its
+# session cookie reaches the API, and nothing needs CORS.
+#
+# The cluster supplies what this directory does not create:
+#
+# - A route sending every path on the app's host to this Service. The API is
+#   reached through it, so the API's own Service needs no route.
+# - The NetworkPolicies that let the route reach this pod, let this pod reach
+#   projects-api on port 8000 and the cluster's DNS, and let projects-api
+#   accept it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: projects-web
+  labels:
+    app.kubernetes.io/instance: projects-web
+    app.kubernetes.io/component: web
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projects-web
+  labels:
+    app.kubernetes.io/instance: projects-web
+    app.kubernetes.io/component: web
+spec:
+  selector:
+    app.kubernetes.io/name: projects
+    app.kubernetes.io/instance: projects-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projects-web
+  labels:
+    app.kubernetes.io/instance: projects-web
+    app.kubernetes.io/component: web
+  annotations:
+    kubernetes.io/description: The projects web app, serving its page and passing /api to projects-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: projects
+      app.kubernetes.io/instance: projects-web
+  # The new pod is ready before the old one stops, so a release drops no requests.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: projects-web
+        app.kubernetes.io/component: web
+    spec:
+      serviceAccountName: projects-web
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # The image's numeric USER is the uid, so runAsNonRoot can check it.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: projects-web
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          # Endpoints drop a terminating pod a moment after TERM reaches it, so
+          # the sleep keeps it accepting until no proxy routes to it.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          # Caddy's own answer, which needs neither the API nor the page.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          # The limit equals the request, so the pod never uses more memory
+          # than the scheduler set aside for it. `docker stats` on the dev
+          # stack's `web` container reads what Caddy holds serving the page.
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Caddy writes its instance id under /data and its config state under
+          # /config, so each is a writable volume over the read-only root.
+          volumeMounts:
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-config
+              mountPath: /config
+      volumes:
+        - name: caddy-data
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: caddy-config
+          emptyDir:
+            sizeLimit: 16Mi

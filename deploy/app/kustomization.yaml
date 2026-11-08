@@ -1,9 +1,11 @@
-# The projects API. A deployment applies this path only once migrate/ has
-# finished against the same release, so the schema is never behind the code.
+# The projects API and its web app. A deployment applies this path only once
+# migrate/ has finished against the same release, so the schema is never behind
+# the code.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - api.yaml
+  - web.yaml
 # What every object and pod here holds alike. The release adds
 # app.kubernetes.io/version to its own copy. Each selector is written out in
 # its object instead, because a workload's selector cannot change once applied.
@@ -17,3 +19,4 @@ labels:
 # it pushes it, with `kustomize edit set image`.
 images:
   - name: projects
+  - name: projects-web
