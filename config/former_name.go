@@ -14,28 +14,24 @@ import (
 
 // MIGRATION: the tool was called todoui. A machine that upgrades still holds data, a config
 // and variables under that name, and to this tool they read as if never written. Delete this
-// file, its calls in main.go, former_name_test.go, and the passages on it in README and
-// CLAUDE.md once no machine holds a todoui data or config directory and no checkout's .envrc
+// file, its calls in cli/data_source.go, former_name_test.go, and the passages on it in README
+// and CLAUDE.md once no machine holds a todoui data or config directory and no checkout's .envrc
 // exports a TODOUI_* variable.
 const formerName = "todoui"
 
-var retiredVariables = []struct{ retired, replacement string }{
-	{"TODOUI_DB", "PROJECTS_DB"},
-	{"TODOUI_REPOS_REGISTRY", "PROJECTS_REPOS_REGISTRY"},
-	{"TODOUI_NO_AUTO_UPDATE", "PROJECTS_NO_AUTO_UPDATE"},
-}
-
-// RetiredVariableRefusal names the first retired variable set to a value, or "" where none is.
 // Ignoring TODOUI_DB would open the default database where it chose another, and the others
 // are refused so a half-renamed environment never runs.
-func RetiredVariableRefusal() string {
-	for _, variable := range retiredVariables {
-		if os.Getenv(variable.retired) != "" {
-			return fmt.Sprintf("$%s is set, and projects reads $%s. Move the value there, or unset it.",
-				variable.retired, variable.replacement)
-		}
+func init() {
+	for _, renamed := range []struct{ retired, replacement string }{
+		{"TODOUI_DB", "PROJECTS_DB"},
+		{"TODOUI_REPOS_REGISTRY", "PROJECTS_REPOS_REGISTRY"},
+		{"TODOUI_NO_AUTO_UPDATE", "PROJECTS_NO_AUTO_UPDATE"},
+	} {
+		retiredVariables = append(retiredVariables, retiredVariable{
+			name:   renamed.retired,
+			remedy: fmt.Sprintf("and projects reads $%s. Move the value there, or unset it.", renamed.replacement),
+		})
 	}
-	return ""
 }
 
 // RefuseConfigUnderFormerName stops a run while the config sits only at the former path.
