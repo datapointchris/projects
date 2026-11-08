@@ -187,7 +187,7 @@ func openDatabase(cfg *config.Config) (*dataSource, error) {
 	}
 	database, err := sqlite.Open(cfg.Local.DBPath)
 	if err != nil {
-		return nil, fmt.Errorf("opening database: %w", err)
+		return nil, fmt.Errorf("opening %s: %w", homeAsTilde(cfg.Local.DBPath), err)
 	}
 	source := &dataSource{cfg: cfg, database: database, local: LocalService(database, repos.DefaultPath())}
 

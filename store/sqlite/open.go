@@ -135,9 +135,27 @@ CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
 }
 
 // dropSyncTables removes what a database kept while it was a copy of an API: the
-// queue of pushes, the pull times, and the API it was bound to. None of it is a
-// project, an item or anything hanging off one, so every row a person wrote stays.
+// queue of pushes, the pull times, and the API it was bound to. It refuses while
+// the queue holds a row, because that edit never reached the API and the queue is
+// the only record saying so. The other two hold nothing a person wrote.
+//
+// MIGRATION: retires with config/retired_sync.go.
 func dropSyncTables(db *sql.DB) error {
+	var name string
+	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='pending_sync'").Scan(&name)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("checking pending_sync: %w", err)
+	}
+	if err == nil {
+		var queued int
+		if err := db.QueryRow("SELECT COUNT(*) FROM pending_sync").Scan(&queued); err != nil {
+			return fmt.Errorf("counting pending_sync: %w", err)
+		}
+		if queued > 0 {
+			return fmt.Errorf("%d edits here were queued for %s and never reached it. Push them with `projects sync` "+
+				"from v1.24.2, or discard them with DELETE FROM pending_sync", queued, boundAPI(db))
+		}
+	}
 	const drop = `
 DROP TABLE IF EXISTS pending_sync;
 DROP TABLE IF EXISTS sync_state;
@@ -146,6 +164,15 @@ DROP TABLE IF EXISTS sync_origin;`
 		return fmt.Errorf("dropping the sync tables: %w", err)
 	}
 	return nil
+}
+
+// boundAPI is the API a synced database was bound to, as its refusal names it.
+func boundAPI(db *sql.DB) string {
+	var url string
+	if err := db.QueryRow("SELECT api_url FROM sync_origin WHERE id = 1").Scan(&url); err != nil {
+		return "the API this database synced with"
+	}
+	return url
 }
 
 // migrateOrphanedChildRows deletes rows the cascades would never have allowed:
