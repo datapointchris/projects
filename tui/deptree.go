@@ -311,7 +311,7 @@ func (m *App) depTreeToggleFinished() tea.Cmd {
 // readMapItem reads the item under the cursor. The item lists' blocked set may not hold an item
 // the map reaches, so its blockers are always read.
 func (m *App) readMapItem() tea.Cmd {
-	return fetchItemDetailCmd(m.backend, m.depTree.activeID(), true)
+	return fetchItemDetailCmd(m.backend, m.depTree.activeID(), true, openFullScreen)
 }
 
 // activeID is the item under whichever pane has focus.
@@ -338,24 +338,6 @@ func (m *App) depTreeMove(delta int) {
 	if s.forestCursor != before {
 		s.focusOn(s.forestID())
 	}
-}
-
-func (m *App) depTreeJump(to int) {
-	s := &m.depTree
-	if s.active == focusPane {
-		if to < 0 {
-			to = len(s.focusRows) - 1
-		}
-		s.focusCursor = clampCursor(to, len(s.focusRows))
-		s.focusScroll = syncScroll(s.focusCursor, s.focusScroll, m.depTreePaneHeight())
-		return
-	}
-	if to < 0 {
-		to = len(s.forestRows) - 1
-	}
-	s.forestCursor = clampCursor(to, len(s.forestRows))
-	s.forestScroll = syncScroll(s.forestCursor, s.forestScroll, m.depTreePaneHeight())
-	s.focusOn(s.forestID())
 }
 
 func clampCursor(value, length int) int {

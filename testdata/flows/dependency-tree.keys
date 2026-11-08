@@ -8,7 +8,7 @@ wait All trees
 frame forest
 
 press l
-wait [i]flip
+wait i flip
 frame focus-pane
 press i
 wait Tree — unblocks
@@ -29,7 +29,7 @@ wait All trees
 press tab
 wait /(?m)^.*Projects/
 press l
-wait [Enter]read
+wait c complete
 press b
 wait Link dependency for: Export posts from the old CMS (1)
 frame link-overlay

@@ -5,8 +5,4 @@
 8: 2-4 fg=12 bold reverse
 8: 5-5 fg=12 reverse
 8: 6-9 fg=12 bold reverse
-13: 2-2 fg=12
-13: 4-13 fg=12 bold
-15: 2-2 fg=12
-16: 2-2 fg=12
-17: 2-2 fg=12
+13: 2-13 fg=12 bold

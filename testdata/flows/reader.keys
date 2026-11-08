@@ -5,7 +5,7 @@ mask /Project [0-9a-f]{8}/ "Project <id>"
 
 wait Export posts from the old CMS
 press l
-wait [Enter]read
+wait c complete
 
 press enter
 wait Item 1 ·
@@ -20,17 +20,17 @@ press G
 wait Last line of the note.
 frame item-bottom
 press esc
-wait [Enter]read
+wait c complete
 frame closed-onto-the-list
 
 press h
-wait [space]mark
+wait space mark
 press enter
 wait /Project [0-9a-f]{8} · active/
 wait Why move
 frame project
 press space
-wait [space]mark
+wait space mark
 
 press q
 exits

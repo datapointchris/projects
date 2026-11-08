@@ -8,11 +8,17 @@
 │                                      │┃       ○ Download the images                              ┃
 │                                      │┃> ▾ ✓ Pick a theme ≡                                      ┃
 │                                      │┃                                                         2┃
+│                                      │┃       Item 2 · ✓ done                                    ┃
+│                                      │┃       Projects: Move the blog to plain files             ┃
+│                                      │┃       Created: <date>                               ┃
+│                                      │┃                                                          ┃
+│                                      │┃       Notes                                              ┃
+│                                      │┃                                                          ┃
 │                                      │┃       Written from the editor.                           ┃
-│                                      │┃     ○ Set up redirects for the old URLs                  ┃
+│                                      │┃   ▸ ○ Set up redirects for the old URLs                  ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
 │                                      │┃                                                          ┃
@@ -20,11 +26,5 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Item updated                                                          [?]help  LOCAL projects.db
+  Item updated                                                           ? keys  LOCAL projects.db

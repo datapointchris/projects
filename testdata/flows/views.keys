@@ -21,7 +21,7 @@ wait > ▾ ── Move the blog to plain files ──
 press j
 wait /> +▸ ○ Export posts from the old CMS/
 press ]
-wait /> +✓ Pick a theme/
+wait /> [▸▾] ✓ Pick a theme/
 frame jumped-past-the-tasks
 
 press tab

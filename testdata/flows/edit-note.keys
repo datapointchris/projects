@@ -4,9 +4,9 @@ mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 
 wait Export posts from the old CMS
 press l
-wait [Enter]read
+wait c complete
 press ]
-wait /> +✓ Pick a theme/
+wait /> [▸▾] ✓ Pick a theme/
 
 press e
 wait /Pick a theme ≡/
@@ -14,11 +14,7 @@ frame note-saved
 press space
 wait Written from the editor.
 frame note-in-place
-press enter
-wait Notes
-frame note-in-the-reader
-
-press esc
-wait [Enter]read
+press space
+gone Written from the editor.
 press q
 exits

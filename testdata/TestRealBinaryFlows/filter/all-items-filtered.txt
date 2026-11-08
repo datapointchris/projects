@@ -27,4 +27,4 @@
 ┃                                                                                                  ┃
 ┃                                                                                                  ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]keep [Esc]clear                                                [?]help  LOCAL projects.db
+  enter keep  esc clear                                                  ? keys  LOCAL projects.db

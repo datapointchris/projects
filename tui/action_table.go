@@ -7,42 +7,34 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/datapointchris/gotermboard"
 
 	"github.com/datapointchris/projects/model"
 )
 
-// action is one row of the key table. The key handler, the footer and the ? overlay all read
-// the same rows, so a key bound in one shows in the other two.
-type action struct {
-	keys []string
-	// section heads the action's group in the ? overlay.
-	section string
-	label   string
-	// hint is the footer's word for it, such as "[a]dd", or empty to leave it to the overlay.
-	hint    string
-	run     func(*App) tea.Cmd
-	applies func(*App) bool
-}
+// action is one row of the key table, in gotermboard's shape. The key handler, the footer and the
+// ? overlay all read the same rows, so a key bound in one shows in the other two. Footer is the
+// footer's words for the key, or empty to leave it to the overlay, and Section heads its group
+// in the overlay.
+type action = gotermboard.KeyAction[*App]
 
 const (
-	sectionMove     = "Moving"
-	sectionProject  = "On a project"
-	sectionItem     = "On an item"
-	sectionTask     = "On a task"
-	sectionGroup    = "On a project's group"
-	sectionViews    = "Views and filters"
-	sectionMap      = "In the dependency map"
-	sectionMoving   = "Moving a row"
-	sectionEveryone = "Everywhere"
-	sectionPrompt   = "Typing"
-	sectionPicker   = "Choosing projects"
-	sectionLinking  = "Choosing a dependency"
-	sectionKeys     = "This list"
+	sectionProject = "On a project"
+	sectionItem    = "On an item"
+	sectionTask    = "On a task"
+	sectionViews   = "Views and filters"
+	sectionMap     = "In the dependency map"
+	sectionMoving  = "Moving a row"
+	sectionPrompt  = "Typing"
+	sectionPicker  = "Choosing projects"
+	sectionLinking = "Choosing a dependency"
+	sectionKeys    = "This list"
 )
 
 // actions is every key the screen can use now, so a key it cannot use is in none of the
-// handler, the footer and the overlay. A screen with a text box binds only keys that type
-// nothing, and the box takes the rest.
+// handler, the footer and the overlay. On the board, its own rows come ahead of gotermboard's
+// universal ones, so a key of its own wins where it applies. A screen with a text box binds only
+// keys that type nothing, and the box takes the rest.
 func (m *App) actions() []action {
 	var table []action
 	switch {
@@ -61,34 +53,39 @@ func (m *App) actions() []action {
 	case m.appMode != modeNormal:
 		table = promptActions()
 	case m.view == viewDependencies:
-		table = slices.Concat(mapActions(), viewActions(), everywhereActions())
+		return gotermboard.ActionsNow(m, slices.Concat(mapActions(), viewActions(), everywhereActions()), gotermboard.UniversalActions[*App]())
 	case m.view == viewProjects && m.activePane == projectPane:
-		table = slices.Concat(listMoveActions(), projectActions(), viewActions(), everywhereActions())
+		return gotermboard.ActionsNow(m, slices.Concat(paneActions(), projectActions(), viewActions(), everywhereActions()), gotermboard.UniversalActions[*App]())
 	default:
-		table = slices.Concat(listMoveActions(), itemActions(), taskActions(), groupActions(), viewActions(), everywhereActions())
+		return gotermboard.ActionsNow(m, slices.Concat(paneActions(), itemActions(), taskActions(), viewActions(), everywhereActions()), gotermboard.UniversalActions[*App]())
 	}
-	return slices.DeleteFunc(table, func(a action) bool { return a.applies != nil && !a.applies(m) })
+	return gotermboard.ActionsNow(m, table)
 }
 
 // runKey runs the action bound to key, and reports whether one was.
 func (m *App) runKey(key string) (tea.Cmd, bool) {
 	for _, a := range m.actions() {
-		if slices.Contains(a.keys, key) {
-			return a.run(m), true
+		if slices.Contains(a.Keys, key) {
+			return a.Run(m), true
 		}
 	}
 	return nil, false
 }
 
+// footerHints is the footer's words for each key the screen can use now, two spaces apart. The
+// status bar pins ? at its right, so the list leaves it out.
 func (m *App) footerHints() string {
 	var hints []string
 	for _, a := range m.actions() {
-		if a.hint != "" {
-			hints = append(hints, a.hint)
+		if a.Footer != "" && a.Keys[0] != "?" {
+			hints = append(hints, a.Footer)
 		}
 	}
-	return strings.Join(hints, " ")
+	return strings.Join(hints, hintGap)
 }
+
+// hintGap parts one hint from the next, which a hint's own words never hold.
+const hintGap = "  "
 
 // keyNames is how the overlay writes a key Bubble Tea names otherwise.
 var keyNames = map[string]string{
@@ -109,25 +106,32 @@ func keysText(keys []string) string {
 	return strings.Join(named, " ")
 }
 
-// helpLines is the ? overlay: every action the screen can use now, under its section, each
-// label wrapped at width under its own column so no word of it reads as a key.
+// helpLines is the ? overlay: every action the screen can use now, under its section in the
+// order each section first appears, each label wrapped at width under its own column so no word
+// of it reads as a key.
 func (m *App) helpLines(width int) []string {
-	var lines []string
-	section := ""
+	var sections []string
+	bySection := map[string][]action{}
 	for _, a := range m.actions() {
-		if a.section != section {
-			if section != "" {
-				lines = append(lines, "")
-			}
-			section = a.section
-			lines = append(lines, "  "+overlayTitleStyle.Render(section))
+		if _, seen := bySection[a.Section]; !seen {
+			sections = append(sections, a.Section)
 		}
-		keys := "  " + padRight(keysText(a.keys), 18)
-		indent := strings.Repeat(" ", lipgloss.Width(keys))
-		label := strings.Split(ansi.Wordwrap(a.label, max(width-len(indent), 10), ""), "\n")
-		lines = append(lines, keys+label[0])
-		for _, rest := range label[1:] {
-			lines = append(lines, indent+rest)
+		bySection[a.Section] = append(bySection[a.Section], a)
+	}
+	var lines []string
+	for i, section := range sections {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, "  "+overlayTitleStyle.Render(section))
+		for _, a := range bySection[section] {
+			keys := "  " + padRight(keysText(a.Keys), 18)
+			indent := strings.Repeat(" ", lipgloss.Width(keys))
+			label := strings.Split(ansi.Wordwrap(a.Label, max(width-len(indent), 10), ""), "\n")
+			lines = append(lines, keys+label[0])
+			for _, rest := range label[1:] {
+				lines = append(lines, indent+rest)
+			}
 		}
 	}
 	return lines
@@ -142,45 +146,19 @@ func padRight(s string, width int) string {
 
 // --- The tables ---
 
-func listMoveActions() []action {
+// paneActions is moving between the panes of the projects view. gotermboard's universal rows move
+// within a pane.
+func paneActions() []action {
 	return []action{
-		{keys: []string{"j", "down"}, section: sectionMove, label: "move down a row", run: func(m *App) tea.Cmd { return m.cursorDown() }},
-		{keys: []string{"k", "up"}, section: sectionMove, label: "move up a row", run: func(m *App) tea.Cmd { return m.cursorUp() }},
-		{keys: []string{"g", "home"}, section: sectionMove, label: "go to the top", run: func(m *App) tea.Cmd { return m.cursorTop() }},
-		{keys: []string{"G", "end"}, section: sectionMove, label: "go to the bottom", run: func(m *App) tea.Cmd { return m.cursorBottom() }},
 		{
-			keys: []string{"ctrl+d", "pgdown"}, section: sectionMove, label: "half a screen down the open note, or down the list",
-			run: func(m *App) tea.Cmd { return m.halfScreen(1) },
+			Keys: []string{"h", "left"}, Section: gotermboard.SectionMoving, Label: "go to the projects",
+			Run:     func(m *App) tea.Cmd { m.activePane = projectPane; return nil },
+			Applies: func(m *App) bool { return m.view == viewProjects && m.activePane == itemPane },
 		},
 		{
-			keys: []string{"ctrl+u", "pgup"}, section: sectionMove, label: "half a screen up the open note, or up the list",
-			run: func(m *App) tea.Cmd { return m.halfScreen(-1) },
-		},
-		{
-			keys: []string{"]"}, section: sectionMove, label: "jump to the next item or group, skipping tasks",
-			run: func(m *App) tea.Cmd { m.jumpRow(1); return nil }, applies: (*App).onItemList,
-		},
-		{
-			keys: []string{"["}, section: sectionMove, label: "jump to the previous item or group, skipping tasks",
-			run: func(m *App) tea.Cmd { m.jumpRow(-1); return nil }, applies: (*App).onItemList,
-		},
-		{
-			keys: []string{"J"}, section: sectionMove, label: "scroll the open note down a line", hint: "[J/K]scroll",
-			run: func(m *App) tea.Cmd { m.scrollOpenText(1); return nil }, applies: (*App).onOpenText,
-		},
-		{
-			keys: []string{"K"}, section: sectionMove, label: "scroll the open note up a line",
-			run: func(m *App) tea.Cmd { m.scrollOpenText(-1); return nil }, applies: (*App).onOpenText,
-		},
-		{
-			keys: []string{"h", "left"}, section: sectionMove, label: "go to the projects",
-			run:     func(m *App) tea.Cmd { m.activePane = projectPane; return nil },
-			applies: func(m *App) bool { return m.view == viewProjects && m.activePane == itemPane },
-		},
-		{
-			keys: []string{"l", "right"}, section: sectionMove, label: "go to the items",
-			run:     func(m *App) tea.Cmd { m.activePane = itemPane; return nil },
-			applies: func(m *App) bool { return m.view == viewProjects && m.activePane == projectPane },
+			Keys: []string{"l", "right"}, Section: gotermboard.SectionMoving, Label: "go to the items",
+			Run:     func(m *App) tea.Cmd { m.activePane = itemPane; return nil },
+			Applies: func(m *App) bool { return m.view == viewProjects && m.activePane == projectPane },
 		},
 	}
 }
@@ -190,84 +168,71 @@ func projectActions() []action {
 	active := func(m *App) bool { return m.onProject() && m.projects[m.projectCursor].Status == model.StatusActive }
 	closed := func(m *App) bool { return m.onProject() && m.projects[m.projectCursor].Status != model.StatusActive }
 	return []action{
-		{keys: []string{"enter"}, section: sectionProject, label: "read the project", hint: "[Enter]read", run: (*App).readProject, applies: onProject},
-		{keys: []string{"space"}, section: sectionProject, label: "mark the project, to list several projects' items", hint: "[space]mark", run: (*App).toggleProjectMark, applies: onProject},
-		{keys: []string{"a"}, section: sectionProject, label: "add a project", hint: "[a]dd", run: (*App).startAddProject},
-		{keys: []string{"A"}, section: sectionProject, label: "add an item to several projects", run: (*App).startAddItemToSeveral, applies: onProject},
-		{keys: []string{"r"}, section: sectionProject, label: "rename the project", run: (*App).startRenameProject, applies: onProject},
-		{keys: []string{"e", "n"}, section: sectionProject, label: "write the description in $EDITOR", hint: "[e]dit", run: (*App).editProjectDescription, applies: onProject},
-		{keys: []string{"c"}, section: sectionProject, label: "complete the project", run: (*App).completeProject, applies: active},
-		{keys: []string{"c"}, section: sectionProject, label: "reopen the shelved or closed project", hint: "[c]reopen", run: (*App).reopenProject, applies: closed},
-		{keys: []string{"x"}, section: sectionProject, label: "drop the project, saying why", run: (*App).startDropProject, applies: active},
-		{keys: []string{"S"}, section: sectionProject, label: "shelve the project for someday", run: (*App).shelveProject, applies: active},
+		{Keys: []string{"enter"}, Section: sectionProject, Label: "read the project", Footer: "enter read", Run: (*App).readProject, Applies: onProject},
+		{Keys: []string{"space"}, Section: sectionProject, Label: "mark the project, to list several projects' items", Footer: "space mark", Run: (*App).toggleProjectMark, Applies: onProject},
+		{Keys: []string{"a"}, Section: sectionProject, Label: "add a project", Footer: "a add", Run: (*App).startAddProject},
+		{Keys: []string{"A"}, Section: sectionProject, Label: "add an item to several projects", Run: (*App).startAddItemToSeveral, Applies: onProject},
+		{Keys: []string{"r"}, Section: sectionProject, Label: "rename the project", Run: (*App).startRenameProject, Applies: onProject},
+		{Keys: []string{"e", "n"}, Section: sectionProject, Label: "write the description in $EDITOR", Footer: "e edit", Run: (*App).editProjectDescription, Applies: onProject},
+		{Keys: []string{"c"}, Section: sectionProject, Label: "complete the project", Run: (*App).completeProject, Applies: active},
+		{Keys: []string{"c"}, Section: sectionProject, Label: "reopen the shelved or closed project", Footer: "c reopen", Run: (*App).reopenProject, Applies: closed},
+		{Keys: []string{"x"}, Section: sectionProject, Label: "drop the project, saying why", Run: (*App).startDropProject, Applies: active},
+		{Keys: []string{"S"}, Section: sectionProject, Label: "shelve the project for someday", Run: (*App).shelveProject, Applies: active},
 		{
-			keys: []string{"M"}, section: sectionProject, label: "move the project, then j and k, Enter to drop", hint: "[M]ove",
-			run: (*App).grabProject, applies: func(m *App) bool { return m.onProject() && len(m.projects) > 1 && m.projectQuery == "" },
+			Keys: []string{"M"}, Section: sectionProject, Label: "move the project, then j and k, Enter to drop", Footer: "M move",
+			Run: (*App).grabProject, Applies: func(m *App) bool { return m.onProject() && len(m.projects) > 1 && m.projectQuery == "" },
 		},
-		{keys: []string{"T"}, section: sectionProject, label: "open the dependency map", run: func(m *App) tea.Cmd { return m.switchView(viewDependencies, "") }},
-		{keys: []string{"C"}, section: sectionProject, label: "open a Claude session on the project", run: (*App).claudeOnProject, applies: onProject},
+		{Keys: []string{"T"}, Section: sectionProject, Label: "open the dependency map", Run: func(m *App) tea.Cmd { return m.switchView(viewDependencies, "") }},
+		{Keys: []string{"C"}, Section: sectionProject, Label: "open a Claude session on the project", Run: (*App).claudeOnProject, Applies: onProject},
 	}
 }
 
+// itemActions is an item's own keys. gotermboard's enter and space open its detail.
 func itemActions() []action {
 	onItem := func(m *App) bool { return m.onKind(rowItem) }
 	onItemOrTask := func(m *App) bool { return m.onKind(rowItem) || m.onKind(rowTask) }
 	oneProject := func(m *App) bool { return !m.isGroupedView() && m.projectCursor < len(m.projects) }
 	return []action{
-		{keys: []string{"enter"}, section: sectionItem, label: "read the item", hint: "[Enter]read", run: (*App).readItem, applies: onItem},
+		{Keys: []string{"c"}, Section: sectionItem, Label: "mark the item done or not done", Footer: "c complete", Run: (*App).toggleItemDone, Applies: onItem},
+		{Keys: []string{"a"}, Section: sectionItem, Label: "add an item to this project", Footer: "a add", Run: (*App).startAddItem, Applies: oneProject},
+		{Keys: []string{"A"}, Section: sectionItem, Label: "add an item to several projects", Run: (*App).startAddItemToSeveral, Applies: func(m *App) bool { return len(m.allProjects) > 0 }},
+		{Keys: []string{"n", "e"}, Section: sectionItem, Label: "write the note in $EDITOR", Footer: "n note", Run: (*App).editItemNote, Applies: onItem},
+		{Keys: []string{"r"}, Section: sectionItem, Label: "rename the item", Run: (*App).startRenameItem, Applies: onItem},
+		{Keys: []string{"x"}, Section: sectionItem, Label: "archive the item", Run: (*App).archiveItem, Applies: onItem},
+		{Keys: []string{"P"}, Section: sectionItem, Label: "choose the projects the item is filed in", Run: (*App).manageItemProjects, Applies: onItem},
+		{Keys: []string{"b"}, Section: sectionItem, Label: "link an item this one waits on", Run: (*App).startLinkDependency, Applies: onItem},
+		{Keys: []string{"B"}, Section: sectionItem, Label: "unlink an item this one waits on", Run: (*App).startUnlinkDependency, Applies: onItem},
 		{
-			keys: []string{"space"}, section: sectionItem, label: "open or close the note in place", hint: "[space]note",
-			run: (*App).toggleNote, applies: func(m *App) bool { return onItem(m) && hasNote(m.currentItem().ProjectItem) },
+			Keys: []string{"M"}, Section: sectionItem, Label: "move the item, then j and k, Enter to drop", Footer: "M move",
+			Run: (*App).grabItem, Applies: func(m *App) bool { return onItem(m) && oneProject(m) && len(m.items) > 1 && m.itemQuery == "" },
 		},
-		{keys: []string{"c"}, section: sectionItem, label: "mark the item done or not done", hint: "[c]omplete", run: (*App).toggleItemDone, applies: onItem},
-		{keys: []string{"a"}, section: sectionItem, label: "add an item to this project", hint: "[a]dd", run: (*App).startAddItem, applies: oneProject},
-		{keys: []string{"A"}, section: sectionItem, label: "add an item to several projects", run: (*App).startAddItemToSeveral, applies: func(m *App) bool { return len(m.allProjects) > 0 }},
-		{keys: []string{"n", "e"}, section: sectionItem, label: "write the note in $EDITOR", hint: "[n]ote", run: (*App).editItemNote, applies: onItem},
-		{keys: []string{"r"}, section: sectionItem, label: "rename the item", run: (*App).startRenameItem, applies: onItem},
-		{keys: []string{"x"}, section: sectionItem, label: "archive the item", run: (*App).archiveItem, applies: onItem},
-		{keys: []string{"P"}, section: sectionItem, label: "choose the projects the item is filed in", run: (*App).manageItemProjects, applies: onItem},
-		{keys: []string{"b"}, section: sectionItem, label: "link an item this one waits on", run: (*App).startLinkDependency, applies: onItem},
-		{keys: []string{"B"}, section: sectionItem, label: "unlink an item this one waits on", run: (*App).startUnlinkDependency, applies: onItem},
-		{
-			keys: []string{"M"}, section: sectionItem, label: "move the item, then j and k, Enter to drop", hint: "[M]ove",
-			run: (*App).grabItem, applies: func(m *App) bool { return onItem(m) && oneProject(m) && len(m.items) > 1 && m.itemQuery == "" },
-		},
-		{keys: []string{"C"}, section: sectionItem, label: "open a Claude session on the item", run: (*App).claudeOnItem, applies: onItem},
-		{keys: []string{"t"}, section: sectionItem, label: "add a task to the item", run: (*App).startAddTask, applies: onItemOrTask},
-		{keys: []string{"T"}, section: sectionItem, label: "open the dependency map on the item", run: (*App).mapOnItem, applies: onItemOrTask},
+		{Keys: []string{"C"}, Section: sectionItem, Label: "open a Claude session on the item", Run: (*App).claudeOnItem, Applies: onItem},
+		{Keys: []string{"t"}, Section: sectionItem, Label: "add a task to the item", Run: (*App).startAddTask, Applies: onItemOrTask},
+		{Keys: []string{"T"}, Section: sectionItem, Label: "open the dependency map on the item", Run: (*App).mapOnItem, Applies: onItemOrTask},
 	}
 }
 
 func taskActions() []action {
 	onTask := func(m *App) bool { return m.onKind(rowTask) }
 	return []action{
-		{keys: []string{"space", "c"}, section: sectionTask, label: "mark the task done or not done", hint: "[space]done", run: (*App).toggleTaskDone, applies: onTask},
-		{keys: []string{"D"}, section: sectionTask, label: "delete the task", hint: "[D]elete", run: (*App).deleteTask, applies: onTask},
-	}
-}
-
-func groupActions() []action {
-	return []action{
-		{
-			keys: []string{"enter", "space"}, section: sectionGroup, label: "fold or open the project's items", hint: "[Enter]fold",
-			run: (*App).toggleGroup, applies: func(m *App) bool { return m.onKind(rowGroup) },
-		},
+		{Keys: []string{"space", "c"}, Section: sectionTask, Label: "mark the task done or not done", Footer: "space done", Run: (*App).toggleTaskDone, Applies: onTask},
+		{Keys: []string{"D"}, Section: sectionTask, Label: "delete the task", Footer: "D delete", Run: (*App).deleteTask, Applies: onTask},
 	}
 }
 
 func viewActions() []action {
 	return []action{
-		{keys: []string{"esc"}, section: sectionViews, label: "clear the filter, then the marks, or back out of a drill", hint: "[Esc]back", run: (*App).backOut, applies: (*App).canBackOut},
-		{keys: []string{"tab"}, section: sectionViews, label: "the next view", hint: "[Tab]view", run: func(m *App) tea.Cmd { return m.cycleView(1) }},
-		{keys: []string{"shift+tab"}, section: sectionViews, label: "the previous view", run: func(m *App) tea.Cmd { return m.cycleView(-1) }},
-		{keys: []string{"/"}, section: sectionViews, label: "filter the list, matching notes too", hint: "[/]filter", run: (*App).startFilter},
-		{keys: []string{"1"}, section: sectionViews, label: "show only blocked items, or every one again", run: func(m *App) tea.Cmd { return m.setFilter(filterBlocked) }, applies: notMap},
-		{keys: []string{"2"}, section: sectionViews, label: "show archived items too, or hide them again", run: func(m *App) tea.Cmd { return m.setFilter(filterAll) }, applies: notMap},
+		{Keys: []string{"esc"}, Section: sectionViews, Label: "clear the filter, then the marks, or back out of a drill", Footer: "esc back", Run: (*App).backOut, Applies: (*App).canBackOut},
+		{Keys: []string{"tab"}, Section: sectionViews, Label: "the next view", Footer: "tab view", Run: func(m *App) tea.Cmd { return m.cycleView(1) }},
+		{Keys: []string{"shift+tab"}, Section: sectionViews, Label: "the previous view", Run: func(m *App) tea.Cmd { return m.cycleView(-1) }},
+		{Keys: []string{"/"}, Section: sectionViews, Label: "filter the list, matching notes too", Footer: "/ filter", Run: (*App).startFilter},
+		{Keys: []string{"1"}, Section: sectionViews, Label: "show only blocked items, or every one again", Run: func(m *App) tea.Cmd { return m.setFilter(filterBlocked) }, Applies: notMap},
+		{Keys: []string{"2"}, Section: sectionViews, Label: "show archived items too, or hide them again", Run: func(m *App) tea.Cmd { return m.setFilter(filterAll) }, Applies: notMap},
 		{
-			keys: []string{"0"}, section: sectionViews, label: "show every item but the archived", hint: "[0]reset",
-			run: func(m *App) tea.Cmd { return m.setFilter(filterNone) }, applies: func(m *App) bool { return notMap(m) && m.filter != filterNone },
+			Keys: []string{"0"}, Section: sectionViews, Label: "show every item but the archived", Footer: "0 reset",
+			Run: func(m *App) tea.Cmd { return m.setFilter(filterNone) }, Applies: func(m *App) bool { return notMap(m) && m.filter != filterNone },
 		},
-		{keys: []string{"."}, section: sectionViews, label: "show or hide shelved and closed projects", run: (*App).toggleClosedProjects, applies: notMap},
+		{Keys: []string{"."}, Section: sectionViews, Label: "show or hide shelved and closed projects", Run: (*App).toggleClosedProjects, Applies: notMap},
 	}
 }
 
@@ -275,80 +240,73 @@ func notMap(m *App) bool { return m.view != viewDependencies }
 
 func everywhereActions() []action {
 	return []action{
-		{keys: []string{"u"}, section: sectionEveryone, label: "undo the last change", run: func(m *App) tea.Cmd { return undoCmd(m.backend) }},
-		{keys: []string{"R"}, section: sectionEveryone, label: "read the data again now", run: (*App).readAgain},
-		{keys: []string{"?"}, section: sectionEveryone, label: "show these keys", run: func(m *App) tea.Cmd { m.returnMode = m.appMode; m.appMode = modeHelp; return nil }},
-		{keys: []string{"q", "ctrl+c"}, section: sectionEveryone, label: "quit", run: func(*App) tea.Cmd { return tea.Quit }},
+		{Keys: []string{"u"}, Section: gotermboard.SectionEverywhere, Label: "undo the last change", Run: func(m *App) tea.Cmd { return undoCmd(m.backend) }},
+		{Keys: []string{"R"}, Section: gotermboard.SectionEverywhere, Label: "read the data again now", Run: (*App).readAgain},
 	}
 }
 
+// mapActions is the dependency map's own keys. gotermboard's universal rows move through it.
 func mapActions() []action {
 	focused := func(m *App) bool { return m.depTree.active == focusPane }
 	return []action{
-		{keys: []string{"j", "down"}, section: sectionMove, label: "move down a row", run: func(m *App) tea.Cmd { m.depTreeMove(1); return nil }},
-		{keys: []string{"k", "up"}, section: sectionMove, label: "move up a row", run: func(m *App) tea.Cmd { m.depTreeMove(-1); return nil }},
-		{keys: []string{"g", "home"}, section: sectionMove, label: "go to the top", run: func(m *App) tea.Cmd { m.depTreeJump(0); return nil }},
-		{keys: []string{"G", "end"}, section: sectionMove, label: "go to the bottom", run: func(m *App) tea.Cmd { m.depTreeJump(-1); return nil }},
-		{keys: []string{"ctrl+d", "pgdown"}, section: sectionMove, label: "half a screen down", run: func(m *App) tea.Cmd { m.depTreeMove(m.depTreePaneHeight() / 2); return nil }},
-		{keys: []string{"ctrl+u", "pgup"}, section: sectionMove, label: "half a screen up", run: func(m *App) tea.Cmd { m.depTreeMove(-m.depTreePaneHeight() / 2); return nil }},
-		{keys: []string{"l", "right"}, section: sectionMap, label: "go into the tree, then drill into the row", hint: "[l]drill", run: (*App).depTreeRight},
+		{Keys: []string{"l", "right"}, Section: sectionMap, Label: "go into the tree, then drill into the row", Footer: "l drill", Run: (*App).depTreeRight},
 		{
-			keys: []string{"h", "left"}, section: sectionMap, label: "back out a drill, then back to the map", hint: "[h]back",
-			run: (*App).depTreeLeft, applies: focused,
+			Keys: []string{"h", "left"}, Section: sectionMap, Label: "back out a drill, then back to the map", Footer: "h back",
+			Run: (*App).depTreeLeft, Applies: focused,
 		},
-		{keys: []string{"enter"}, section: sectionMap, label: "read the item", hint: "[Enter]read", run: (*App).readMapItem, applies: func(m *App) bool { return m.depTree.activeID() != "" }},
-		{keys: []string{"i"}, section: sectionMap, label: "read the tree's edges the other way", hint: "[i]flip", run: (*App).depTreeFlip, applies: focused},
-		{keys: []string{"."}, section: sectionMap, label: "show or hide the finished trees", hint: "[.]finished", run: (*App).depTreeToggleFinished},
+		{Keys: []string{"enter"}, Section: sectionMap, Label: "read the item", Footer: "enter read", Run: (*App).readMapItem, Applies: func(m *App) bool { return m.depTree.activeID() != "" }},
+		{Keys: []string{"i"}, Section: sectionMap, Label: "read the tree's edges the other way", Footer: "i flip", Run: (*App).depTreeFlip, Applies: focused},
+		{Keys: []string{"."}, Section: sectionMap, Label: "show or hide the finished trees", Footer: ". finished", Run: (*App).depTreeToggleFinished},
 	}
 }
 
 func moveActions() []action {
 	return []action{
-		{keys: []string{"j", "down"}, section: sectionMoving, label: "move it down", hint: "[j/k]move", run: func(m *App) tea.Cmd { m.moveGrabbed(1); return nil }},
-		{keys: []string{"k", "up"}, section: sectionMoving, label: "move it up", run: func(m *App) tea.Cmd { m.moveGrabbed(-1); return nil }},
-		{keys: []string{"g", "home"}, section: sectionMoving, label: "move it to the top", hint: "[g/G]top/bottom", run: func(m *App) tea.Cmd { m.moveGrabbedToEnd(-1); return nil }},
-		{keys: []string{"G", "end"}, section: sectionMoving, label: "move it to the bottom", run: func(m *App) tea.Cmd { m.moveGrabbedToEnd(1); return nil }},
-		{keys: []string{"enter"}, section: sectionMoving, label: "drop it here", hint: "[Enter]drop", run: (*App).dropGrabbed},
-		{keys: []string{"esc"}, section: sectionMoving, label: "put it back", hint: "[Esc]cancel", run: (*App).cancelGrab},
-		{keys: []string{"?"}, section: sectionEveryone, label: "show these keys", run: func(m *App) tea.Cmd { m.returnMode = m.appMode; m.appMode = modeHelp; return nil }},
-		{keys: []string{"ctrl+c"}, section: sectionEveryone, label: "quit", run: func(*App) tea.Cmd { return tea.Quit }},
+		{Keys: []string{"j", "down"}, Section: sectionMoving, Label: "move it down", Footer: "j/k move", Run: func(m *App) tea.Cmd { m.moveGrabbed(1); return nil }},
+		{Keys: []string{"k", "up"}, Section: sectionMoving, Label: "move it up", Run: func(m *App) tea.Cmd { m.moveGrabbed(-1); return nil }},
+		{Keys: []string{"g", "home"}, Section: sectionMoving, Label: "move it to the top", Footer: "g/G top/bottom", Run: func(m *App) tea.Cmd { m.moveGrabbedToEnd(-1); return nil }},
+		{Keys: []string{"G", "end"}, Section: sectionMoving, Label: "move it to the bottom", Run: func(m *App) tea.Cmd { m.moveGrabbedToEnd(1); return nil }},
+		{Keys: []string{"enter"}, Section: sectionMoving, Label: "drop it here", Footer: "enter drop", Run: (*App).dropGrabbed},
+		{Keys: []string{"esc"}, Section: sectionMoving, Label: "put it back", Footer: "esc cancel", Run: (*App).cancelGrab},
+		{Keys: []string{"?"}, Section: gotermboard.SectionEverywhere, Label: "show these keys", Run: func(m *App) tea.Cmd { m.ShowKeys(); return nil }},
+		{Keys: []string{"ctrl+c"}, Section: gotermboard.SectionEverywhere, Label: "quit", Run: func(*App) tea.Cmd { return tea.Quit }},
 	}
 }
 
 func helpActions() []action {
 	return []action{
-		{keys: []string{"esc", "?"}, section: sectionKeys, label: "close this list", hint: "[Esc]close", run: (*App).closeHelp},
-		{keys: []string{"q", "ctrl+c"}, section: sectionKeys, label: "quit", hint: "[q]quit", run: func(*App) tea.Cmd { return tea.Quit }},
+		{Keys: []string{"esc", "?"}, Section: sectionKeys, Label: "close this list", Footer: "esc close", Run: (*App).closeHelp},
+		{Keys: []string{"q", "ctrl+c"}, Section: sectionKeys, Label: "quit", Footer: "q quit", Run: func(*App) tea.Cmd { return tea.Quit }},
 	}
 }
 
 func filterActions() []action {
 	return []action{
-		{keys: []string{"enter"}, section: sectionViews, label: "keep the filter and go back to the list", hint: "[Enter]keep", run: (*App).keepFilter},
-		{keys: []string{"esc"}, section: sectionViews, label: "clear the filter", hint: "[Esc]clear", run: (*App).clearFilter},
+		{Keys: []string{"enter"}, Section: sectionViews, Label: "keep the filter and go back to the list", Footer: "enter keep", Run: (*App).keepFilter},
+		{Keys: []string{"esc"}, Section: sectionViews, Label: "clear the filter", Footer: "esc clear", Run: (*App).clearFilter},
 	}
 }
 
 // promptActions is a prompt for a name, a title or a reason.
 func promptActions() []action {
 	return []action{
-		{keys: []string{"enter"}, section: sectionPrompt, label: "do it with what is typed", hint: "[Enter]confirm", run: (*App).confirmPrompt},
-		{keys: []string{"esc"}, section: sectionPrompt, label: "close the prompt, keeping nothing", hint: "[Esc]cancel", run: (*App).cancelPrompt},
+		{Keys: []string{"enter"}, Section: sectionPrompt, Label: "do it with what is typed", Footer: "enter confirm", Run: (*App).confirmPrompt},
+		{Keys: []string{"esc"}, Section: sectionPrompt, Label: "close the prompt, keeping nothing", Footer: "esc cancel", Run: (*App).cancelPrompt},
 	}
 }
 
 func pickerActions() []action {
 	return []action{
-		{keys: []string{"j", "down"}, section: sectionPicker, label: "move down a project", run: func(m *App) tea.Cmd { m.picker.down(); return nil }},
-		{keys: []string{"k", "up"}, section: sectionPicker, label: "move up a project", run: func(m *App) tea.Cmd { m.picker.up(); return nil }},
-		{keys: []string{"g", "home"}, section: sectionPicker, label: "go to the top", run: func(m *App) tea.Cmd { m.picker.cursor = 0; return nil }},
+		{Keys: []string{"j", "down"}, Section: sectionPicker, Label: "move down a project", Run: func(m *App) tea.Cmd { m.picker.down(); return nil }},
+		{Keys: []string{"k", "up"}, Section: sectionPicker, Label: "move up a project", Run: func(m *App) tea.Cmd { m.picker.up(); return nil }},
+		{Keys: []string{"g", "home"}, Section: sectionPicker, Label: "go to the top", Run: func(m *App) tea.Cmd { m.picker.cursor = 0; return nil }},
 		{
-			keys: []string{"G", "end"}, section: sectionPicker, label: "go to the bottom",
-			run: func(m *App) tea.Cmd { m.picker.cursor = max(len(m.picker.projects)-1, 0); return nil },
+			Keys: []string{"G", "end"}, Section: sectionPicker, Label: "go to the bottom",
+			Run: func(m *App) tea.Cmd { m.picker.cursor = max(len(m.picker.projects)-1, 0); return nil },
 		},
-		{keys: []string{"space"}, section: sectionPicker, label: "tick or untick the project", hint: "[space]toggle", run: func(m *App) tea.Cmd { m.picker.toggle(); return nil }},
-		{keys: []string{"enter"}, section: sectionPicker, label: "file the item in the ticked projects", hint: "[Enter]confirm", run: (*App).confirmPicker},
-		{keys: []string{"esc"}, section: sectionPicker, label: "close, changing nothing", hint: "[Esc]cancel", run: (*App).cancelPicker},
+		{Keys: []string{"space"}, Section: sectionPicker, Label: "tick or untick the project", Footer: "space toggle", Run: func(m *App) tea.Cmd { m.picker.toggle(); return nil }},
+		{Keys: []string{"enter"}, Section: sectionPicker, Label: "file the item in the ticked projects", Footer: "enter confirm", Run: (*App).confirmPicker},
+		{Keys: []string{"esc"}, Section: sectionPicker, Label: "close, changing nothing", Footer: "esc cancel", Run: (*App).cancelPicker},
 	}
 }
 
@@ -362,20 +320,20 @@ func depLinkActions() []action {
 	}
 	return []action{
 		{
-			keys: []string{"enter"}, section: sectionLinking, label: "keep the filter and choose from what it kept", hint: "[Enter]keep",
-			run: func(m *App) tea.Cmd { return m.stopDepFilter(false) }, applies: typing,
+			Keys: []string{"enter"}, Section: sectionLinking, Label: "keep the filter and choose from what it kept", Footer: "enter keep",
+			Run: func(m *App) tea.Cmd { return m.stopDepFilter(false) }, Applies: typing,
 		},
-		{keys: []string{"esc"}, section: sectionLinking, label: "clear the filter", hint: "[Esc]clear", run: func(m *App) tea.Cmd { return m.stopDepFilter(true) }, applies: typing},
-		{keys: []string{"j", "down"}, section: sectionLinking, label: "move down an item", run: func(m *App) tea.Cmd { m.moveDepCursor(m.depCursor + 1); return nil }, applies: listing},
-		{keys: []string{"k", "up"}, section: sectionLinking, label: "move up an item", run: func(m *App) tea.Cmd { m.moveDepCursor(m.depCursor - 1); return nil }, applies: listing},
-		{keys: []string{"g", "home"}, section: sectionLinking, label: "go to the top", run: func(m *App) tea.Cmd { m.moveDepCursor(0); return nil }, applies: listing},
-		{keys: []string{"G", "end"}, section: sectionLinking, label: "go to the bottom", run: func(m *App) tea.Cmd { m.moveDepCursor(len(m.depItems)); return nil }, applies: listing},
-		{keys: []string{"enter"}, section: sectionLinking, label: "link the item this one waits on", hint: "[Enter]link", run: (*App).chooseDependency, applies: choosing(modeDepLink)},
-		{keys: []string{"enter"}, section: sectionLinking, label: "unlink the item this one waits on", hint: "[Enter]unlink", run: (*App).chooseDependency, applies: choosing(modeDepUnlink)},
+		{Keys: []string{"esc"}, Section: sectionLinking, Label: "clear the filter", Footer: "esc clear", Run: func(m *App) tea.Cmd { return m.stopDepFilter(true) }, Applies: typing},
+		{Keys: []string{"j", "down"}, Section: sectionLinking, Label: "move down an item", Run: func(m *App) tea.Cmd { m.moveDepCursor(m.depCursor + 1); return nil }, Applies: listing},
+		{Keys: []string{"k", "up"}, Section: sectionLinking, Label: "move up an item", Run: func(m *App) tea.Cmd { m.moveDepCursor(m.depCursor - 1); return nil }, Applies: listing},
+		{Keys: []string{"g", "home"}, Section: sectionLinking, Label: "go to the top", Run: func(m *App) tea.Cmd { m.moveDepCursor(0); return nil }, Applies: listing},
+		{Keys: []string{"G", "end"}, Section: sectionLinking, Label: "go to the bottom", Run: func(m *App) tea.Cmd { m.moveDepCursor(len(m.depItems)); return nil }, Applies: listing},
+		{Keys: []string{"enter"}, Section: sectionLinking, Label: "link the item this one waits on", Footer: "enter link", Run: (*App).chooseDependency, Applies: choosing(modeDepLink)},
+		{Keys: []string{"enter"}, Section: sectionLinking, Label: "unlink the item this one waits on", Footer: "enter unlink", Run: (*App).chooseDependency, Applies: choosing(modeDepUnlink)},
 		{
-			keys: []string{"/"}, section: sectionLinking, label: "filter the items", hint: "[/]filter", run: (*App).startDepFilter,
-			applies: func(m *App) bool { return listing(m) && m.appMode == modeDepLink },
+			Keys: []string{"/"}, Section: sectionLinking, Label: "filter the items", Footer: "/ filter", Run: (*App).startDepFilter,
+			Applies: func(m *App) bool { return listing(m) && m.appMode == modeDepLink },
 		},
-		{keys: []string{"esc"}, section: sectionLinking, label: "close, changing nothing", hint: "[Esc]cancel", run: (*App).cancelDepLink, applies: listing},
+		{Keys: []string{"esc"}, Section: sectionLinking, Label: "close, changing nothing", Footer: "esc cancel", Run: (*App).cancelDepLink, Applies: listing},
 	}
 }

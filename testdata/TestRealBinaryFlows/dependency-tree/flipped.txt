@@ -27,4 +27,4 @@
 │                                                │┃                                                ┃
 │                                                │┃                                                ┃
 ╰────────────────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [l]drill [h]back [Enter]read [i]flip [.]finished [Esc]back …          [?]help  LOCAL projects.db
+  l drill  h back  enter read  i flip  . finished  esc back  tab view …  ? keys  LOCAL projects.db

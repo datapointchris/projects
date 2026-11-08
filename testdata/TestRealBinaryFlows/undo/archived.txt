@@ -6,10 +6,10 @@
 │   Plan the Lisbon trip ○31 ✓0        │┃       ✓ Dump the database                                ┃
 │                                      │┃       ○ Convert HTML to markdown                         ┃
 │                                      │┃       ○ Download the images                              ┃
-│                                      │┃>   ○ Set up redirects for the old URLs                   ┃
+│                                      │┃> ▸ ○ Set up redirects for the old URLs                   ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
 │                                      │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Archived                                                              [?]help  LOCAL projects.db
+  Archived                                                               ? keys  LOCAL projects.db

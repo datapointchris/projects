@@ -2,7 +2,7 @@
 # clears it. "replica" is only in the export item's note.
 wait Export posts from the old CMS
 press l
-wait [Enter]read
+wait c complete
 
 press /
 type redirects
@@ -18,7 +18,7 @@ type replica
 wait Export posts from the old CMS
 gone Pick a theme
 press enter
-gone [Enter]keep
+gone enter keep
 frame note-match-kept
 press esc
 wait Pick a theme
@@ -44,7 +44,7 @@ wait Buy the faucet
 gone ── Move the blog to plain files ──
 frame all-items-filtered
 press enter
-gone [Enter]keep
+gone enter keep
 
 press q
 exits

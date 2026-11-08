@@ -6,25 +6,25 @@
 ┃  ▾ ── Replace the kitchen faucet ── ○3 ✓0                                                        ┃
 ┃   ▸ ○ Buy the faucet ≡                                                                           ┃
 ┃                                                                                                 6┃
-┃     ○ Shut off the water and swap it                                                             ┃
+┃   ▸ ○ Shut off the water and swap it                                                             ┃
 ┃                                                                                                 7┃
 ┃       └─ blocked by: Buy the faucet (6)                                                          ┃
-┃     ○ Ask Sam for a plumber and a place to stay ◈                                                ┃
+┃   ▸ ○ Ask Sam for a plumber and a place to stay ◈                                                ┃
 ┃       also in Plan the Lisbon trip                                                              8┃
 ┃                                                                                                  ┃
 ┃  ▾ ── Plan the Lisbon trip ── ○31 ✓0                                                             ┃
-┃     ○ Ask Sam for a plumber and a place to stay ◈                                                ┃
+┃   ▸ ○ Ask Sam for a plumber and a place to stay ◈                                                ┃
 ┃       also in Replace the kitchen faucet                                                        8┃
-┃     ○ Write up the trip on the new blog                                                          ┃
+┃   ▸ ○ Write up the trip on the new blog                                                          ┃
 ┃                                                                                                 9┃
 ┃       └─ blocked by: Move the blog to plain …: Point DNS at the new host (4)                     ┃
-┃     ○ Read every neighborhood guide and write down which three are worth the walk, the tram ride…┃
+┃   ▸ ○ Read every neighborhood guide and write down which three are worth the walk, the tram ride…┃
 ┃                                                                                                10┃
-┃     ○ Day 1: walk the next neighborhood                                                          ┃
+┃   ▸ ○ Day 1: walk the next neighborhood                                                          ┃
 ┃                                                                                                11┃
-┃     ○ Day 2: walk the next neighborhood                                                          ┃
+┃   ▸ ○ Day 2: walk the next neighborhood                                                          ┃
 ┃                                                                                                12┃
-┃     ○ Day 3: walk the next neighborhood                                                          ┃
+┃   ▸ ○ Day 3: walk the next neighborhood                                                          ┃
 ┃ 1/37                                                                                             ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]fold [Tab]view [/]filter                                       [?]help  LOCAL projects.db
+  tab view  / filter  j/k move  [/] jump  enter open  space fold  q quit ? keys  LOCAL projects.db

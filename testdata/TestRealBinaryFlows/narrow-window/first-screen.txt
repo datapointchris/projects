@@ -6,9 +6,9 @@
 ┃   Plan th… ○31 ✓0┃│       ✓ Dump the database  │
 ┃                  ┃│       ○ Convert HTML to ma…│
 ┃                  ┃│       ○ Download the images│
-┃                  ┃│     ✓ Pick a theme         │
+┃                  ┃│   ▸ ✓ Pick a theme         │
 ┃                  ┃│                           2│
-┃                  ┃│     ○ Set up redirects for…│
+┃                  ┃│   ▸ ○ Set up redirects for…│
 ┃                  ┃│ 1/7                        │
 ┗━━━━━━━━━━━━━━━━━━┛╰────────────────────────────╯
-  [Enter]read …       [?]help  LOCAL projects.db
+  enter read …         ? keys  LOCAL projects.db

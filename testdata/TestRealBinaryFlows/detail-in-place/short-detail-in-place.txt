@@ -1,17 +1,20 @@
  By project   All items   Dependencies
 ╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │ Projects                             │┃ Move the blog to plain files                             ┃
-│> Move the blog to plain files ○3 ✓1  │┃> ▸ ○ Export posts from the old CMS ≡ [1/3]               ┃
+│> Move the blog to plain files ○3 ✓1  │┃   ▸ ○ Export posts from the old CMS ≡ [1/3]              ┃
 │   Replace the kitchen faucet ○3 ✓0   │┃                                                         1┃
 │   Plan the Lisbon trip ○31 ✓0        │┃       ✓ Dump the database                                ┃
 │                                      │┃       ○ Convert HTML to markdown                         ┃
 │                                      │┃       ○ Download the images                              ┃
-│                                      │┃     ✓ Pick a theme                                       ┃
+│                                      │┃> ▾ ✓ Pick a theme                                        ┃
 │                                      │┃                                                         2┃
-│                                      │┃     ○ Set up redirects for the old URLs                  ┃
+│                                      │┃       Item 2 · ✓ done                                    ┃
+│                                      │┃       Projects: Move the blog to plain files             ┃
+│                                      │┃       Created: <date>                               ┃
+│                                      │┃   ▸ ○ Set up redirects for the old URLs                  ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
 │                                      │┃                                                          ┃
@@ -23,8 +26,5 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
-│                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]note [c]omplete [a]dd [n]ote [M]ove [Tab]view …    [?]help  LOCAL projects.db
+  c complete  a add  n note  M move  tab view  / filter  j/k move …      ? keys  LOCAL projects.db

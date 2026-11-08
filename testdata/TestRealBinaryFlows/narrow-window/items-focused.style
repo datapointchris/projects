@@ -42,7 +42,9 @@
 8: 50-50 fg=4
 9: 1-20 fg=8
 9: 21-21 fg=4
-9: 22-26 strike
+9: 22-24 strike
+9: 25-25 fg=8 strike
+9: 26-26 strike
 9: 27-27 fg=8 strike
 9: 28-28 strike
 9: 29-32 fg=8 strike

@@ -4,23 +4,23 @@ mask /on item [0-9a-f]{8}/ "on item <id>"
 
 wait Export posts from the old CMS
 press l
-wait [Enter]read
+wait c complete
 press G
-wait /> +○ Point DNS at the new host/
+wait /> [▸▾] ○ Point DNS at the new host/
 
 press c
 wait Cannot complete: item has unresolved blockers
 frame refused-while-blocked
 
 press [ [
-wait /> +✓ Pick a theme/
+wait /> [▸▾] ✓ Pick a theme/
 press c
 wait Marked incomplete
-wait /> +○ Pick a theme/
+wait /> [▸▾] ○ Pick a theme/
 frame toggled
 press u
 wait Undo:
-wait /> +✓ Pick a theme/
+wait /> [▸▾] ✓ Pick a theme/
 frame undone
 
 press x

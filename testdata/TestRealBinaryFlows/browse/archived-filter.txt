@@ -6,15 +6,15 @@
 │   Plan the Lisbon trip ○31 ✓0        │┃       ✓ Dump the database                                ┃
 │                                      │┃       ○ Convert HTML to markdown                         ┃
 │                                      │┃       ○ Download the images                              ┃
-│                                      │┃     ✓ Pick a theme                                       ┃
+│                                      │┃   ▸ ✓ Pick a theme                                       ┃
 │                                      │┃                                                         2┃
-│                                      │┃>   ○ Set up redirects for the old URLs                   ┃
+│                                      │┃> ▸ ○ Set up redirects for the old URLs                   ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃   ▸ ○ Point DNS at the new host                          ┃
 │                                      │┃                                                         4┃
 │                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
-│                                      │┃     ○ Compare hosting quotes                             ┃
+│                                      │┃   ▸ ○ Compare hosting quotes                             ┃
 │                                      │┃                                                         5┃
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [c]omplete [a]dd [n]ote [M]ove [Tab]view [/]filter …      [?]help  LOCAL projects.db
+  c complete  a add  n note  M move  tab view  / filter  0 reset …       ? keys  LOCAL projects.db

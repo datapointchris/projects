@@ -15,10 +15,10 @@ press esc
 gone New task for
 
 press /
-wait [Enter]keep
+wait enter keep
 frame filter-prompt
 press esc
-gone [Enter]keep
+gone enter keep
 
 press enter
 wait Tasks 1/3

@@ -27,4 +27,4 @@
 ┃                                                ┃│                                                │
 ┃                                                ┃│                                                │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
-  [l]drill [Enter]read [.]finished [Tab]view [/]filter                  [?]help  LOCAL projects.db
+  l drill  enter read  . finished  tab view  / filter  j/k move  q quit  ? keys  LOCAL projects.db

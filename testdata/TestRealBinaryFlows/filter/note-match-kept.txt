@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]note [c]omplete [a]dd [n]ote [Esc]back [Tab]view … [?]help  LOCAL projects.db
+  c complete  a add  n note  esc back  tab view  / filter  j/k move …    ? keys  LOCAL projects.db

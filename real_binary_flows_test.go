@@ -41,7 +41,7 @@ func TestRealBinaryFlows(t *testing.T) {
 		{name: "views", script: "views.keys"},
 		{name: "filter", script: "filter.keys"},
 		{name: "move", script: "move.keys"},
-		{name: "note-in-place", script: "note-in-place.keys"},
+		{name: "detail-in-place", script: "detail-in-place.keys"},
 		{name: "reader", script: "reader.keys"},
 		{name: "add-project-and-item", script: "add-project-and-item.keys"},
 		{name: "add-task", script: "add-task.keys"},

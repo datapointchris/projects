@@ -4,7 +4,7 @@ wait Export posts from the old CMS
 frame first-screen
 
 press l
-wait [Enter]read
+wait c complete
 frame items-focused
 
 press j
@@ -12,9 +12,9 @@ wait /> +✓ Dump the database/
 frame cursor-on-task
 
 press ]
-wait /> +✓ Pick a theme/
+wait /> [▸▾] ✓ Pick a theme/
 press G
-wait /> +○ Point DNS at the new host/
+wait /> [▸▾] ○ Point DNS at the new host/
 frame cursor-on-last-item
 press g
 wait /> +▸ ○ Export posts from the old CMS/
@@ -31,7 +31,7 @@ press 0
 gone [ALL]
 
 press h
-wait [space]mark
+wait space mark
 press space
 wait Selected (1)
 press j
@@ -46,12 +46,12 @@ press G
 wait > Plan the Lisbon trip
 frame last-project
 press l
-wait [Enter]read
+wait c complete
 press ctrl+d
-wait /> +○ Day 10: walk the next neighborhood/
+wait /> [▸▾] ○ Day 10: walk the next neighborhood/
 frame long-list-half-page
 press G
-wait /> +○ Day 28: walk the next neighborhood/
+wait /> [▸▾] ○ Day 28: walk the next neighborhood/
 frame long-list-bottom
 
 press ctrl+c

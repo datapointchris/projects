@@ -1,0 +1,46 @@
+# Enter opens an item's detail in place where it is short, and full screen where it runs past
+# the pane. Space opens it in place however tall, and closes it again. Every item has a detail,
+# so every item's row carries a chevron. Scrolling through the detail keeps the item's line on top.
+mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+wait Export posts from the old CMS
+press l
+wait c complete
+frame every-item-opens
+
+press ]
+wait > ▸ ✓ Pick a theme
+press enter
+wait ▾ ✓ Pick a theme
+wait Item 2 ·
+frame short-detail-in-place
+press enter
+wait ▸ ✓ Pick a theme
+gone Item 2 ·
+
+press [
+wait > ▸ ○ Export posts from the old CMS
+press enter
+wait esc/space back
+frame tall-detail-full-screen
+press esc
+wait c complete
+
+press space
+wait ▾ ○ Export posts from the old CMS
+wait Item 1 ·
+frame tall-detail-in-place
+
+press ctrl+d
+wait /(?m)^.*┃> ▾ ○ Export posts from the old CMS/
+frame item-stays-on-top
+press J J J
+wait Diff a sample of twenty
+frame scrolled-by-lines
+
+press space
+wait ▸ ○ Export posts from the old CMS
+gone Item 1 ·
+frame detail-closed
+
+press q
+exits

@@ -7,7 +7,7 @@
 │                                      │┃       ✓ Dump the database                                ┃
 │                                      │┃       ○ Convert HTML to markdown                         ┃
 │                                      │┃       ○ Download the images                              ┃
-│                                      │┃     ○ Set up redirects for the old URLs                  ┃
+│                                      │┃   ▸ ○ Set up redirects for the old URLs                  ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
 │                                      │┃                                                          ┃
@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]keep [Esc]clear                                                [?]help  LOCAL projects.db
+  enter keep  esc clear                                                  ? keys  LOCAL projects.db

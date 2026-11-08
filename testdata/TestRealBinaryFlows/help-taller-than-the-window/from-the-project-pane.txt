@@ -25,6 +25,6 @@
               │    ?                 show these keys                                 │
               │    q Ctrl+c          quit                                            │
               │                                                                      │
-              │    [Esc]close [q]quit                                                │
+              │    esc close  q quit                                                 │
               │                                                                      │
               ╰──────────────────────────────────────────────────────────────────────╯
