@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/datapointchris/goclikit"
+	"github.com/datapointchris/gotermboard/printedframe"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -19,7 +19,7 @@ import (
 // tabProjects is the board's one tab, named for what it lists.
 const tabProjects = "projects"
 
-// The frame --once draws where COLUMNS or LINES is unset.
+// The frame --once draws where COLUMNS and LINES are unset and stdout is no terminal.
 const (
 	onceFallbackWidth  = 120
 	onceFallbackHeight = 40
@@ -50,9 +50,9 @@ func newTUICommand() *cobra.Command {
 			"or the sync state of a synced database. In API mode the board reads the API again\n" +
 			"every [sync] interval, and R reads it now.\n" +
 			"\n" +
-			"--once prints one frame at COLUMNS by LINES, and --json what that frame is drawn\n" +
-			"from, so an agent reads what a person reads. With no terminal and neither flag it\n" +
-			"refuses.",
+			"--once prints one frame at COLUMNS by LINES, else at the terminal's size, else at\n" +
+			"120 by 40, and --json what that frame is drawn from, so an agent reads what a\n" +
+			"person reads. With no terminal and neither flag it refuses.",
 		Example: "  projects tui\n" +
 			"  COLUMNS=160 LINES=50 projects tui --once > frame.txt\n" +
 			"  projects tui --json | jq '.project.name'",
@@ -88,7 +88,7 @@ func newTUICommand() *cobra.Command {
 				}
 				return encodeJSON(cmd.OutOrStdout(), boardShown(app))
 			}
-			width, height := envSize("COLUMNS", onceFallbackWidth), envSize("LINES", onceFallbackHeight)
+			width, height := printedframe.Size(onceFallbackWidth, onceFallbackHeight)
 			frame, err := app.Once(width, height)
 			if err != nil {
 				return source.explain(err)
@@ -98,7 +98,7 @@ func newTUICommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+tabProjects)
-	cmd.Flags().BoolVar(&once, "once", false, "Print one frame at COLUMNS by LINES, then exit")
+	cmd.Flags().BoolVar(&once, "once", false, "Print one frame at COLUMNS by LINES, else the terminal's size, then exit")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output what the board shows as it opens as JSON to stdout")
 	return cmd
 }
@@ -116,12 +116,4 @@ func boardShown(app *tui.App) tuiShown {
 		shown.Project = &project
 	}
 	return shown
-}
-
-// envSize reads COLUMNS or LINES, the size a caller with no terminal asks for.
-func envSize(name string, fallback int) int {
-	if n, err := strconv.Atoi(os.Getenv(name)); err == nil && n > 0 {
-		return n
-	}
-	return fallback
 }
