@@ -32,8 +32,8 @@ func TestDefaultDBPath_XDGOverride(t *testing.T) {
 
 // repos_registry is a bare top-level key, which TOML requires above the first
 // [section] header — declared under one it would belong to that section and
-// unmarshal into nothing. The [sync] section below it is the work box's file,
-// which has to load rather than stop the tool.
+// unmarshal into nothing. The [sync] section below it has to load, so a machine
+// whose config still holds one keeps running.
 func TestReposRegistryIsReadFromTheConfigFile(t *testing.T) {
 	const declared = "/declared/repos.json"
 	writeConfig(t, "repos_registry = \""+declared+"\"\n\n[sync]\nenabled = false\n")

@@ -183,7 +183,7 @@ items it waits on. The reader also names the repo the item is for. The board has
 that tag. `projects items edit <item> --repo <name>` sets it.
 
 Through an API, the status bar reads `API` and the API's host. The board reads the API again every
-two minutes, and `R` reads it at once.
+`apiRereadInterval` in `tui/app.go`, and `R` reads it at once.
 
 `Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
 what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
@@ -253,15 +253,18 @@ Through an API, the API numbers the item as it creates it. In database mode, `pr
 next number itself. An item with no number shows the last 8 characters of its id. Only a database
 from before numbers existed, or one kept as a synced copy of an API, can hold such an item.
 
-## A config or database from the synced copy still works, and its sync variables refuse
+## A synced copy's config and database still load, while a sync variable or an unpushed edit refuses
 
-`projects` once kept a database as a copy of an API, set under `[sync]`. It keeps no copy now, and
-`api` is how a machine works through an API.
+A config holding `[sync]`, a `PROJECTS_SYNC*` variable, or a database that was a synced copy of an
+API behaves as follows. `api` is how a machine works through an API.
 
 - A config file still holding `[sync]` loads. Every command that opens data warns on stderr, naming
   the file, and ignores the section.
-- A database from then opens as it is. The first open drops its queue of pushes, its pull times and
-  the API it was bound to. Every project, item, task, dependency and membership stays.
+- A database that was a synced copy opens as it is. The first open drops its queue of pushes, its pull
+  times and the API it was bound to. Every project, item, task, dependency and membership stays.
+- A queue still holding an edit stops that open with exit 1, naming how many and the API they were
+  for, because those edits never reached it. `projects sync` from v1.24.2 pushes them, and
+  `DELETE FROM pending_sync` discards them.
 - `PROJECTS_SYNC`, `PROJECTS_SYNC_URL`, `PROJECTS_SYNC_TOKEN_COMMAND` or `PROJECTS_SYNC_INTERVAL`, or
   its `TODOUI_` twin, set to a value stops every command with exit 2. `PROJECTS_SYNC_URL` chose an
   API, so ignoring it would send the run wherever the config file points.

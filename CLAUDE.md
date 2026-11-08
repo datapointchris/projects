@@ -21,13 +21,17 @@ command in API mode against the production API and ignores `PROJECTS_DB`. So
 `PROJECTS_DB` alone writes to production. An empty `XDG_CONFIG_HOME` leaves no
 `api`, and the run opens the database `PROJECTS_DB` names.
 
-`.envrc` is machine-local and is not in this repo. `task setup`, which `worktree
-new` runs, links the primary checkout's copy into a worktree. It points
-`PROJECTS_DB` at `dev.db` for `TestRealDatabaseSurvivesEverySizeAndProject`, and
-keeps no run off the API the config file names.
+`.envrc` is machine-local. `task setup`, which `worktree new` runs, links the
+primary checkout's copy into a worktree. `TestRealDatabaseSurvivesEverySizeAndProject`
+reads `PROJECTS_DB`, and skips without it. A `PROJECTS_SYNC*` line left in an
+`.envrc` stops every run with exit 2.
 
-**The former name is handled in one file.** `config/former_name.go` refuses a retired variable that is
-still set, and a config still at the former path. It moves the old data directory on the first run
+**A retired variable refuses from one table.** `config/retired_variables.go` holds it, `main.go`
+refuses any variable in it that is set before anything runs, and each retirement adds its rows from
+its own file.
+
+**The former name is handled in one file.** `config/former_name.go` adds the `TODOUI_*` variables to
+that table, and refuses a config still at the former path. It moves the old data directory on the first run
 that opens the default database. A run naming its database moves nothing, so a run from `.envrc` leaves
 the real data where it is. An `.envrc` still exporting the old names is refused rather than ignored,
 which keeps it from falling through to the production database. On a machine upgrading, run `projects`
@@ -36,12 +40,12 @@ marker there says when the file retires. Anything that opens the database stays 
 `MoveDataUnderFormerName` in `openDatabase` in `cli/data_source.go`, because opening first creates an
 empty database, and the move refuses to run over one.
 
-**The synced copy's leftovers are handled in one file too.** `config/retired_sync.go` refuses a set
-`PROJECTS_SYNC*` or `TODOUI_SYNC*` variable with exit 2, because `PROJECTS_SYNC_URL` chose an API.
-`Config.RetiredSync` keeps a `[sync]` section loading, and `warnOfRetiredSyncSection` in
-`cli/data_source.go` warns of it rather than refusing, because a machine's config changes only at its
-next apply. `dropSyncTables` in `store/sqlite/open.go` drops `pending_sync`, `sync_state` and
-`sync_origin` on the first open. The file's `MIGRATION` marker says when it retires.
+**The synced copy's leftovers retire together, under the `MIGRATION` marker in
+`config/retired_sync.go`.** Its rows refuse a set `PROJECTS_SYNC*` or `TODOUI_SYNC*` variable with
+exit 2, because `PROJECTS_SYNC_URL` chose an API. `Config.RetiredSync` keeps a `[sync]` section
+loading, and `warnOfRetiredSyncSection` in `cli/data_source.go` warns of it rather than refusing,
+because a machine's config changes only at its next apply. `dropSyncTables` in `store/sqlite/open.go`
+drops the synced copy's own tables on the first open, and refuses while its push queue holds a row.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -183,10 +187,10 @@ builds the tree. Help renders through `gotermstyle/cobrahelp`.
 An item shows its **number**, the handle the API assigns and answers with. The UUID is the key
 and stops there.
 
-`AssigningItemNumbers` numbers each item as it is created. Through an API, the API numbers it, from
-the `item_numbers` sequence. In database mode `projects` allocates `max+1` itself. An item with no
-number, which only a database from before numbers or from the synced copy holds, shows its UUID tail
-(`itemHandle` in `tui/app.go`).
+`service.CreateItem` numbers each item as it is created, from the store's `NextItemNumber`: the
+`item_numbers` sequence on Postgres, and `max+1` on SQLite. An item with no number, which only a
+database from before numbers or from the synced copy holds, shows its UUID tail (`itemHandle` in
+`tui/app.go`).
 
 ## A project name is bounded work, never a repo
 
@@ -300,7 +304,7 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   `lookup_rows.sql`. `postgres.Migrate` upserts Postgres's from `model`, and
   `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it. The project schemas' `enum`
   and the web app's `types.ts` list them too, and a test holds each to `model`.
-- **Item numbers come from the `item_numbers` sequence**, through `AssigningItemNumbers`. A database
+- **Item numbers come from the `item_numbers` sequence**, through `NextItemNumber`. A database
   loaded from elsewhere needs the sequence set from the old sequence's own counter, because numbers it
   already handed out can outrun the rows left.
 - **`.sqlfluffignore` keeps the SQLite hook off `store/postgres`**, and a second hook in
