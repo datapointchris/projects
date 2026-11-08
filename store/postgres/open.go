@@ -5,8 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
+	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib" // goose reads through database/sql
@@ -27,6 +30,9 @@ func Migrate(ctx context.Context, url string) error {
 		return fmt.Errorf("opening database for migration: %w", err)
 	}
 	defer func() { _ = database.Close() }()
+	if err := waitForServer(ctx, database); err != nil {
+		return err
+	}
 
 	files, err := fs.Sub(migrationFiles, "migrations")
 	if err != nil {
@@ -40,6 +46,32 @@ func Migrate(ctx context.Context, url string) error {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 	return upsertLookupRows(ctx, database)
+}
+
+// serverWait is how long a migration waits for its first connection. A cluster's
+// network policy can refuse a new pod's connections for a moment after it starts,
+// and the job's pod connects once, so without the wait every attempt fails.
+const serverWait = 60 * time.Second
+
+// waitForServer pings until the server answers. Only a refused connection is
+// waited on, so a wrong password or database still fails at once.
+func waitForServer(ctx context.Context, database *sql.DB) error {
+	ctx, cancel := context.WithTimeout(ctx, serverWait)
+	defer cancel()
+	for {
+		err := database.PingContext(ctx)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, syscall.ECONNREFUSED) {
+			return fmt.Errorf("connecting for migration: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the database refused every connection for %s: %w", serverWait, err)
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 // upsertLookupRows runs on every migrate, so a kind or status added to model reaches
