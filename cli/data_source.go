@@ -57,10 +57,9 @@ type dataSource struct {
 	local    *service.Service
 }
 
-// LocalService is the service over a database this machine owns outright, which
-// numbers items itself because nothing upstream will.
+// LocalService is the service over a database this machine owns outright.
 func LocalService(database *sql.DB, reposRegistryPath string) *service.Service {
-	return service.New(sqlite.New(database), service.AssigningItemNumbers(), service.RefusingRepoNames(reposRegistryPath))
+	return service.New(sqlite.New(database), service.RefusingRepoNames(reposRegistryPath))
 }
 
 // runMode is where a run's data lives.

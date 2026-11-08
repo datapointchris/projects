@@ -38,8 +38,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 	}
 	t.Cleanup(func() { _ = database.Close() })
 
-	// AssigningItemNumbers, as database mode builds it.
-	b := service.New(sqlite.New(database), service.AssigningItemNumbers())
+	b := service.New(sqlite.New(database))
 	project, err := b.CreateProject(model.CreateProject{Name: "work"})
 	if err != nil {
 		t.Fatalf("creating project: %v", err)

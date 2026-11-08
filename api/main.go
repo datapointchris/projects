@@ -103,7 +103,7 @@ func serve(ctx context.Context, log *slog.Logger) error {
 		log.WarnContext(ctx, "WEB_CLIENT_SECRET is unset, so the API logs no browser in and only a bearer token reaches it")
 	}
 
-	svc := service.New(postgresStore, service.AssigningItemNumbers())
+	svc := service.New(postgresStore)
 	mux := routes.New(svc, log, checks...)
 	if loaded.PublicURL != "" {
 		authentication.Metadata(mux, loaded.PublicURL, loaded.OIDCIssuer)

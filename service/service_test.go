@@ -30,7 +30,7 @@ func runsOnPostgres() bool {
 func newTestBackend(t *testing.T) *Service {
 	t.Helper()
 	if runsOnPostgres() {
-		return New(postgres.New(postgrestest.Pool(t)), AssigningItemNumbers())
+		return New(postgres.New(postgrestest.Pool(t)))
 	}
 	database, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -888,7 +888,7 @@ func TestAnEditSurvivesASecondWriter(t *testing.T) {
 				t.Fatalf("connecting: %v", err)
 			}
 			t.Cleanup(pool.Close)
-			return New(postgres.New(pool), AssigningItemNumbers())
+			return New(postgres.New(pool))
 		}
 	} else {
 		path := filepath.Join(t.TempDir(), "projects.db")

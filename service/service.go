@@ -23,8 +23,6 @@ const itemListSegment = "/items"
 // Service holds every rule about projects, items, memberships, dependencies, tasks and undo.
 type Service struct {
 	store store.Store
-	// assignsItemNumbers is set by AssigningItemNumbers.
-	assignsItemNumbers bool
 	// repoRegistryPath enables the repo-named-project ban. Empty means no
 	// registry and no ban. See RefusingRepoNames.
 	repoRegistryPath string
@@ -34,13 +32,6 @@ type Service struct {
 
 // Option configures a Service at construction.
 type Option func(*Service)
-
-// AssigningItemNumbers numbers each item as it is created, from the store's
-// NextItemNumber. Both entry points pass it: database mode in cli.LocalService,
-// and projects-api over Postgres.
-func AssigningItemNumbers() Option {
-	return func(s *Service) { s.assignsItemNumbers = true }
-}
 
 // RefusingRepoNames bans naming a project after a repo, reading the registry at
 // path on the create and rename paths only.
@@ -531,19 +522,15 @@ func (s *Service) CreateItem(input model.CreateProjectItem) (*model.ProjectItemD
 			}
 		}
 
-		var number *int
-		if s.assignsItemNumbers {
-			next, err := tx.NextItemNumber(ctx)
-			if err != nil {
-				return fmt.Errorf("allocating item number: %w", err)
-			}
-			number = &next
+		number, err := tx.NextItemNumber(ctx)
+		if err != nil {
+			return fmt.Errorf("allocating item number: %w", err)
 		}
 
 		id := idOrNew(input.ID)
 		item, err := tx.CreateItem(ctx, model.ProjectItem{
 			ID:     id,
-			Number: number,
+			Number: &number,
 			Title:  input.Title,
 			Notes:  input.Notes,
 			Repo:   emptyRepoUnlinks(input.Repo),

@@ -19,10 +19,9 @@ func newNumberTestDB(t *testing.T) *sql.DB {
 	return database
 }
 
-// The work machine is never allowed to reach the API, so nothing upstream will
-// ever number its items. Its database is the authority instead.
-func TestCreateItem_AssignsNumbersWhenThisDatabaseIsTheAuthority(t *testing.T) {
-	b := service.New(sqlite.New(newNumberTestDB(t)), service.AssigningItemNumbers())
+// An item's number is the handle a person types, so a fresh database starts it at 1.
+func TestCreateItem_NumbersAFreshDatabaseFromOne(t *testing.T) {
+	b := service.New(sqlite.New(newNumberTestDB(t)))
 	project, err := b.CreateProject(model.CreateProject{Name: "Work"})
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
@@ -35,7 +34,7 @@ func TestCreateItem_AssignsNumbersWhenThisDatabaseIsTheAuthority(t *testing.T) {
 			t.Fatalf("CreateItem(%s): %v", title, err)
 		}
 		if item.Number == nil {
-			t.Fatalf("CreateItem(%s) left the number unset — nothing else will assign it here", title)
+			t.Fatalf("CreateItem(%s) left the number unset", title)
 		}
 		numbers = append(numbers, *item.Number)
 	}
