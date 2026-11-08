@@ -1,30 +1,30 @@
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭──────────────────────────────────────────────╮
-┃ All trees                                      ┃│ Tree — waits on                              │
-┃ ○ 9 Write up the trip on the new blog          ┃│ •○ 9 Write up the trip on the new blog       │
-┃  └── ○ 4 Point… [Move the blog to plain files] ┃│  └── ○ 4 Poi… [Move the blog to plain files] │
-┃      └── ○ 3 Set up redirects for the old URLs ┃│      └── ○ 3 Set up redirects for the old U… │
-┃          └── ○ 1 Export posts from the old CMS ┃│          └── ○ 1 Export posts from the old … │
-┃  ○ 7 Shut off the water and swap it            ┃│                                              │
-┃  └── ○ 6 Buy the faucet                        ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┃                                                ┃│                                              │
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────────────────────────╯
-  [j/k]move [l]focus [/]search [a]finished [Enter]read [Esc]back                           2 trees
+ By project   All items   Dependencies
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭────────────────────────────────────────────────╮
+┃ All trees (2)                                  ┃│ Tree — waits on                                │
+┃ ○ 9 Write up the trip on the new blog          ┃│ •○ 9 Write up the trip on the new blog         │
+┃  └── ○ 4 Point… [Move the blog to plain files] ┃│  └── ○ 4 Point… [Move the blog to plain files] │
+┃      └── ○ 3 Set up redirects for the old URLs ┃│      └── ○ 3 Set up redirects for the old URLs │
+┃          └── ○ 1 Export posts from the old CMS ┃│          └── ○ 1 Export posts from the old CMS │
+┃  ○ 7 Shut off the water and swap it            ┃│                                                │
+┃  └── ○ 6 Buy the faucet                        ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┃                                                ┃│                                                │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
+  [l]drill [Enter]read [.]finished [Tab]view [/]filter                  [?]help  LOCAL projects.db

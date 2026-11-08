@@ -55,9 +55,6 @@ type Backend interface {
 	UpdateTask(itemID, taskID string, input model.UpdateProjectItemTask) (*model.ProjectItemTask, error)
 	DeleteTask(itemID, taskID string) error
 
-	// Search
-	Search(query string) ([]model.ProjectItem, error)
-
 	// Filters
 	ListBlocked() ([]model.ProjectItem, error)
 	ListArchived(projectID string) ([]model.ProjectItemInProject, error)

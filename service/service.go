@@ -1055,17 +1055,6 @@ func (s *Service) DeleteTask(itemRef, taskID string) error {
 	})
 }
 
-// --- Search ---
-
-// Search leaves out archived items, which SearchItems keeps.
-func (s *Service) Search(query string) ([]model.ProjectItem, error) {
-	items, err := s.matchingItems(s.ctx(), query)
-	if err != nil {
-		return nil, err
-	}
-	return model.WithoutArchived(items), nil
-}
-
 // --- Filters ---
 
 func (s *Service) ListBlocked() ([]model.ProjectItem, error) {

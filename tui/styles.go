@@ -38,8 +38,14 @@ func paneBox(active bool, width, innerHeight int) lipgloss.Style {
 // overlayBox frames an overlay as wide as the window allows, held between lo and hi
 // columns inside its border.
 func overlayBox(content string, windowWidth, lo, hi int) string {
-	inside := max(min(windowWidth-4, hi), lo)
-	return overlayBoxStyle.Width(inside + 2).Render(content)
+	return overlayBoxStyle.Width(overlayInside(windowWidth, lo, hi) + 2).Render(content)
+}
+
+func overlayInside(windowWidth, lo, hi int) int { return max(min(windowWidth-4, hi), lo) }
+
+// overlayContentWidth is the room overlayBox leaves a line, inside its border and padding.
+func overlayContentWidth(windowWidth, lo, hi int) int {
+	return overlayInside(windowWidth, lo, hi) - overlayBoxStyle.GetHorizontalPadding()
 }
 
 // All colors use ANSI 0-15 so the TUI adapts to the terminal's theme.
@@ -77,17 +83,23 @@ var (
 	projectDoneCountStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("2"))
 
-	// All pseudo-project
-	allProjectStyle = lipgloss.NewStyle().
-			PaddingLeft(0).
-			Foreground(lipgloss.Color("6")).
+	// The view header names the view showing in the active border's color.
+	activeViewStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("4")).
 			Bold(true)
 
-	// Group header in All Items view
+	// A project's header over its items, in a list holding several projects.
 	groupHeaderStyle = lipgloss.NewStyle().
-				PaddingLeft(1).
 				Foreground(lipgloss.Color("6")).
 				Bold(true)
+
+	// The row under the cursor in the item pane, and a done item or task's title.
+	cursorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("2")).
+			Bold(true)
+	completedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")).
+			Strikethrough(true)
 
 	// Item list
 	itemNormalStyle   = lipgloss.NewStyle().PaddingLeft(1)
@@ -105,8 +117,7 @@ var (
 	notesIndicatorStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("6"))
 	blockerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("1")).
-			PaddingLeft(5)
+			Foreground(lipgloss.Color("1"))
 	blockerProjectStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("3")).
 				Bold(true)
@@ -143,12 +154,6 @@ var (
 	overlayTitleStyle = lipgloss.NewStyle().
 				Bold(true)
 
-	// Reader
-	readerTitleStyle = lipgloss.NewStyle().
-				Bold(true)
-	readerBlockerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("1"))
-
 	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8"))
 
@@ -176,21 +181,4 @@ var (
 	moveIndicatorStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("3")).
 				Bold(true)
-
-	// Tasks
-	taskNormalStyle = lipgloss.NewStyle().
-			PaddingLeft(5)
-	taskSelectedStyle = lipgloss.NewStyle().
-				PaddingLeft(4).
-				Foreground(lipgloss.Color("2")).
-				Bold(true)
-	taskCompletedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("8")).
-				Strikethrough(true)
-
-	// Search results
-	searchResultSelectedStyle = lipgloss.NewStyle().
-					Foreground(lipgloss.Color("2")).
-					Bold(true)
-	searchResultNormalStyle = lipgloss.NewStyle()
 )

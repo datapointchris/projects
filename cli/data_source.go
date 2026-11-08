@@ -218,6 +218,17 @@ func (s *dataSource) repoRegistry() (*repos.Registry, error) {
 	return repos.Load(repos.DefaultPath())
 }
 
+// checkout is where this machine's registry says repo is checked out, in either mode,
+// because the Claude session the board's C opens runs on this machine whatever it reads.
+func (s *dataSource) checkout(repo string) (string, bool, error) {
+	registry, err := repos.Load(repos.DefaultPath())
+	if err != nil {
+		return "", false, err
+	}
+	path, named := registry.Checkout(repo)
+	return path, named, nil
+}
+
 // apiHost is the API's host, or "" in database mode.
 func (s *dataSource) apiHost() string {
 	if s.deployment == nil {

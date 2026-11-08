@@ -1,0 +1,50 @@
+# / narrows the list in place as each key lands, matching titles and notes, and esc
+# clears it. "replica" is only in the export item's note.
+wait Export posts from the old CMS
+press l
+wait [Enter]read
+
+press /
+type redirects
+wait "/redirects"
+wait Set up redirects for the old URLs
+gone Pick a theme
+frame title-match
+press esc
+wait Pick a theme
+
+press /
+type replica
+wait Export posts from the old CMS
+gone Pick a theme
+press enter
+gone [Enter]keep
+frame note-match-kept
+press esc
+wait Pick a theme
+gone "/replica"
+frame cleared
+
+press h
+press /
+type lisbon
+wait Plan the Lisbon trip
+gone Move the blog to plain files
+frame project-filter
+press enter
+wait Day 1: walk the next neighborhood
+press esc
+wait Move the blog to plain files
+
+press tab
+wait ── Move the blog to plain files ──
+press /
+type faucet
+wait Buy the faucet
+gone ── Move the blog to plain files ──
+frame all-items-filtered
+press enter
+gone [Enter]keep
+
+press q
+exits

@@ -364,25 +364,6 @@ func TestCompleteItem(t *testing.T) {
 	}
 }
 
-func TestSearch(t *testing.T) {
-	b := newTestBackend(t)
-
-	p := mustCreateProject(t, b, "work")
-	mustCreateItem(t, b, model.CreateProjectItem{Title: "fix auth bug", ProjectIDs: []string{p.ID}})
-	mustCreateItem(t, b, model.CreateProjectItem{Title: "write tests", ProjectIDs: []string{p.ID}})
-
-	results, err := b.Search("auth")
-	if err != nil {
-		t.Fatalf("searching: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-	if results[0].Title != "fix auth bug" {
-		t.Errorf("expected 'fix auth bug', got %q", results[0].Title)
-	}
-}
-
 func TestUndoCreateItem(t *testing.T) {
 	b := newTestBackend(t)
 

@@ -1,14 +1,14 @@
-┏━━━━━━━━━━━━━━━━━━┓╭──────────────────────────╮
-┃ Projects         ┃│ Move the blog to plain f…│
-┃   All ○37 ✓1     ┃│> ○ Export po… ≡ [1/3]  1 │
-┃> Move the … ○3 ✓1┃│     ✓ Dump the database  │
-┃   Replace … ○3 ✓0┃│     ○ Convert HTML to m… │
-┃   Plan th… ○31 ✓0┃│     ○ Download the imag… │
-┃                  ┃│   ✓ Pick a theme  2      │
-┃                  ┃│   ○ Set up redirects …  3│
-┃                  ┃│     └─ blocked by: E… (1)│
-┃                  ┃│   ○ Point DNS at the …  4│
-┃                  ┃│     └─ blocked by: S… (3)│
-┃                  ┃│                          │
-┗━━━━━━━━━━━━━━━━━━┛╰──────────────────────────╯
-  [a]dd project …     [?]help  LOCAL projects.db
+ By project   All items   Dependencies
+┏━━━━━━━━━━━━━━━━━━┓╭────────────────────────────╮
+┃ Projects         ┃│ Move the blog to plain fil…│
+┃> Move the … ○3 ✓1┃│> ▸ ○ Export posts … ≡ [1/3]│
+┃   Replace … ○3 ✓0┃│                           1│
+┃   Plan th… ○31 ✓0┃│       ✓ Dump the database  │
+┃                  ┃│       ○ Convert HTML to ma…│
+┃                  ┃│       ○ Download the images│
+┃                  ┃│     ✓ Pick a theme         │
+┃                  ┃│                           2│
+┃                  ┃│     ○ Set up redirects for…│
+┃                  ┃│ 1/7                        │
+┗━━━━━━━━━━━━━━━━━━┛╰────────────────────────────╯
+  [Enter]read …       [?]help  LOCAL projects.db

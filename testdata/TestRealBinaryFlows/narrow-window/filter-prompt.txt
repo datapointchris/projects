@@ -1,0 +1,14 @@
+ By project   All items   Dependencies
+╭──────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects         │┃ Move the blog to plain fil…┃
+│> Move the … ○3 ✓1│┃ /                          ┃
+│   Replace … ○3 ✓0│┃> ▸ ○ Export posts … ≡ [1/3]┃
+│   Plan th… ○31 ✓0│┃                           1┃
+│                  │┃       ✓ Dump the database  ┃
+│                  │┃       ○ Convert HTML to ma…┃
+│                  │┃       ○ Download the images┃
+│                  │┃     ✓ Pick a theme         ┃
+│                  │┃                           2┃
+│                  │┃ 1/7                        ┃
+╰──────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  [Enter]keep …       [?]help  LOCAL projects.db

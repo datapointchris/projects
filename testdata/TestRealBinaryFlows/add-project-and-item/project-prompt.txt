@@ -14,6 +14,6 @@
                    │                                                            │
                    │    > Enter project name...                                 │
                    │                                                            │
-                   │    [Enter] Confirm  [Esc] Cancel                           │
+                   │    [Enter]confirm [Esc]cancel                              │
                    │                                                            │
                    ╰────────────────────────────────────────────────────────────╯

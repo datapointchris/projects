@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/datapointchris/projects/model"
 )
@@ -35,13 +36,12 @@ func dependsOn(t *testing.T, app *App, item, dependency string) {
 	}
 }
 
-// openTree enters the browser cold, the way it is reached without first
-// finding an item.
+// openTree opens the dependency map with T, from the row the cursor is on.
 func openTree(t *testing.T, app *App) {
 	t.Helper()
 	pressKey(t, app, "T")
-	if app.appMode != modeDepTree {
-		t.Fatalf("expected modeDepTree after T, got %v", app.appMode)
+	if app.view != viewDependencies {
+		t.Fatalf("expected the dependency map after T, got view %v", app.view)
 	}
 }
 
@@ -183,7 +183,7 @@ func TestDepTree_LMovesIntoTheTreeThenDrills(t *testing.T) {
 	}
 }
 
-func TestDepTree_HRetracesThenLeavesTheTreeThenCloses(t *testing.T) {
+func TestDepTree_HRetracesThenLeavesTheTree(t *testing.T) {
 	app := newTestApp(t, 120, 30, "serve", "schema", "bootstrap")
 	dependsOn(t, app, "serve", "schema")
 	dependsOn(t, app, "schema", "bootstrap")
@@ -202,11 +202,6 @@ func TestDepTree_HRetracesThenLeavesTheTreeThenCloses(t *testing.T) {
 	pressKey(t, app, "h")
 	if app.depTree.active != forestPane {
 		t.Errorf("active = %v, want back on the map", app.depTree.active)
-	}
-
-	pressKey(t, app, "h")
-	if app.appMode != modeNormal {
-		t.Errorf("mode = %v, want out of the browser", app.appMode)
 	}
 }
 
@@ -286,8 +281,8 @@ func TestDepTree_EscInSearchClearsTheQueryRatherThanClosing(t *testing.T) {
 	typeInto(t, app, "zzzz")
 	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if app.appMode != modeDepTree {
-		t.Fatalf("mode = %v, want to still be in the browser", app.appMode)
+	if app.view != viewDependencies || app.appMode != modeNormal {
+		t.Fatalf("view %v in mode %v, want the map with the filter closed", app.view, app.appMode)
 	}
 	if app.depTree.query != "" {
 		t.Errorf("query = %q, want it cleared", app.depTree.query)
@@ -315,7 +310,7 @@ func TestDepTree_FinishedTreesAreHiddenUntilToggled(t *testing.T) {
 		t.Errorf("forest = %s, want the finished tree hidden", got)
 	}
 
-	pressKey(t, app, "a")
+	pressKey(t, app, ".")
 
 	if got := strings.Join(forestTitles(app), ","); !strings.Contains(got, "done") {
 		t.Errorf("forest = %s, want the finished tree after toggling", got)
@@ -330,37 +325,17 @@ func TestDepTree_EnterOpensTheReaderAndEscComesBack(t *testing.T) {
 	pressKey(t, app, "j")
 	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if app.appMode != modeReader {
-		t.Fatalf("mode = %v, want modeReader", app.appMode)
+	if app.reader == nil {
+		t.Fatal("Enter on the map opened no reader")
 	}
-	if app.itemDetail == nil || app.itemDetail.Title != "schema" {
-		t.Errorf("reader = %v, want the row the cursor was on", app.itemDetail)
+	if view := app.screen(); !strings.Contains(view, "schema") {
+		t.Errorf("the reader does not show the row the cursor was on:\n%s", view)
 	}
 
 	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if app.appMode != modeDepTree {
-		t.Errorf("mode = %v, want back in the browser", app.appMode)
-	}
-}
-
-func TestDepTree_EscLeavesAndRestoresNavigation(t *testing.T) {
-	app := newTestApp(t, 120, 30, "serve", "schema")
-	dependsOn(t, app, "serve", "schema")
-
-	openTree(t, app)
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
-
-	if app.appMode != modeNormal {
-		t.Fatalf("mode = %v, want modeNormal", app.appMode)
-	}
-	if app.depTree.tree != nil {
-		t.Error("the tree snapshot outlived the browser")
-	}
-	before := app.rowCursor
-	pressKey(t, app, "j")
-	if app.rowCursor == before {
-		t.Error("cursor did not move after esc; keys still captured by the browser")
+	if app.reader != nil || app.view != viewDependencies {
+		t.Errorf("esc left the reader open or the map closed, view %v", app.view)
 	}
 }
 
@@ -464,21 +439,13 @@ func TestStatusBar_NeverWiderThanTheWindow(t *testing.T) {
 			t.Errorf("help key clipped off at %d columns: %s", width, bar)
 		}
 		// A hint is shown whole or dropped, never cut in half.
-		for _, fragment := range []string{"[T]re", "[Ente", "[spac"} {
-			if strings.Contains(bar, fragment) && !strings.Contains(bar, fragment+"…") {
-				continue
-			}
-			if strings.Contains(bar, fragment+"…") {
-				t.Errorf("hint cut mid-token at %d columns: %s", width, bar)
-			}
-		}
-		if width >= 80 && !strings.Contains(bar, "[T]ree") {
-			t.Errorf("tree key clipped off at %d columns: %s", width, bar)
+		if plain := ansi.Strip(bar); strings.Count(plain, "[") != strings.Count(plain, "]") {
+			t.Errorf("hint cut mid-token at %d columns: %s", width, bar)
 		}
 
 		openTree(t, app)
-		if got := lipgloss.Width(app.renderDepTreeStatusBar()); got > width {
-			t.Errorf("browser bar is %d columns in a %d-column window", got, width)
+		if got := lipgloss.Width(app.renderStatusBar()); got > width {
+			t.Errorf("the map's bar is %d columns in a %d-column window", got, width)
 		}
 	}
 }

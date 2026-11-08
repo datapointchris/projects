@@ -16,6 +16,6 @@
          │    ── Replace the kitchen faucet ──                                            │
          │  > ○ Buy the faucet  6                                                         │
          │                                                                                │
-         │    [Enter] Link  [/] Filter  [Esc] Cancel                                      │
+         │    [Enter]keep [Esc]clear                                                      │
          │                                                                                │
          ╰────────────────────────────────────────────────────────────────────────────────╯

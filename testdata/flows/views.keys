@@ -1,0 +1,38 @@
+# Tab cycles the three views and the header names the one showing. All items groups
+# every item under its project, with a count on the header, and Enter folds a group.
+wait Export posts from the old CMS
+frame by-project
+
+press tab
+wait /(?m)^┏━+┓$/
+wait ── Move the blog to plain files ──
+frame all-items
+press g
+wait > ▾ ── Move the blog to plain files ──
+press enter
+gone Pick a theme
+frame group-folded
+press enter
+wait Pick a theme
+press ]
+wait > ▾ ── Replace the kitchen faucet ──
+press [
+wait > ▾ ── Move the blog to plain files ──
+press j
+wait /> +▸ ○ Export posts from the old CMS/
+press ]
+wait /> +✓ Pick a theme/
+frame jumped-past-the-tasks
+
+press tab
+wait All trees
+frame dependencies
+
+press tab
+wait /(?m)^╭.*╮┏/
+frame back-to-by-project
+press shift+tab
+wait All trees
+
+press q
+exits

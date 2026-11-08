@@ -13,6 +13,8 @@ import (
 
 	"github.com/datapointchris/tuidrive"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/datapointchris/projects/tui"
 )
 
 // Each mode runs the built binary over the same seeded data: a database on this
@@ -49,9 +51,11 @@ func TestTheCommandsAnswerTheSameInBothModes(t *testing.T) {
 				{"item-with-tasks-and-blockers", []string{"items", "show", number, "--json"}},
 				{"focus-queue", []string{"next", "--json"}},
 				{"dependency-tree", []string{"items", "dependencies", "tree", "--json"}},
-				{"board-snapshot", []string{"tui", "--json"}},
 			} {
 				matchesSchema(t, read.schema, run(0, read.args...))
+			}
+			for _, view := range tui.ViewNames() {
+				matchesSchema(t, "board-snapshot", run(0, "tui", "--json", "--view", view))
 			}
 			if mode == "api" {
 				matchesSchema(t, "auth-status", run(0, "auth", "status", "--json"))
@@ -113,26 +117,37 @@ func commandRunner(t *testing.T, binary, dir string) func(want int, args ...stri
 	}
 }
 
+// matchesSchema checks answer against cli/schemas/<name>.schema.json. Every schema there is
+// loaded under its $id, so one can refer to another by it.
 func matchesSchema(t *testing.T, name string, answer []byte) {
 	t.Helper()
-	path := filepath.Join("cli", "schemas", name+".schema.json")
-	file, err := os.Open(path)
+	paths, err := filepath.Glob(filepath.Join("cli", "schemas", "*.schema.json"))
 	if err != nil {
 		t.Fatal(err)
-	}
-	defer func() { _ = file.Close() }()
-	document, err := jsonschema.UnmarshalJSON(file)
-	if err != nil {
-		t.Fatalf("reading %s: %v", path, err)
 	}
 	compiler := jsonschema.NewCompiler()
 	compiler.AssertFormat()
-	if err := compiler.AddResource(name, document); err != nil {
-		t.Fatal(err)
+	compiled := ""
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		id, _ := document.(map[string]any)["$id"].(string)
+		if err := compiler.AddResource(id, document); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if filepath.Base(path) == name+".schema.json" {
+			compiled = id
+		}
 	}
-	schema, err := compiler.Compile(name)
+	schema, err := compiler.Compile(compiled)
 	if err != nil {
-		t.Fatalf("compiling %s: %v", path, err)
+		t.Fatalf("compiling %s: %v", name, err)
 	}
 	value, err := jsonschema.UnmarshalJSON(bytes.NewReader(answer))
 	if err != nil {

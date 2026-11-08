@@ -1,30 +1,30 @@
-╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Projects                             │┃ Move the blog to plain files                           ┃
-│   All ○37 ✓1                         │┃> ○ Export posts from the old CMS ≡ [1/3]  1            ┃
-│> Move the blog to plain files ○3 ✓1  │┃     ✓ Dump the database                                ┃
-│   Replace the kitchen faucet ○3 ✓0   │┃     ○ Convert HTML to markdown                         ┃
-│   Plan the Lisbon trip ○31 ✓0        │┃     ○ Download the images                              ┃
-│                                      │┃   ✓ Pick a theme  2                                    ┃
-│                                      │┃   ○ Set up redirects for the old URLs  3               ┃
-│                                      │┃     └─ blocked by: Export posts from the old CMS (1)   ┃
-│                                      │┃   ○ Point DNS at the new host  4                       ┃
-│                                      │┃     └─ blocked by: Set up redirects for the old UR… (3)┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-│                                      │┃                                                        ┃
-╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]done [T]ree [a]dd [x]archive [e]dit [n]otes …      [?]help  LOCAL projects.db
+ By project   All items   Dependencies
+╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects                             │┃ Move the blog to plain files                             ┃
+│> Move the blog to plain files ○3 ✓1  │┃> ▸ ○ Export posts from the old CMS ≡ [1/3]               ┃
+│   Replace the kitchen faucet ○3 ✓0   │┃                                                         1┃
+│   Plan the Lisbon trip ○31 ✓0        │┃       ✓ Dump the database                                ┃
+│                                      │┃       ○ Convert HTML to markdown                         ┃
+│                                      │┃       ○ Download the images                              ┃
+│                                      │┃     ✓ Pick a theme                                       ┃
+│                                      │┃                                                         2┃
+│                                      │┃     ○ Set up redirects for the old URLs                  ┃
+│                                      │┃                                                         3┃
+│                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃
+│                                      │┃     ○ Point DNS at the new host                          ┃
+│                                      │┃                                                         4┃
+│                                      │┃       └─ blocked by: Set up redirects for the old UR… (3)┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  [Enter]read [space]note [c]omplete [a]dd [n]ote [M]ove [Tab]view …    [?]help  LOCAL projects.db

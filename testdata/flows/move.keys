@@ -1,0 +1,37 @@
+# M grabs a row, j and k carry it, Enter drops it and esc puts it back.
+wait Export posts from the old CMS
+press l
+wait [Enter]read
+
+press M
+wait ◀ MOVING
+wait [Enter]drop
+frame grabbed
+press j
+wait /✓ Pick a theme[\s\S]*▶ .*Export posts from the old CMS/
+frame carried-down
+press enter
+wait Item reordered
+gone MOVING
+frame dropped
+
+press M
+wait ◀ MOVING
+press j
+press esc
+gone MOVING
+wait /(?m)^.*✓ Pick a theme[\s\S]*Export posts from the old CMS/
+frame put-back
+
+press h
+press M
+wait /▶ Move the blog.* ◀ MOVING/
+press j
+wait /Replace the kitchen faucet[\s\S]*▶ Move the blog/
+frame project-carried
+press esc
+gone MOVING
+wait /Move the blog to plain files[\s\S]*Replace the kitchen faucet/
+
+press q
+exits

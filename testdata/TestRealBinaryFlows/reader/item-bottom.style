@@ -1,9 +1,33 @@
-2: 26-30 fg=3
-10: 2-28 fg=4 bold
-16: 4-96 fg=8 italic
-17: 4-66 fg=8 italic
-19: 2-9 fg=8
-21: 69-81 fg=6 bold
-22: 2-34 fg=4 underline
-23: 59-79 fg=3
-30: 3-98 fg=8
+1: 2-30 bold
+1: 32-32 fg=8
+1: 34-38 fg=12 bold
+1: 40-40 fg=8
+1: 42-47 fg=12 bold reverse
+1: 48-48 fg=12 reverse
+1: 49-52 fg=12 bold reverse
+1: 54-54 fg=8
+1: 56-91 fg=12 bold
+2: 2-2 fg=12
+2: 26-30 fg=11
+4: 2-2 fg=12
+5: 4-4 fg=12
+6: 4-4 fg=12
+7: 2-2 fg=12
+10: 2-2 fg=12
+10: 4-27 fg=12 bold
+12: 2-2 fg=12
+12: 4-4 fg=10
+13: 2-2 fg=12
+13: 4-4 fg=10
+14: 2-2 fg=12
+14: 4-4 fg=10
+16: 2-2 fg=8
+16: 4-96 italic
+17: 2-2 fg=8
+17: 4-66 italic
+19: 2-41 fg=8
+21: 69-75 fg=12 underline
+21: 76-76 underline
+21: 77-81 fg=12 underline
+22: 2-36 fg=8
+23: 59-79 fg=11

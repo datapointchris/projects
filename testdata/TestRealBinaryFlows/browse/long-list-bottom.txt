@@ -1,30 +1,30 @@
-╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│ Projects                             │┃ Plan the Lisbon trip                                   ┃
-│   All ○37 ✓1                         │┃   ○ Day 4: walk the next neighborhood  14              ┃
-│   Move the blog to plain files ○3 ✓1 │┃   ○ Day 5: walk the next neighborhood  15              ┃
-│   Replace the kitchen faucet ○3 ✓0   │┃   ○ Day 6: walk the next neighborhood  16              ┃
-│> Plan the Lisbon trip ○31 ✓0         │┃   ○ Day 7: walk the next neighborhood  17              ┃
-│                                      │┃   ○ Day 8: walk the next neighborhood  18              ┃
-│                                      │┃   ○ Day 9: walk the next neighborhood  19              ┃
-│                                      │┃   ○ Day 10: walk the next neighborhood  20             ┃
-│                                      │┃   ○ Day 11: walk the next neighborhood  21             ┃
-│                                      │┃   ○ Day 12: walk the next neighborhood  22             ┃
-│                                      │┃   ○ Day 13: walk the next neighborhood  23             ┃
-│                                      │┃   ○ Day 14: walk the next neighborhood  24             ┃
-│                                      │┃   ○ Day 15: walk the next neighborhood  25             ┃
-│                                      │┃   ○ Day 16: walk the next neighborhood  26             ┃
-│                                      │┃   ○ Day 17: walk the next neighborhood  27             ┃
-│                                      │┃   ○ Day 18: walk the next neighborhood  28             ┃
-│                                      │┃   ○ Day 19: walk the next neighborhood  29             ┃
-│                                      │┃   ○ Day 20: walk the next neighborhood  30             ┃
-│                                      │┃   ○ Day 21: walk the next neighborhood  31             ┃
-│                                      │┃   ○ Day 22: walk the next neighborhood  32             ┃
-│                                      │┃   ○ Day 23: walk the next neighborhood  33             ┃
-│                                      │┃   ○ Day 24: walk the next neighborhood  34             ┃
-│                                      │┃   ○ Day 25: walk the next neighborhood  35             ┃
-│                                      │┃   ○ Day 26: walk the next neighborhood  36             ┃
-│                                      │┃   ○ Day 27: walk the next neighborhood  37             ┃
-│                                      │┃> ○ Day 28: walk the next neighborhood  38              ┃
-│                                      │┃ 31/31                                                  ┃
-╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]done [T]ree [a]dd [x]archive [e]dit [n]otes …      [?]help  LOCAL projects.db
+ By project   All items   Dependencies
+╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects                             │┃ Plan the Lisbon trip                                     ┃
+│   Move the blog to plain files ○3 ✓1 │┃     ○ Day 17: walk the next neighborhood                 ┃
+│   Replace the kitchen faucet ○3 ✓0   │┃                                                        27┃
+│> Plan the Lisbon trip ○31 ✓0         │┃     ○ Day 18: walk the next neighborhood                 ┃
+│                                      │┃                                                        28┃
+│                                      │┃     ○ Day 19: walk the next neighborhood                 ┃
+│                                      │┃                                                        29┃
+│                                      │┃     ○ Day 20: walk the next neighborhood                 ┃
+│                                      │┃                                                        30┃
+│                                      │┃     ○ Day 21: walk the next neighborhood                 ┃
+│                                      │┃                                                        31┃
+│                                      │┃     ○ Day 22: walk the next neighborhood                 ┃
+│                                      │┃                                                        32┃
+│                                      │┃     ○ Day 23: walk the next neighborhood                 ┃
+│                                      │┃                                                        33┃
+│                                      │┃     ○ Day 24: walk the next neighborhood                 ┃
+│                                      │┃                                                        34┃
+│                                      │┃     ○ Day 25: walk the next neighborhood                 ┃
+│                                      │┃                                                        35┃
+│                                      │┃     ○ Day 26: walk the next neighborhood                 ┃
+│                                      │┃                                                        36┃
+│                                      │┃     ○ Day 27: walk the next neighborhood                 ┃
+│                                      │┃                                                        37┃
+│                                      │┃>   ○ Day 28: walk the next neighborhood                  ┃
+│                                      │┃                                                        38┃
+│                                      │┃ 31/31                                                    ┃
+╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  [Enter]read [c]omplete [a]dd [n]ote [M]ove [Tab]view [/]filter        [?]help  LOCAL projects.db

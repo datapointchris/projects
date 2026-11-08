@@ -38,12 +38,15 @@ func TestRealBinaryFlows(t *testing.T) {
 		api          bool
 	}{
 		{name: "browse", script: "browse.keys"},
+		{name: "views", script: "views.keys"},
+		{name: "filter", script: "filter.keys"},
+		{name: "move", script: "move.keys"},
+		{name: "note-in-place", script: "note-in-place.keys"},
 		{name: "reader", script: "reader.keys"},
 		{name: "add-project-and-item", script: "add-project-and-item.keys"},
 		{name: "add-task", script: "add-task.keys"},
 		{name: "dependency-tree", script: "dependency-tree.keys"},
 		{name: "undo", script: "undo.keys"},
-		{name: "search", script: "search.keys"},
 		{name: "edit-note", script: "edit-note.keys"},
 		{name: "help-taller-than-the-window", script: "help.keys"},
 		{name: "narrow-window", script: "narrow-window.keys", cols: 50, rows: 14},

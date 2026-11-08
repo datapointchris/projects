@@ -4,7 +4,7 @@ mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 wait Projects
 frame first-screen
 
-press tab
+press l
 wait /(?m)^╭.*┏/
 frame items-focused
 
@@ -15,16 +15,16 @@ press esc
 gone New task for
 
 press /
-wait Search...
-frame search-prompt
+wait [Enter]keep
+frame filter-prompt
 press esc
-gone Search...
+gone [Enter]keep
 
 press enter
-wait ─── Tasks (1/3) ───
+wait Tasks 1/3
 frame reader
 press esc
-gone ─── Tasks (1/3) ───
+gone Tasks 1/3
 
 press q
 exits

@@ -1,30 +1,30 @@
-                        │    a              Add project                    │
-                        │    m              Move/reorder project           │
-                        │    C              Show/hide shelved and closed   │
-                        │  projects                                        │
-                        │    space          Toggle multi-select            │
-                        │    Esc            Clear selections               │
-                        │                                                  │
-                        │    Reading a project                             │
-                        │    e              Edit name                      │
-                        │    d              Edit description in $EDITOR    │
-                        │    c              Complete project               │
-                        │    x              Drop project (asks why)        │
-                        │    S              Shelve project for someday     │
-                        │    r              Reopen a shelved or closed     │
-                        │  project                                         │
-                        │                                                  │
-                        │    Global                                        │
-                        │    u              Undo last action               │
-                        │    /              Search                         │
-                        │    1              Filter: blocked only (toggle)  │
-                        │    2              Filter: all + archived         │
-                        │  (toggle)                                        │
-                        │    0              Filter: reset                  │
-                        │    R              Read the data again now        │
-                        │    q  Ctrl+C      Quit                           │
-                        │    ?              Toggle this help               │
-                        │                                                  │
-                        │    [Esc] or [?] Close                            │
-                        │                                                  │
-                        ╰──────────────────────────────────────────────────╯
+              │    space             mark the project, to list several projects'     │
+              │                      items                                           │
+              │    a                 add a project                                   │
+              │    A                 add an item to several projects                 │
+              │    r                 rename the project                              │
+              │    e n               write the description in $EDITOR                │
+              │    c                 complete the project                            │
+              │    x                 drop the project, saying why                    │
+              │    S                 shelve the project for someday                  │
+              │    M                 move the project, then j and k, Enter to drop   │
+              │    T                 open the dependency map                         │
+              │    C                 open a Claude session on the project            │
+              │                                                                      │
+              │    Views and filters                                                 │
+              │    Tab               the next view                                   │
+              │    Shift+Tab         the previous view                               │
+              │    /                 filter the list, matching notes too             │
+              │    1                 show only blocked items, or every one again     │
+              │    2                 show archived items too, or hide them again     │
+              │    .                 show or hide shelved and closed projects        │
+              │                                                                      │
+              │    Everywhere                                                        │
+              │    u                 undo the last change                            │
+              │    R                 read the data again now                         │
+              │    ?                 show these keys                                 │
+              │    q Ctrl+c          quit                                            │
+              │                                                                      │
+              │    [Esc]close [q]quit                                                │
+              │                                                                      │
+              ╰──────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,30 @@
+ Write up the trip on the new blog
+ Item 9 · ○ open
+ Projects: Plan the Lisbon trip
+ Created: <date>
+
+ Blocked by
+ ○ Move the blog to plain files: Point DNS at the new host (4)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+6/6  j/k scroll  [/] section  / search  y copy  ? keys  esc/space back  q quit

@@ -33,7 +33,6 @@ type depTreeState struct {
 
 	showFinished bool
 	query        string
-	searching    bool
 
 	forestRows   []graph.Row
 	forestCursor int
@@ -106,10 +105,7 @@ func (s *depTreeState) rebuildForest() {
 		return
 	}
 	var roots []string
-	for _, component := range s.tree.Components() {
-		if !s.showFinished && !graph.HasOpenWork(component, s.lookup) {
-			continue
-		}
+	for _, component := range s.shownComponents() {
 		roots = append(roots, s.tree.Roots(component, false)...)
 	}
 	rows := s.tree.Rows(roots, false, graph.Unlimited)
@@ -125,21 +121,15 @@ func (s *depTreeState) rebuildForest() {
 	}
 }
 
-// rowMatches is the search, run over what a row displays: its number, its
-// title, and the repo it is tagged with.
+// rowMatches is the filter, run over what a row displays, its number, title and repo, and the
+// item's note.
 func (s *depTreeState) rowMatches(id string) bool {
 	node := s.lookup[id]
-	query := strings.ToLower(s.query)
-	if strings.Contains(strings.ToLower(node.Item.Title), query) {
-		return true
+	repo := ""
+	if node.Item.Repo != nil {
+		repo = *node.Item.Repo
 	}
-	if strings.Contains(strings.ToLower(itemHandle(node.Item)), query) {
-		return true
-	}
-	if node.Item.Repo != nil && strings.Contains(strings.ToLower(*node.Item.Repo), query) {
-		return true
-	}
-	return false
+	return matches(s.query, node.Item.Title, itemHandle(node.Item), repo, noteOf(node.Item))
 }
 
 // standOn puts the forest cursor on an item, revealing the finished trees if
@@ -259,163 +249,69 @@ func (s *depTreeState) pop() bool {
 
 // --- Keys ---
 
-func (m *App) handleDepTreeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+// depTreeRight is l: from the map it goes into the tree, and in the tree it drills, making the
+// row under the cursor the root. A row with nothing under it in this direction would redraw the
+// same single line, so it says why rather than looking broken.
+func (m *App) depTreeRight() tea.Cmd {
 	s := &m.depTree
-	if s.searching {
-		return m.handleDepTreeSearchKey(msg)
-	}
 	if s.tree == nil {
-		if msg.String() == "esc" || msg.String() == "q" {
-			m.closeDepTree()
-		}
-		return m, nil
+		return nil
 	}
-
-	switch msg.String() {
-	case "esc", "q":
-		m.closeDepTree()
-		return m, nil
-
-	case "tab":
-		s.active = focusPane
-		if s.active == focusPane && len(s.focusRows) == 0 {
-			s.active = forestPane
+	if s.active == forestPane {
+		if len(s.focusRows) > 0 {
+			s.active = focusPane
 		}
-		return m, nil
-
-	case "j", "down":
-		m.depTreeMove(1)
-		return m, nil
-
-	case "k", "up":
-		m.depTreeMove(-1)
-		return m, nil
-
-	case "g":
-		m.depTreeJump(0)
-		return m, nil
-
-	case "G":
-		m.depTreeJump(-1)
-		return m, nil
-
-	case "ctrl+d":
-		m.depTreeMove(m.depTreePaneHeight() / 2)
-		return m, nil
-
-	case "ctrl+u":
-		m.depTreeMove(-m.depTreePaneHeight() / 2)
-		return m, nil
-
-	case "l", "right":
-		if s.active == forestPane {
-			if len(s.focusRows) > 0 {
-				s.active = focusPane
-			}
-			return m, nil
-		}
-		// In the focus pane, l drills: the row under the cursor becomes the
-		// root. A row with nothing under it in this direction would redraw the
-		// same single line, so it says why rather than looking broken.
-		id := s.focusID()
-		if id == "" {
-			return m, nil
-		}
-		if len(s.tree.Children(id, s.focusInvert)) == 0 {
-			flashCmd := m.flash(m.depTreeDeadEnd())
-			return m, flashCmd
-		}
-		s.push([]string{id})
-		return m, nil
-
-	case "h", "left":
-		if s.active == focusPane && !s.pop() {
-			s.active = forestPane
-		} else if s.active == forestPane {
-			m.closeDepTree()
-		}
-		return m, nil
-
-	case "i":
-		if s.active == forestPane {
-			flashCmd := m.flash("Flip works in the focused tree")
-			return m, flashCmd
-		}
-		s.stack = append(s.stack, depTreeFrame{roots: s.focusRoots, invert: s.focusInvert, cursor: s.focusCursor})
-		s.focusInvert = !s.focusInvert
-		// Re-root from the other end, or an inverted draw from the same roots
-		// shows only the roots themselves.
-		if members := s.tree.ComponentOf(s.focusID()); members != nil {
-			s.focusRoots = s.tree.Roots(members, s.focusInvert)
-		}
-		s.focusCursor = 0
-		s.focusScroll = 0
-		s.rebuildFocus()
-		s.cursorToPinned()
-		return m, nil
-
-	case "a":
-		s.showFinished = !s.showFinished
-		s.rebuildForest()
-		s.forestScroll = syncScroll(s.forestCursor, s.forestScroll, m.depTreePaneHeight())
-		return m, nil
-
-	case "/":
-		s.searching = true
-		m.titleInput.SetValue(s.query)
-		m.titleInput.Placeholder = "Filter trees..."
-		return m, m.titleInput.Focus()
-
-	case "enter":
-		id := s.activeID()
-		if id == "" {
-			return m, nil
-		}
-		m.detailFromTree = true
-		return m, fetchItemDetailCmd(m.backend, id, m.blockedSet[id])
-
-	case "u":
-		return m, undoCmd(m.backend)
+		return nil
 	}
-
-	return m, nil
+	id := s.focusID()
+	if id == "" {
+		return nil
+	}
+	if len(s.tree.Children(id, s.focusInvert)) == 0 {
+		return m.flash(m.depTreeDeadEnd())
+	}
+	s.push([]string{id})
+	return nil
 }
 
-func (m *App) handleDepTreeSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+// depTreeLeft is h: it backs out one drill, and out of the tree to the map from its top.
+func (m *App) depTreeLeft() tea.Cmd {
 	s := &m.depTree
-	switch msg.String() {
-	case "enter", "esc":
-		if msg.String() == "esc" {
-			s.query = ""
-		} else {
-			s.query = m.titleInput.Value()
-		}
-		s.searching = false
-		m.titleInput.Blur()
-		s.forestCursor = 0
-		s.forestScroll = 0
-		s.rebuildForest()
-		s.focusOn(s.forestID())
-		return m, nil
-	default:
-		cmd := m.updateFocusedInput(msg)
-		return m, cmd
+	if s.active == focusPane && !s.pop() {
+		s.active = forestPane
 	}
+	return nil
 }
 
-// updateDepTreeSearch hands typing or a paste to the prompt and filters as it
-// changes, so the tree narrows under the keystrokes rather than only when the
-// prompt is dismissed.
-func (m *App) updateDepTreeSearch(msg tea.Msg) tea.Cmd {
+// depTreeFlip reads the tree's edges the other way: what the item unblocks, or what it waits on.
+func (m *App) depTreeFlip() tea.Cmd {
 	s := &m.depTree
-	var cmd tea.Cmd
-	m.titleInput, cmd = m.titleInput.Update(msg)
-	s.query = m.titleInput.Value()
-	s.forestCursor = 0
-	s.forestScroll = 0
+	s.stack = append(s.stack, depTreeFrame{roots: s.focusRoots, invert: s.focusInvert, cursor: s.focusCursor})
+	s.focusInvert = !s.focusInvert
+	// Re-root from the other end, or an inverted draw from the same roots
+	// shows only the roots themselves.
+	if members := s.tree.ComponentOf(s.focusID()); members != nil {
+		s.focusRoots = s.tree.Roots(members, s.focusInvert)
+	}
+	s.focusCursor = 0
+	s.focusScroll = 0
+	s.rebuildFocus()
+	s.cursorToPinned()
+	return nil
+}
+
+func (m *App) depTreeToggleFinished() tea.Cmd {
+	s := &m.depTree
+	s.showFinished = !s.showFinished
 	s.rebuildForest()
-	s.focusOn(s.forestID())
-	return cmd
+	s.forestScroll = syncScroll(s.forestCursor, s.forestScroll, m.depTreePaneHeight())
+	return nil
+}
+
+// readMapItem reads the item under the cursor. The item lists' blocked set may not hold an item
+// the map reaches, so its blockers are always read.
+func (m *App) readMapItem() tea.Cmd {
+	return fetchItemDetailCmd(m.backend, m.depTree.activeID(), true)
 }
 
 // activeID is the item under whichever pane has focus.
@@ -463,13 +359,7 @@ func (m *App) depTreeJump(to int) {
 }
 
 func clampCursor(value, length int) int {
-	if value >= length {
-		value = length - 1
-	}
-	if value < 0 {
-		value = 0
-	}
-	return value
+	return max(min(value, length-1), 0)
 }
 
 // depTreeDeadEnd names what is missing in the direction being read, since "no
@@ -481,80 +371,45 @@ func (m *App) depTreeDeadEnd() string {
 	return "This item depends on nothing"
 }
 
-// depTreeMiss explains why the browser did not open where it was asked to.
+// depTreeMiss explains why the map did not open where it was asked to.
 func (m *App) depTreeMiss(id string) string {
 	return fmt.Sprintf("%s has no dependencies — showing every tree", itemHandle(m.depTree.lookup[id].Item))
 }
 
-func (m *App) closeDepTree() {
-	m.appMode = modeNormal
-	m.depTree = depTreeState{}
-	m.detailFromTree = false
-	m.titleInput.Blur()
-}
-
-// openDepTree enters the browser. An empty id opens at the top of the forest,
-// which is how it is reached without having to find an item first.
-func (m *App) openDepTree(itemID string) tea.Cmd {
-	m.depTree = depTreeState{}
-	return fetchDepTreeCmd(m.backend, itemID)
-}
-
+// depTreePaneHeight is the rows a map pane lists, under the view header, the borders, the pane's
+// title and the status bar.
 func (m *App) depTreePaneHeight() int {
-	statusHeight := 1
-	height := m.height - statusHeight - 4 // borders and the pane title
-	if height < 3 {
-		height = 3
-	}
-	return height
+	return max(m.height-5, 3)
 }
 
 // --- Rendering ---
 
-func (m *App) renderDepTreeView() string {
-	statusBar := m.renderDepTreeStatusBar()
-	statusHeight := lipgloss.Height(statusBar)
-
-	paneHeight := m.height - statusHeight - 2
-	if paneHeight < 3 {
-		paneHeight = 3
-	}
-
-	leftWidth := m.width / 2
-	if leftWidth < 24 {
-		leftWidth = 24
-	}
-	rightWidth := m.width - leftWidth - 2
-	if rightWidth < 20 {
-		rightWidth = 20
-	}
-
+// renderDepTreeView is the map and the tree side by side, each paneHeight rows inside its border.
+func (m *App) renderDepTreeView(paneHeight int) string {
+	leftWidth := max(m.width/2, 24)
+	rightWidth := max(m.width-leftWidth, 20)
 	left := m.renderForestPane(leftWidth-2, paneHeight)
 	right := m.renderFocusPane(rightWidth-2, paneHeight)
-
 	leftBox := paneBox(m.depTree.active == forestPane, leftWidth, paneHeight).Render(left)
 	rightBox := paneBox(m.depTree.active != forestPane, rightWidth, paneHeight).Render(right)
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
-	return lipgloss.JoinVertical(lipgloss.Left, panes, statusBar)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 }
 
 func (m *App) renderForestPane(width, height int) string {
 	s := &m.depTree
 
-	title := "All trees"
+	title := fmt.Sprintf("All trees (%d)", m.depTreeCount())
 	if s.showFinished {
-		title = "All trees (incl. finished)"
+		title = fmt.Sprintf("All trees, finished too (%d)", m.depTreeCount())
 	}
 	lines := []string{paneTitleStyle.Render(title)}
-	viewHeight := height - 1
-
-	if s.searching {
-		lines = append(lines, inputView(m.titleInput))
-		viewHeight--
-	} else if s.query != "" {
-		lines = append(lines, dimStyle.Render(fmt.Sprintf("/%s", s.query)))
-		viewHeight--
+	switch {
+	case m.appMode == modeFilter:
+		lines = append(lines, " "+inputView(m.filterInput))
+	case s.query != "":
+		lines = append(lines, filterIndicatorStyle.Render(" /"+s.query))
 	}
+	viewHeight := height - len(lines)
 
 	switch {
 	case s.tree == nil:
@@ -572,15 +427,9 @@ func (m *App) renderForestPane(width, height int) string {
 	if showIndicator {
 		viewHeight--
 	}
-	if viewHeight < 1 {
-		viewHeight = 1
-	}
+	viewHeight = max(viewHeight, 1)
 	s.forestScroll = syncScroll(s.forestCursor, s.forestScroll, viewHeight)
-
-	end := s.forestScroll + viewHeight
-	if end > len(s.forestRows) {
-		end = len(s.forestRows)
-	}
+	end := min(s.forestScroll+viewHeight, len(s.forestRows))
 	for i := s.forestScroll; i < end; i++ {
 		lines = append(lines, m.depTreeRow(s.forestRows[i], i == s.forestCursor, false, width))
 	}
@@ -618,15 +467,9 @@ func (m *App) renderFocusPane(width, height int) string {
 	if showIndicator {
 		viewHeight--
 	}
-	if viewHeight < 1 {
-		viewHeight = 1
-	}
+	viewHeight = max(viewHeight, 1)
 	s.focusScroll = syncScroll(s.focusCursor, s.focusScroll, viewHeight)
-
-	end := s.focusScroll + viewHeight
-	if end > len(s.focusRows) {
-		end = len(s.focusRows)
-	}
+	end := min(s.focusScroll+viewHeight, len(s.focusRows))
 	for i := s.focusScroll; i < end; i++ {
 		selected := i == s.focusCursor && s.active == focusPane
 		lines = append(lines, m.depTreeRow(s.focusRows[i], selected, true, width))
@@ -665,10 +508,7 @@ func (m *App) depTreeRow(row graph.Row, selected, markPinned bool, width int) st
 		suffix += " (*)"
 	}
 
-	avail := width - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 2
-	if avail < 4 {
-		avail = 4
-	}
+	avail := max(width-lipgloss.Width(prefix)-lipgloss.Width(suffix)-2, 4)
 	line := prefix + truncate(node.Item.Title, avail) + suffix
 
 	if selected {
@@ -680,47 +520,19 @@ func (m *App) depTreeRow(row graph.Row, selected, markPinned bool, width int) st
 	return itemNormalStyle.Render(line)
 }
 
-func (m *App) renderDepTreeStatusBar() string {
-	s := &m.depTree
-	right := dimStyle.Render(fmt.Sprintf("%d trees", m.depTreeCount()))
-	rightWidth := lipgloss.Width(right)
-	// Clipped rather than wrapped, for the reason renderStatusBar gives: a
-	// second row here pushes the panes off the top of the window. Only the
-	// plain hint lines are truncated — cutting a styled message by rune would
-	// slice an escape sequence in half.
-	avail := m.width - rightWidth - 5
+func (m *App) depTreeCount() int { return len(m.depTree.shownComponents()) }
 
-	var left string
-	switch {
-	case m.errorMsg != "":
-		left = errorMsgStyle.Render("Error: " + m.errorMsg)
-	case m.statusMsg != "":
-		left = statusMsgStyle.Render(m.statusMsg)
-	case s.searching:
-		left = truncate("[Enter]apply [Esc]clear", avail)
-	case s.active == forestPane:
-		left = truncate("[j/k]move [l]focus [/]search [a]finished [Enter]read [Esc]back", avail)
-	default:
-		left = truncate("[j/k]move [l]drill [h]back [i]flip [Enter]read [Esc]back", avail)
-	}
-
-	padding := m.width - lipgloss.Width(left) - rightWidth - 4
-	if padding < 1 {
-		padding = 1
-	}
-	return statusBarStyle.Render(fmt.Sprintf(" %s%s%s ", left, strings.Repeat(" ", padding), right))
-}
-
-func (m *App) depTreeCount() int {
-	s := &m.depTree
+// shownComponents is each tree the forest draws: every one with open work, and the finished
+// ones too once . shows them.
+func (s *depTreeState) shownComponents() [][]string {
 	if s.tree == nil {
-		return 0
+		return nil
 	}
-	count := 0
+	var shown [][]string
 	for _, component := range s.tree.Components() {
 		if s.showFinished || graph.HasOpenWork(component, s.lookup) {
-			count++
+			shown = append(shown, component)
 		}
 	}
-	return count
+	return shown
 }
