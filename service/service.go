@@ -23,8 +23,7 @@ const itemListSegment = "/items"
 // Service holds every rule about projects, items, memberships, dependencies, tasks and undo.
 type Service struct {
 	store store.Store
-	// assignsItemNumbers is set when nothing upstream will hand one out, which
-	// is exactly the sync-disabled case. See AssigningItemNumbers.
+	// assignsItemNumbers is set by AssigningItemNumbers.
 	assignsItemNumbers bool
 	// repoRegistryPath enables the repo-named-project ban. Empty means no
 	// registry and no ban. See RefusingRepoNames.
@@ -36,12 +35,9 @@ type Service struct {
 // Option configures a Service at construction.
 type Option func(*Service)
 
-// AssigningItemNumbers makes this database the authority for item numbers.
-//
-// Pass it when sync is off, because that database is a disjoint universe no
-// server will ever number. With sync on the server assigns instead, because a
-// number guessed locally and a number assigned upstream would disagree and the
-// handle would change under a user who had already written it down.
+// AssigningItemNumbers numbers each item as it is created, from the store's
+// NextItemNumber. Both entry points pass it: database mode in cli.LocalService,
+// and projects-api over Postgres.
 func AssigningItemNumbers() Option {
 	return func(s *Service) { s.assignsItemNumbers = true }
 }
@@ -997,8 +993,7 @@ func (s *Service) CreateTask(itemRef string, input model.CreateProjectItemTask) 
 			return fmt.Errorf("creating task: %w", err)
 		}
 		created = t
-		// The row, not nil: undoing a task create still has to know which item
-		// owned it so the reversal can be pushed.
+		// The row, not nil: undoTask refuses a task entry with no previous state.
 		return logUndo(ctx, tx, model.UndoActionCreate, model.UndoEntityTask, id, taskRecordOf(t))
 	})
 	if err != nil {

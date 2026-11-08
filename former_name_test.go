@@ -17,8 +17,8 @@ import (
 )
 
 // Each case runs the built binary under a scratch home, because the exit code and the
-// order against opening the database belong to main. `sync` reaches the move and then
-// stops at sync being off, so no case needs a terminal.
+// order against opening the database belong to main. `list` reaches the move and opens
+// the database, and needs no terminal.
 func TestFormerNameOnFirstRun(t *testing.T) {
 	binary := tuidrive.Build(t, ".")
 
@@ -28,8 +28,8 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 		seedFormerDatabaseWithUnflushedWAL(t, former)
 		writeFile(t, filepath.Join(former, "dev.db"), "dev")
 
-		if output, code := home.run(t, binary); code != 1 {
-			t.Fatalf("exit %d, output %q, want it to reach the disabled sync", code, output)
+		if output, code := home.run(t, binary); code != 0 {
+			t.Fatalf("exit %d, output %q, want the list to answer", code, output)
 		}
 
 		if _, err := os.Lstat(former); !errors.Is(err, os.ErrNotExist) {
@@ -81,11 +81,11 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 		}
 	})
 
-	t.Run("a config left at the former path refuses before sync silently turns off", func(t *testing.T) {
+	t.Run("a config left at the former path refuses before it is silently ignored", func(t *testing.T) {
 		home := newScratchHome(t)
 		formerConfig := filepath.Join(home.root, "config", "todoui", "config.toml")
 		formerDB := filepath.Join(home.dataDir("todoui"), "todoui.db")
-		writeFile(t, formerConfig, "[sync]\nenabled = true\n")
+		writeFile(t, formerConfig, "api = \"https://projects.example\"\n")
 		writeFile(t, formerDB, "former")
 
 		output, code := home.run(t, binary)
@@ -158,7 +158,7 @@ func (h scratchHome) dataDir(name string) string {
 
 func (h scratchHome) run(t *testing.T, binary string, env ...string) (string, int) {
 	t.Helper()
-	cmd := exec.Command(binary, "sync")
+	cmd := exec.Command(binary, "list")
 	cmd.Dir = h.root
 	cmd.Env = append([]string{
 		"HOME=" + h.root,

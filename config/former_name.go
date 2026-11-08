@@ -21,10 +21,6 @@ const formerName = "todoui"
 
 var retiredVariables = []struct{ retired, replacement string }{
 	{"TODOUI_DB", "PROJECTS_DB"},
-	{"TODOUI_SYNC", "PROJECTS_SYNC"},
-	{"TODOUI_SYNC_URL", "PROJECTS_SYNC_URL"},
-	{"TODOUI_SYNC_TOKEN_COMMAND", "PROJECTS_SYNC_TOKEN_COMMAND"},
-	{"TODOUI_SYNC_INTERVAL", "PROJECTS_SYNC_INTERVAL"},
 	{"TODOUI_REPOS_REGISTRY", "PROJECTS_REPOS_REGISTRY"},
 	{"TODOUI_NO_AUTO_UPDATE", "PROJECTS_NO_AUTO_UPDATE"},
 }
@@ -43,7 +39,7 @@ func RetiredVariableRefusal() string {
 }
 
 // RefuseConfigUnderFormerName stops a run while the config sits only at the former path.
-// Reading none would turn sync off, and the next pull deletes what was written meanwhile.
+// Reading none would drop its api and send every command to a database on this machine.
 func RefuseConfigUnderFormerName() error {
 	former := filepath.Join(userConfigDir(), formerName, "config.toml")
 	current := filepath.Join(userConfigDir(), toolName, "config.toml")

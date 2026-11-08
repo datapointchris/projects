@@ -1,14 +1,9 @@
 package tui
 
 import (
-	"encoding/json"
-	"errors"
-	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strconv"
 	"strings"
-	goSync "sync"
 	"testing"
 	"time"
 
@@ -18,7 +13,6 @@ import (
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
-	"github.com/datapointchris/projects/sync"
 )
 
 // newTestApp returns an app already showing one project's items, sized to
@@ -44,8 +38,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 	}
 	t.Cleanup(func() { _ = database.Close() })
 
-	// AssigningItemNumbers because the harness passes a nil sync engine, which
-	// is the sync-off case: nothing upstream will number these items.
+	// AssigningItemNumbers, as database mode builds it.
 	b := service.New(sqlite.New(database), service.AssigningItemNumbers())
 	project, err := b.CreateProject(model.CreateProject{Name: "work"})
 	if err != nil {
@@ -58,7 +51,7 @@ func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateP
 		}
 	}
 
-	app := NewApp(b, nil, Where{DatabasePath: ":memory:"}, 2*time.Minute)
+	app := NewApp(b, Where{DatabasePath: ":memory:"})
 	send(t, app, tea.WindowSizeMsg{Width: width, Height: height})
 	send(t, app, app.Init()())
 	send(t, app, app.fetchItems()())
@@ -98,7 +91,7 @@ func drain(t *testing.T, app *App, cmd tea.Cmd, depth int) {
 }
 
 // runCmd abandons a command that does not produce a message promptly —
-// flash and sync-status commands are tea.Tick timers that would otherwise
+// flash and reread commands are tea.Tick timers that would otherwise
 // block the test for their full duration.
 func runCmd(cmd tea.Cmd) tea.Msg {
 	result := make(chan tea.Msg, 1)
@@ -289,53 +282,36 @@ func TestCreatedTaskAppearsAsRow(t *testing.T) {
 	}
 }
 
-// The auto-pull timer re-arms itself from its own message. A tick that returns
-// no command ends background sync for the rest of the session, so the skipped
-// ticks have to re-arm too — otherwise opening one modal at the wrong moment
-// silently reverts the tool to manual syncing.
-func TestSyncTickRearmsEvenWhenItSkipsThePull(t *testing.T) {
+// The reread timer re-arms itself from its own message. A tick that returns no
+// command ends the rereads for the rest of the session, so the skipped ticks
+// have to re-arm too — otherwise opening one modal at the wrong moment leaves the
+// board showing what the API held when it opened.
+func TestRereadTickRearmsEvenWhenItSkipsTheRead(t *testing.T) {
 	app := newTestApp(t, 80, 24, "Alpha")
 
 	for _, mode := range []appMode{modeNormal, modeAddItem, modeMove, modeHelp} {
 		app.appMode = mode
-		_, cmd := app.Update(syncPullTickMsg{})
+		_, cmd := app.Update(rereadTickMsg{})
 		if cmd == nil {
-			t.Errorf("tick in mode %v returned no command: the sync timer is now dead", mode)
+			t.Errorf("tick in mode %v returned no command: the reread timer is now dead", mode)
 		}
 	}
 }
 
-// safeToAutoPull gates the reconcile, not the timer. A pull rewrites items and
-// ordering wholesale, which would move the ground under a grab or a text entry.
-func TestAutoPullOnlyRunsInNormalMode(t *testing.T) {
+// safeToReread gates the read, not the timer. A read replaces the lists and
+// their order, which would move the ground under a grab or a text entry.
+func TestRereadOnlyRunsInNormalMode(t *testing.T) {
 	app := newTestApp(t, 80, 24, "Alpha")
 
 	app.appMode = modeNormal
-	if !app.safeToAutoPull() {
-		t.Error("normal mode must allow the background reconcile")
+	if !app.safeToReread() {
+		t.Error("normal mode must allow the background read")
 	}
 	for _, mode := range []appMode{modeAddItem, modeExternalEdit, modeMove, modeMoveProject, modeReader} {
 		app.appMode = mode
-		if app.safeToAutoPull() {
-			t.Errorf("mode %v must defer the reconcile to the next tick", mode)
+		if app.safeToReread() {
+			t.Errorf("mode %v must defer the read to the next tick", mode)
 		}
-	}
-}
-
-// An automatic pull lands every syncInterval. Announcing it would keep the
-// status bar permanently flashing and bury the messages the user acted to see.
-func TestAutomaticPullIsSilentAndManualPullIsNot(t *testing.T) {
-	app := newTestApp(t, 80, 24, "Alpha")
-
-	app.statusMsg = ""
-	send(t, app, syncPullDoneMsg{manual: false})
-	if app.statusMsg != "" {
-		t.Errorf("automatic pull announced itself: %q", app.statusMsg)
-	}
-
-	send(t, app, syncPullDoneMsg{manual: true})
-	if app.statusMsg == "" {
-		t.Error("a pull the user asked for should confirm it happened")
 	}
 }
 
@@ -359,101 +335,6 @@ func TestOlderFlashTimerLeavesNewerFlashShowing(t *testing.T) {
 	}
 }
 
-// A failing automatic pull is not something the user did. The status bar already
-// reads SYNC ERR off the engine; pinning an error banner every interval would
-// make a briefly unreachable API look like a broken app.
-func TestAutomaticPullFailureDoesNotHijackTheStatusBar(t *testing.T) {
-	app := newTestApp(t, 80, 24, "Alpha")
-
-	send(t, app, syncPullErrMsg{error: errors.New("connection refused"), manual: false})
-	if app.errorMsg != "" {
-		t.Errorf("automatic pull failure took over the status bar: %q", app.errorMsg)
-	}
-
-	send(t, app, syncPullErrMsg{error: errors.New("connection refused"), manual: true})
-	if app.errorMsg == "" {
-		t.Error("a pull the user asked for must report why it failed")
-	}
-}
-
-// End-to-end for the background timer: a tick in normal mode must actually
-// reconcile with the server and re-arm, and a tick in a modal must do neither
-// the pull nor lose the timer. This is the behavior that removes the need to
-// drop out of the TUI and run `projects sync` by hand.
-func TestSyncTickReconcilesWithTheServer(t *testing.T) {
-	var mu goSync.Mutex
-	var hits int
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		hits++
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]model.Project{
-				{ID: "proj-1", Name: "Remote", Position: 0, CreatedAt: time.Now()},
-			})
-		case "/api/v1/project-items":
-			_ = json.NewEncoder(w).Encode([]model.ProjectItem{
-				{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			})
-		case "/api/v1/project-items/01900000-0000-7000-8000-00000000a001":
-			_ = json.NewEncoder(w).Encode(model.ProjectItemDetail{
-				ProjectItem: model.ProjectItem{ID: "01900000-0000-7000-8000-00000000a001", Title: "Added Elsewhere", CreatedAt: time.Now(), UpdatedAt: time.Now()},
-				Projects:    []model.Project{{ID: "proj-1", Name: "Remote"}},
-			})
-		default:
-			_ = json.NewEncoder(w).Encode([]model.ProjectItemTask{})
-		}
-	})
-	ts := httptest.NewServer(handler)
-	t.Cleanup(ts.Close)
-
-	database, err := sqlite.Open(":memory:")
-	if err != nil {
-		t.Fatalf("opening test db: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-
-	engine := sync.New(database, ts.URL, "")
-	t.Cleanup(engine.Stop)
-	app := NewApp(service.New(sqlite.New(database)), engine, Where{DatabasePath: ":memory:"}, 20*time.Millisecond)
-	send(t, app, tea.WindowSizeMsg{Width: 80, Height: 24})
-
-	countHits := func() int {
-		mu.Lock()
-		defer mu.Unlock()
-		return hits
-	}
-
-	app.appMode = modeAddItem
-	send(t, app, syncPullTickMsg{})
-	if countHits() != 0 {
-		t.Fatalf("a tick during text entry reconciled anyway: %d requests", countHits())
-	}
-
-	app.appMode = modeNormal
-	send(t, app, syncPullTickMsg{})
-	if countHits() == 0 {
-		t.Fatal("a tick in normal mode never reached the server")
-	}
-
-	// An item that only ever existed on the server has to land in the TUI
-	// without the user asking for it.
-	if _, err := app.backend.GetItem("01900000-0000-7000-8000-00000000a001"); err != nil {
-		t.Fatalf("background pull did not bring the remote item local: %v", err)
-	}
-	found := false
-	for _, p := range app.projects {
-		if p.Name == "Remote" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("pulled project never reached the rendered model: %v", app.projects)
-	}
-}
-
 // The row is where the handle has to be legible: the id column was 8 characters
 // of hex tail, which resolves but which nobody can read back off the screen.
 func TestItemRowShowsTheNumber(t *testing.T) {
@@ -467,7 +348,7 @@ func TestItemRowShowsTheNumber(t *testing.T) {
 	}
 	for _, item := range items {
 		if item.Number == nil {
-			t.Fatalf("item %q has no number in a sync-off database", item.Title)
+			t.Fatalf("item %q has no number in a database", item.Title)
 		}
 		if !strings.Contains(view, strconv.Itoa(*item.Number)) {
 			t.Errorf("view is missing the handle %d for %q", *item.Number, item.Title)

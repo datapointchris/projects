@@ -147,7 +147,7 @@ empty database at the old path, and `projects` then stops until that file is gon
 
 Move `~/.config/todoui/config.toml` to `~/.config/projects/config.toml` first. While only the old file
 exists, every run that opens a database stops with exit 1, naming both paths. Reading no config would
-turn sync off, and the next pull deletes what was written with it off.
+drop its `api` and send every command to a database on this machine.
 
 The first run that opens the default database moves everything in `$XDG_DATA_HOME/todoui` to
 `$XDG_DATA_HOME/projects`. `todoui.db` becomes `projects.db`, and its `-wal` and `-shm` files go with
@@ -169,7 +169,7 @@ j / k     move through items and their tasks as one list    J / K   jump item to
 Tab       switch pane                                       Enter   read it in full
 a         add a project, or an item to this project         space   mark done
 T         dependency browser                                /       search every project
-u         undo the last change                              R       sync, or read the API, now
+u         undo the last change                              R       read the data again now
 ?         every key the pane you are in takes               q       quit
 ```
 
@@ -183,7 +183,7 @@ items it waits on. The reader also names the repo the item is for. The board has
 that tag. `projects items edit <item> --repo <name>` sets it.
 
 Through an API, the status bar reads `API` and the API's host. The board reads the API again every
-`sync.interval`, and `R` reads it at once.
+two minutes, and `R` reads it at once.
 
 `Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
 what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
@@ -247,70 +247,29 @@ next round of them.
 ## An item's handle is its number, and its key is a UUID
 
 An item shows its number, the same handle the API answers with. The number is not the primary key.
-`projects` creates every id as a UUIDv7, so an item can be created offline and pushed without a round
-trip to claim one.
+`projects` creates every id as a UUIDv7.
 
-Through an API, the API numbers the item as it creates it. With sync on, the number comes from the
-API's response to the create, and the TUI shows it once the push lands. In database mode with sync
-off, `projects` allocates the next number itself. An item created while a synced API is unreachable
-shows the last 8 characters of its id until its push lands and earns it a number.
+Through an API, the API numbers the item as it creates it. In database mode, `projects` allocates the
+next number itself. An item with no number shows the last 8 characters of its id. Only a database
+from before numbers existed, or one kept as a synced copy of an API, can hold such an item.
 
-## Sync keeps a database a copy of an API, and only the board writes to the copy
+## A config or database from the synced copy still works, and its sync variables refuse
 
-`[sync] enabled = true` keeps a database on this machine as a
-copy of `sync.api_url`, and `projects tui` edits the copy and pushes each edit. With `api` set there
-is no copy, so a config file holding both `api` and `[sync] enabled = true` stops every command,
-naming both keys.
+`projects` once kept a database as a copy of an API, set under `[sync]`. It keeps no copy now, and
+`api` is how a machine works through an API.
 
-With sync on, every read on the command line answers from the copy. A command that writes refuses
-with a sentence naming `api`. Its write would land in the copy with nothing queued to push, and the
-next pull would delete it. `projects sync` refuses when `api` is set, because there is nothing to
-reconcile.
-
-With sync on, every edit in the board is queued and pushed as you make it. The TUI pulls on launch, then again
-every `sync.interval` (default two minutes) for as long as it is open. A pull waits while a text
-input, an overlay, the reader or a move is open, and runs on the next tick instead.
-
-Queued pushes retry on a timer. A change made while the API was unreachable is sent once it comes
-back, with no further edit to trigger it.
-
-The status bar names the API's URL beside one of `SYNCING...`, `PENDING (n)`, `SYNC ERR` or
-`SYNCED`. An unreachable API shows `SYNC ERR` and leaves the local data in place. `R` in the TUI or
-`projects sync` forces a reconcile.
-
-A pull is two requests, because the item list embeds memberships, dependencies and sub-tasks.
-Against an API that does not embed them, it falls back to two more requests per item. Lower
-`interval` to sync more eagerly. It is floored at 15 seconds.
-
-## A database belongs to one API, and a pull that would empty it stops
-
-```bash
-projects sync            # push anything queued, then pull, however recently the last pull ran
-projects sync --adopt    # bind this database to the configured API, replacing the old binding
-projects sync --force    # allow a pull that would delete most of the projects or items here
-```
-
-A pull deletes every local row the server did not return, so a database and its API are a pair.
-The first pull records which API the database belongs to. Every pull and push after that refuses any
-other. A database pointed at the wrong API would lose everything that API has never heard of, and
-the reconcile cannot tell that from a real deletion.
-
-A database that has pulled before but records no API refuses as well. It asks for `--adopt` rather
-than guessing from whatever is configured, because guessing from the loaded configuration is the
-mistake the binding exists to stop.
-
-The second guard is for the right API giving a wrong answer. A pull that would delete ten or more
-projects, and more than half of them, stops and asks for `--force`. Items are guarded the same way.
-A truncated response, an authentication failure that still returns `200`, and a genuine mass
-deletion look identical from the client. The floor keeps the guard quiet on a small database, where
-losing most of it is a handful of rows.
-
-Neither flag is reachable from the background timers.
+- A config file still holding `[sync]` loads. Every command that opens data warns on stderr, naming
+  the file, and ignores the section.
+- A database from then opens as it is. The first open drops its queue of pushes, its pull times and
+  the API it was bound to. Every project, item, task, dependency and membership stays.
+- `PROJECTS_SYNC`, `PROJECTS_SYNC_URL`, `PROJECTS_SYNC_TOKEN_COMMAND` or `PROJECTS_SYNC_INTERVAL`, or
+  its `TODOUI_` twin, set to a value stops every command with exit 2. `PROJECTS_SYNC_URL` chose an
+  API, so ignoring it would send the run wherever the config file points.
 
 ## Configuration — one TOML file, every key overridable from the environment
 
 `projects` reads `$XDG_CONFIG_HOME/projects/config.toml`, else `~/.config/projects/config.toml`, on macOS
-as well as Linux. No config file is a valid configuration: a local database, with sync off.
+as well as Linux. No config file is a valid configuration: a local database.
 [config.example.toml](config.example.toml) is an annotated copy.
 
 ```toml
@@ -324,43 +283,16 @@ as well as Linux. No config file is a valid configuration: a local database, wit
 
 [local]
 # db_path = "/custom/path/projects.db"  # default: ~/.local/share/projects/projects.db
-
-[sync]
-enabled = false
-# api_url = "https://example.com"  # the server's host; the tool adds /api/v1
-# token_command = "<cli> auth token"  # prints a bearer token for api_url
-# interval = "2m"  # longest it goes without reconciling; floored at 15s
 ```
-
-`enabled = true` without an `api_url` is an error. So is `enabled = true` beside `api`.
-
-The bare `token_command` belongs to `api`, and is an argument list printing a token response. The
-`[sync]` one belongs to `api_url`, and is a string printing a bare token. The two never stand in for
-each other, and either written in the other's shape is refused, naming the shape it takes.
-
-`[sync]`'s `token_command` is how `projects` authenticates to the API without holding a secret itself. It is split
-on spaces and run without a shell or stdin. Whatever it prints becomes the bearer token. A command
-that has not finished in 10 seconds fails. `projects` keeps the token until the API refuses it, then
-runs the command once more and retries once. A failing command's first line of stderr is what the
-status bar shows. Leave it unset for an API that needs no token, such as a dev stack that sets its
-own identity.
-
-The command belongs to the URL beside it. When `PROJECTS_SYNC_URL` supplies the URL, the config
-file's `token_command` is ignored and `PROJECTS_SYNC_TOKEN_COMMAND` is the only source. Overriding the
-URL never sends one API's token to another.
 
 Each variable overrides the key beside it:
 
 | Variable | Overrides |
 | -------- | --------- |
 | `PROJECTS_DB` | `local.db_path` |
-| `PROJECTS_SYNC` | `sync.enabled` (`true` or `false`) |
-| `PROJECTS_SYNC_URL` | `sync.api_url` |
-| `PROJECTS_SYNC_TOKEN_COMMAND` | `sync.token_command` |
-| `PROJECTS_SYNC_INTERVAL` | `sync.interval`, as a duration such as `30s` or `5m` |
 | `PROJECTS_REPOS_REGISTRY` | `repos_registry` |
 
-`api`, `issuer`, `client_id` and the bare `token_command` take no variable. `--api` outranks `api` for
+`api`, `issuer`, `client_id` and `token_command` take no variable. `--api` outranks `api` for
 one run. `PROJECTS_CLIENT_SECRET` switches the login to the client-credentials grant.
 
 ## Every command speaks HTTP to the API's routes, served in the process or across the network
@@ -375,8 +307,8 @@ projects <command>                     projects tui
     v                                      v
 apiclient.Client                       backend.Backend
     |                                      |
-    +-- database mode                      +-- database mode: service.Service,
-    |     InProcess -> api/routes          |     in SyncBackend when sync is on
+    +-- database mode                      +-- database mode: service.Service
+    |     InProcess -> api/routes          |
     |       -> service.Service             |
     |       -> store/sqlite                +-- api: apiclient.Backend
     |                                            -> apiclient.Client
@@ -384,14 +316,10 @@ apiclient.Client                       backend.Backend
           -> projects-api
 ```
 
-The sync engine, when it is on, sits in the board's path alone. It pushes each queued write over
-HTTP and pulls the API's state into the local database.
-
 The data model is projects, items, the memberships joining them many to many, dependencies between
 items, and sub-tasks.
 
-In database mode, the database at `db_path` holds the data, the queue of pending pushes, and the API
-the database is bound to. The update check keeps its last result under `$XDG_STATE_HOME/projects/`,
+In database mode, the database at `db_path` holds the data and the undo log. The update check keeps its last result under `$XDG_STATE_HOME/projects/`,
 which defaults to `~/.local/state/projects/`. `auth login` is the only command that writes the config
 file, and it adds its keys without rewriting the rest. The repo registry is read and never written.
 

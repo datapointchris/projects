@@ -108,7 +108,7 @@ func writeAPIConfig(t *testing.T, dir, api string) {
 	}
 }
 
-// seedFixtureDatabase writes through the backend the TUI writes through with sync off,
+// seedFixtureDatabase writes through the backend the TUI writes through in database mode,
 // so the fixture holds what the tool's own rules allow. The export note runs long,
 // because a one-line note hides layout bugs.
 func seedFixtureDatabase(t *testing.T, path string) {

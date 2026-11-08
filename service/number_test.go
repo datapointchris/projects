@@ -44,22 +44,3 @@ func TestCreateItem_AssignsNumbersWhenThisDatabaseIsTheAuthority(t *testing.T) {
 		t.Errorf("numbers = %v, want %v — the first item in a fresh database is 1", numbers, want)
 	}
 }
-
-// With sync on the server owns the numbering. Guessing one locally would hand
-// the user a handle that changes the moment the push comes back.
-func TestCreateItem_LeavesTheNumberToTheServerWhenSyncIsOn(t *testing.T) {
-	b := service.New(sqlite.New(newNumberTestDB(t)))
-	project, err := b.CreateProject(model.CreateProject{Name: "Synced"})
-	if err != nil {
-		t.Fatalf("CreateProject: %v", err)
-	}
-
-	item, err := b.CreateItem(model.CreateProjectItem{Title: "Waits for a number", ProjectIDs: []string{project.ID}})
-	if err != nil {
-		t.Fatalf("CreateItem: %v", err)
-	}
-
-	if item.Number != nil {
-		t.Errorf("Number = %d, want nil — the server assigns it and the two would disagree", *item.Number)
-	}
-}

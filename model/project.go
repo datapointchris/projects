@@ -15,7 +15,7 @@ import (
 const (
 	StatusActive = "active"
 	// StatusCompleted and not "done". The API stores this value behind a foreign
-	// key, so a push carrying any other word is rejected. It also matches the
+	// key, so a write carrying any other word is rejected. It also matches the
 	// `completed` boolean an item carries, so a project and its own items spell
 	// one concept one way.
 	StatusCompleted = "completed"

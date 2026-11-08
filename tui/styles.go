@@ -122,18 +122,6 @@ var (
 	modeAPIStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("4")).
 			Bold(true)
-	syncOKStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("2")).
-			Bold(true)
-	syncingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("3")).
-			Bold(true)
-	syncPendingStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("3")).
-				Bold(true)
-	syncErrorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("1")).
-			Bold(true)
 
 	// Titles
 	paneTitleStyle = lipgloss.NewStyle().

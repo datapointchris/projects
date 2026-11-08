@@ -46,9 +46,9 @@ func newTUICommand() *cobra.Command {
 		Use:   "tui",
 		Short: "Open the board: projects on the left, the selected one's items on the right",
 		Long: "Everything the commands do can be done here by key; ? lists the keys. The status\n" +
-			"line names where the data lives: LOCAL and the database's path, API and its host,\n" +
-			"or the sync state of a synced database. In API mode the board reads the API again\n" +
-			"every [sync] interval, and R reads it now.\n" +
+			"line names where the data lives: LOCAL and the database's path, or API and its\n" +
+			"host. In API mode the board reads the API again every two minutes, and R reads\n" +
+			"it now.\n" +
 			"\n" +
 			"--once prints one frame at COLUMNS by LINES, else at the terminal's size, else at\n" +
 			"120 by 40, and --json what that frame is drawn from, so an agent reads what a\n" +
@@ -74,10 +74,7 @@ func newTUICommand() *cobra.Command {
 			}
 			defer func() { _ = source.Close() }()
 			where := tui.Where{DatabasePath: source.cfg.Local.DBPath, APIHost: source.apiHost()}
-			if !printing {
-				source.startSync()
-			}
-			app := tui.NewApp(source.boardBackend(), source.engine, where, source.cfg.Sync.Interval)
+			app := tui.NewApp(source.boardBackend(), where)
 			if !printing {
 				_, err := tea.NewProgram(app).Run()
 				return err

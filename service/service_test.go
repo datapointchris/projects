@@ -404,10 +404,6 @@ func TestUndoCreateItem(t *testing.T) {
 	if result.EntityID != item.ID {
 		t.Errorf("expected undo result for %s, got %s", item.ID, result.EntityID)
 	}
-	if result.Restored != nil {
-		t.Error("undoing a create removes the row, so nothing should be restored")
-	}
-
 	_, err = b.GetItem(item.ID)
 	if !errors.Is(err, model.ErrNotFound) {
 		t.Errorf("expected ErrNotFound after undo, got %v", err)
@@ -446,15 +442,15 @@ func TestUndoRestoresDeletedProject(t *testing.T) {
 		t.Fatalf("deleting project: %v", err)
 	}
 
-	result, err := b.Undo()
-	if err != nil {
+	if _, err := b.Undo(); err != nil {
 		t.Fatalf("undoing: %v", err)
 	}
-	if result.RestoredProject == nil || result.RestoredProject.Name != "doomed" {
-		t.Fatalf("expected the deleted project restored, got %+v", result.RestoredProject)
+	restored, err := b.GetProject(p.ID)
+	if err != nil {
+		t.Fatalf("expected project back after undo: %v", err)
 	}
-	if _, err := b.GetProject(p.ID); err != nil {
-		t.Errorf("expected project back after undo: %v", err)
+	if restored.Name != "doomed" {
+		t.Errorf("restored project is named %q, want doomed", restored.Name)
 	}
 }
 
@@ -879,8 +875,7 @@ func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {
 	}
 }
 
-// An edit in the TUI reaches this while the sync engine's pull writes, and two
-// running copies reach it on one file. Each rule reads and then writes, and SQLite
+// Two running copies reach this on one file, such as the board and a command. Each rule reads and then writes, and SQLite
 // refuses that upgrade once another writer has committed unless the transaction
 // began with the write lock.
 func TestAnEditSurvivesASecondWriter(t *testing.T) {
@@ -963,12 +958,12 @@ func TestUndoAcceptsPreSnapshotDeleteEntries(t *testing.T) {
 			`"Completed":0,"Archived":0,"CreatedAt":"2026-01-02 03:04:05","UpdatedAt":"2026-01-02 03:04:05"}`,
 		item.ID))
 
-	result, err := b.Undo()
-	if err != nil {
+	if _, err := b.Undo(); err != nil {
 		t.Fatalf("undoing: %v", err)
 	}
-	if result.Restored == nil || result.Restored.Title != "legacy" {
-		t.Fatalf("expected the item restored from a pre-snapshot entry, got %+v", result.Restored)
+	restored, err := b.GetItem(item.ID)
+	if err != nil || restored.Title != "legacy" {
+		t.Fatalf("expected the item restored from a pre-snapshot entry, got %+v, %v", restored, err)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -41,7 +40,7 @@ func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
 	for _, size := range sizes {
 		width, height := size[0], size[1]
 
-		app := NewApp(service.New(sqlite.New(database)), nil, Where{DatabasePath: path}, 2*time.Minute)
+		app := NewApp(service.New(sqlite.New(database)), Where{DatabasePath: path})
 		send(t, app, tea.WindowSizeMsg{Width: width, Height: height})
 		send(t, app, app.Init()())
 		app.activePane = itemPane

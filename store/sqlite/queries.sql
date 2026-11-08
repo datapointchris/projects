@@ -55,14 +55,8 @@ INSERT INTO project_items (id, number, title, notes, repo)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
--- Only used when sync is off and this database assigns its own numbers. With
--- sync on the server is the authority and this would hand out a number it is
--- about to disagree with.
 -- name: NextItemNumber :one
 SELECT COALESCE(MAX(number), 0) + 1 FROM project_items;
-
--- name: SetItemNumber :exec
-UPDATE project_items SET number = ? WHERE id = ?;
 
 -- name: UpdateItem :one
 UPDATE project_items
@@ -175,77 +169,7 @@ RETURNING *;
 -- name: DeleteTask :exec
 DELETE FROM project_item_tasks WHERE id = ?;
 
--- Sync: pending operations
-
--- name: InsertPendingSync :exec
-INSERT INTO pending_sync (operation, entity_type, entity_id, payload)
-VALUES (?, ?, ?, ?);
-
--- name: ListPendingSync :many
-SELECT * FROM pending_sync ORDER BY id ASC;
-
--- name: GetOldestPendingSync :one
-SELECT * FROM pending_sync ORDER BY id ASC LIMIT 1;
-
--- name: DeletePendingSync :exec
-DELETE FROM pending_sync WHERE id = ?;
-
--- name: DeletePendingSyncByEntity :execrows
-DELETE FROM pending_sync WHERE entity_id = ?;
-
--- name: UpdatePendingSyncError :exec
-UPDATE pending_sync SET attempts = attempts + 1, last_error = ? WHERE id = ?;
-
--- name: CountPendingSync :one
-SELECT COUNT(*) FROM pending_sync;
-
--- name: DeleteAllPendingSync :exec
-DELETE FROM pending_sync;
-
--- name: MaxPendingSyncID :one
-SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) AS max_id FROM pending_sync;
-
--- name: DeletePendingSyncUpTo :exec
-DELETE FROM pending_sync WHERE id <= ?;
-
--- name: ListPendingSyncEntityIDsAfter :many
-SELECT DISTINCT entity_id FROM pending_sync WHERE id > ?;
-
--- Sync: state tracking
-
--- Counted rather than listed: the caller only needs to know whether this
--- database has anything to lose.
--- name: CountProjects :one
-SELECT COUNT(*) FROM projects;
-
--- name: CountItems :one
-SELECT COUNT(*) FROM project_items;
-
--- Whether this database has ever reconciled with an API. A database that has
--- pulled was bound to something, even if nothing recorded what.
--- name: HasPulledBefore :one
-SELECT COUNT(*) FROM sync_state WHERE last_pull_at > '1970-01-01T00:00:00.000Z';
-
--- name: GetSyncOrigin :one
-SELECT api_url FROM sync_origin WHERE id = 1;
-
--- Adoption is deliberate and always overwrites: the caller has already decided
--- this database belongs to this API.
--- name: SetSyncOrigin :exec
-INSERT INTO sync_origin (id, api_url, adopted_at)
-VALUES (1, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-ON CONFLICT(id) DO UPDATE SET
-    api_url = excluded.api_url,
-    adopted_at = excluded.adopted_at;
-
--- name: UpsertSyncState :exec
-INSERT INTO sync_state (entity_type, last_pull_at, last_push_at)
-VALUES (?, ?, ?)
-ON CONFLICT(entity_type) DO UPDATE SET
-    last_pull_at = CASE WHEN excluded.last_pull_at > sync_state.last_pull_at THEN excluded.last_pull_at ELSE sync_state.last_pull_at END,
-    last_push_at = CASE WHEN excluded.last_push_at > sync_state.last_push_at THEN excluded.last_push_at ELSE sync_state.last_push_at END;
-
--- Undo: a restore carries each column a pull leaves alone.
+-- Undo: a restore inserts the whole row, or, where it is still there, rewrites what an edit can change.
 
 -- name: RestoreProject :exec
 INSERT INTO projects (id, name, description, kind, status, status_reason, closed_at, position, created_at)
@@ -281,54 +205,9 @@ ON CONFLICT(id) DO UPDATE SET
     completed_at = excluded.completed_at,
     position = excluded.position;
 
--- Sync: pull reconciliation (upserts)
-
--- name: UpsertProject :exec
-INSERT INTO projects (id, name, description, status, status_reason, closed_at, position, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    name = excluded.name,
-    description = excluded.description,
-    status = excluded.status,
-    status_reason = excluded.status_reason,
-    closed_at = excluded.closed_at,
-    position = excluded.position;
-
--- name: UpsertItem :exec
-INSERT INTO project_items (id, number, title, notes, repo, completed, archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    number = excluded.number,
-    title = excluded.title,
-    notes = excluded.notes,
-    repo = excluded.repo,
-    completed = excluded.completed,
-    archived = excluded.archived,
-    updated_at = excluded.updated_at;
-
--- name: UpsertTask :exec
-INSERT INTO project_item_tasks (id, item_id, title, completed, position, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    title = excluded.title,
-    completed = excluded.completed,
-    position = excluded.position;
-
--- name: UpsertMembership :exec
-INSERT INTO project_item_memberships (item_id, project_id, position)
-VALUES (?, ?, ?)
-ON CONFLICT(item_id, project_id) DO UPDATE SET
-    position = excluded.position;
-
 -- name: UpsertDependency :exec
 INSERT OR IGNORE INTO project_item_dependencies (item_id, depends_on_id)
 VALUES (?, ?);
-
--- name: DeleteAllMemberships :exec
-DELETE FROM project_item_memberships;
-
--- name: DeleteAllDependencies :exec
-DELETE FROM project_item_dependencies;
 
 -- name: ListAllProjectsRaw :many
 SELECT * FROM projects ORDER BY position, name;

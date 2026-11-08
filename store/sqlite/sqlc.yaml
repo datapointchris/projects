@@ -6,4 +6,4 @@ sql:
     gen:
       go:
         package: "generated"
-        out: "generated"
+        out: "internal/generated"

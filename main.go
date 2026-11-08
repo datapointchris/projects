@@ -9,9 +9,11 @@ import (
 )
 
 func main() {
-	if refusal := config.RetiredVariableRefusal(); refusal != "" {
-		fmt.Fprintf(os.Stderr, "error: %s\n", refusal)
-		os.Exit(2)
+	for _, refusal := range []string{config.RetiredVariableRefusal(), config.RetiredSyncVariableRefusal()} {
+		if refusal != "" {
+			fmt.Fprintf(os.Stderr, "error: %s\n", refusal)
+			os.Exit(2)
+		}
 	}
 	os.Exit(cli.Execute())
 }

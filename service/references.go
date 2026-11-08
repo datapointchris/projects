@@ -159,8 +159,8 @@ func parseItemNumber(ref string) (int, bool) {
 	return number, err == nil
 }
 
-// itemHandle is what a refusal calls an item. An item created while sync was
-// unreachable has no number yet, so it goes by its id.
+// itemHandle is what a refusal calls an item: its number, or its id where it
+// has none.
 func itemHandle(item model.ProjectItem) string {
 	if item.Number != nil {
 		return strconv.Itoa(*item.Number)

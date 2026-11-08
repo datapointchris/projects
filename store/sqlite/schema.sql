@@ -13,9 +13,7 @@ CREATE TABLE project_statuses (
 CREATE TABLE projects (
     id TEXT PRIMARY KEY,
     -- Unique among ACTIVE projects only, via the partial index in indexes.sql.
-    -- A global UNIQUE would make a completed `clisteno` own the name forever,
-    -- and would fail the whole pull the moment the server returns two projects
-    -- that shared one.
+    -- A global UNIQUE would make a completed `clisteno` own the name forever.
     name TEXT NOT NULL,
     description TEXT,
     -- A name in project_kinds, checked by the rule that writes it.
@@ -23,8 +21,7 @@ CREATE TABLE projects (
     -- active | someday | completed | dropped. A project is a finite effort, so
     -- completing it is what hides it — there is no separate archived flag the way
     -- items have one. `dropped` requires a reason, which is what stops it reading
-    -- as deferred. A name in project_statuses, checked by the rule that writes it
-    -- rather than by a CHECK, so a pull mirrors what a server tells it.
+    -- as deferred. A name in project_statuses, checked by the rule that writes it.
     status TEXT NOT NULL DEFAULT 'active',
     status_reason TEXT,
     closed_at TEXT,
@@ -34,10 +31,9 @@ CREATE TABLE projects (
 
 CREATE TABLE project_items (
     id TEXT PRIMARY KEY,
-    -- The handle: short enough to type, unlike the UUID key. Assigned by the API
-    -- when sync is on, and locally when it is off and this database is the only
-    -- authority. Null in the window between creating an item offline and the push
-    -- that earns it a number.
+    -- The handle: short enough to type, unlike the UUID key. Assigned as each
+    -- item is created. Null on an item from before the column, and on one a
+    -- database once kept as a copy of an API created before the API numbered it.
     number INTEGER,
     title TEXT NOT NULL,
     notes TEXT,
@@ -45,8 +41,8 @@ CREATE TABLE project_items (
     -- all — home projects, things to sell, errands.
     repo TEXT,
     completed INTEGER NOT NULL DEFAULT 0,
-    -- Null where the completion time is unknown: never finished, finished before
-    -- this column existed, or finished on a server a pull mirrors.
+    -- Null where the completion time is unknown: never finished, or finished
+    -- before this column existed.
     completed_at TEXT,
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -75,33 +71,6 @@ CREATE TABLE project_item_tasks (
     completed_at TEXT,
     position INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
-CREATE TABLE pending_sync (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    operation TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    attempts INTEGER NOT NULL DEFAULT 0,
-    last_error TEXT
-);
-
-CREATE TABLE sync_state (
-    entity_type TEXT PRIMARY KEY,
-    last_pull_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
-    last_push_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'
-);
-
--- Which API this database belongs to. A pull deletes everything the server did
--- not return, so a database and its API are a pair and pointing one at the other
--- one is a wipe rather than a sync. Recording the pairing is what lets a pull
--- refuse instead of obeying. Single row, enforced by the CHECK.
-CREATE TABLE sync_origin (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    api_url TEXT NOT NULL,
-    adopted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE TABLE undo_log (

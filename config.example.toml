@@ -1,7 +1,7 @@
 # projects configuration
 # Place at ~/.config/projects/config.toml
-# The keys under [local] and [sync], and repos_registry, can be overridden with
-# environment variables. Bare keys must stay above the first [section].
+# db_path and repos_registry can be overridden with environment variables. Bare
+# keys must stay above the first [section].
 
 # Repo registry, whose names a project may not take in database mode.
 # Set this when the registry is maintained outside the tool's data directory and
@@ -21,26 +21,6 @@
 # A command printing a token response, as an argument list run without a shell.
 # Set, no login runs. For an API that needs no real token, print a stand-in.
 # token_command = ["printf", '{"access_token":"dev","token_type":"Bearer"}']
-
-[sync]
-# Keep the database a copy of an API, for the board. Refused beside api.
-# With it on, a command that writes refuses: make the change in `projects tui`.
-# Env: PROJECTS_SYNC
-enabled = false
-# The API server's host, required when enabled. The tool adds /api/v1 itself.
-# Env: PROJECTS_SYNC_URL
-# api_url = "https://example.com"
-# Command printing a bearer token for api_url, split on spaces and run without a
-# shell. Unset sends no token. A URL from PROJECTS_SYNC_URL takes its command from
-# PROJECTS_SYNC_TOKEN_COMMAND alone, never from this file.
-# Env: PROJECTS_SYNC_TOKEN_COMMAND
-# token_command = "<cli> auth token"
-# Longest the tool goes without reconciling: the TUI's background pull period.
-# Through api, how often the board reads the API again.
-# A duration such as "30s" or "5m". Anything below 15s is raised to 15s.
-# Env: PROJECTS_SYNC_INTERVAL
-# Default: 2m
-# interval = "2m"
 
 [local]
 # Path to SQLite database

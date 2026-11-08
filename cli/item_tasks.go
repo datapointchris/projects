@@ -78,7 +78,7 @@ func newTasksAddCommand() *cobra.Command {
 			if cmd.Flags().Changed("position") {
 				input.Position = &position
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -154,7 +154,7 @@ func newTasksEditCommand() *cobra.Command {
 }
 
 func runTaskUpdate(cmd *cobra.Command, itemRef, taskID string, edit apiclient.TaskChanges, asJSON bool) error {
-	source, err := openForWriting(cmd)
+	source, err := openDataSource(cmd)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func newTasksRemoveCommand() *cobra.Command {
 		Example: "  projects items tasks remove 118 019a2b3c-… --yes",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}

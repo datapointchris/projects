@@ -40,43 +40,6 @@ func (q *Queries) AddItemToProject(ctx context.Context, arg AddItemToProjectPara
 	return err
 }
 
-const countItems = `-- name: CountItems :one
-SELECT COUNT(*) FROM project_items
-`
-
-func (q *Queries) CountItems(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countItems)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPendingSync = `-- name: CountPendingSync :one
-SELECT COUNT(*) FROM pending_sync
-`
-
-func (q *Queries) CountPendingSync(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countPendingSync)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countProjects = `-- name: CountProjects :one
-
-SELECT COUNT(*) FROM projects
-`
-
-// Sync: state tracking
-// Counted rather than listed: the caller only needs to know whether this
-// database has anything to lose.
-func (q *Queries) CountProjects(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countProjects)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countUndoLogs = `-- name: CountUndoLogs :one
 SELECT COUNT(*) FROM undo_log
 `
@@ -202,69 +165,12 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Project
 	return i, err
 }
 
-const deleteAllDependencies = `-- name: DeleteAllDependencies :exec
-DELETE FROM project_item_dependencies
-`
-
-func (q *Queries) DeleteAllDependencies(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllDependencies)
-	return err
-}
-
-const deleteAllMemberships = `-- name: DeleteAllMemberships :exec
-DELETE FROM project_item_memberships
-`
-
-func (q *Queries) DeleteAllMemberships(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllMemberships)
-	return err
-}
-
-const deleteAllPendingSync = `-- name: DeleteAllPendingSync :exec
-DELETE FROM pending_sync
-`
-
-func (q *Queries) DeleteAllPendingSync(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllPendingSync)
-	return err
-}
-
 const deleteItem = `-- name: DeleteItem :exec
 DELETE FROM project_items WHERE id = ?
 `
 
 func (q *Queries) DeleteItem(ctx context.Context, id string) error {
 	_, err := q.db.ExecContext(ctx, deleteItem, id)
-	return err
-}
-
-const deletePendingSync = `-- name: DeletePendingSync :exec
-DELETE FROM pending_sync WHERE id = ?
-`
-
-func (q *Queries) DeletePendingSync(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deletePendingSync, id)
-	return err
-}
-
-const deletePendingSyncByEntity = `-- name: DeletePendingSyncByEntity :execrows
-DELETE FROM pending_sync WHERE entity_id = ?
-`
-
-func (q *Queries) DeletePendingSyncByEntity(ctx context.Context, entityID string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deletePendingSyncByEntity, entityID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const deletePendingSyncUpTo = `-- name: DeletePendingSyncUpTo :exec
-DELETE FROM pending_sync WHERE id <= ?
-`
-
-func (q *Queries) DeletePendingSyncUpTo(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deletePendingSyncUpTo, id)
 	return err
 }
 
@@ -504,26 +410,6 @@ func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (P
 	return i, err
 }
 
-const getOldestPendingSync = `-- name: GetOldestPendingSync :one
-SELECT id, operation, entity_type, entity_id, payload, created_at, attempts, last_error FROM pending_sync ORDER BY id ASC LIMIT 1
-`
-
-func (q *Queries) GetOldestPendingSync(ctx context.Context) (PendingSync, error) {
-	row := q.db.QueryRowContext(ctx, getOldestPendingSync)
-	var i PendingSync
-	err := row.Scan(
-		&i.ID,
-		&i.Operation,
-		&i.EntityType,
-		&i.EntityID,
-		&i.Payload,
-		&i.CreatedAt,
-		&i.Attempts,
-		&i.LastError,
-	)
-	return i, err
-}
-
 const getProject = `-- name: GetProject :one
 SELECT id, name, description, kind, status, status_reason, closed_at, position, created_at FROM projects WHERE id = ?
 `
@@ -572,17 +458,6 @@ func (q *Queries) GetProjectMemberships(ctx context.Context, projectID string) (
 	return items, nil
 }
 
-const getSyncOrigin = `-- name: GetSyncOrigin :one
-SELECT api_url FROM sync_origin WHERE id = 1
-`
-
-func (q *Queries) GetSyncOrigin(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getSyncOrigin)
-	var api_url string
-	err := row.Scan(&api_url)
-	return api_url, err
-}
-
 const getTask = `-- name: GetTask :one
 SELECT id, item_id, title, completed, completed_at, position, created_at FROM project_item_tasks WHERE id = ?
 `
@@ -600,43 +475,6 @@ func (q *Queries) GetTask(ctx context.Context, id string) (ProjectItemTask, erro
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const hasPulledBefore = `-- name: HasPulledBefore :one
-SELECT COUNT(*) FROM sync_state WHERE last_pull_at > '1970-01-01T00:00:00.000Z'
-`
-
-// Whether this database has ever reconciled with an API. A database that has
-// pulled was bound to something, even if nothing recorded what.
-func (q *Queries) HasPulledBefore(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, hasPulledBefore)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const insertPendingSync = `-- name: InsertPendingSync :exec
-
-INSERT INTO pending_sync (operation, entity_type, entity_id, payload)
-VALUES (?, ?, ?, ?)
-`
-
-type InsertPendingSyncParams struct {
-	Operation  string
-	EntityType string
-	EntityID   string
-	Payload    string
-}
-
-// Sync: pending operations
-func (q *Queries) InsertPendingSync(ctx context.Context, arg InsertPendingSyncParams) error {
-	_, err := q.db.ExecContext(ctx, insertPendingSync,
-		arg.Operation,
-		arg.EntityType,
-		arg.EntityID,
-		arg.Payload,
-	)
-	return err
 }
 
 const insertUndoLog = `-- name: InsertUndoLog :exec
@@ -947,69 +785,6 @@ func (q *Queries) ListItemsInProject(ctx context.Context, projectID string) ([]L
 	return items, nil
 }
 
-const listPendingSync = `-- name: ListPendingSync :many
-SELECT id, operation, entity_type, entity_id, payload, created_at, attempts, last_error FROM pending_sync ORDER BY id ASC
-`
-
-func (q *Queries) ListPendingSync(ctx context.Context) ([]PendingSync, error) {
-	rows, err := q.db.QueryContext(ctx, listPendingSync)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []PendingSync
-	for rows.Next() {
-		var i PendingSync
-		if err := rows.Scan(
-			&i.ID,
-			&i.Operation,
-			&i.EntityType,
-			&i.EntityID,
-			&i.Payload,
-			&i.CreatedAt,
-			&i.Attempts,
-			&i.LastError,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPendingSyncEntityIDsAfter = `-- name: ListPendingSyncEntityIDsAfter :many
-SELECT DISTINCT entity_id FROM pending_sync WHERE id > ?
-`
-
-func (q *Queries) ListPendingSyncEntityIDsAfter(ctx context.Context, id int64) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listPendingSyncEntityIDsAfter, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var entity_id string
-		if err := rows.Scan(&entity_id); err != nil {
-			return nil, err
-		}
-		items = append(items, entity_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listProjectItemFacts = `-- name: ListProjectItemFacts :many
 SELECT m.project_id, pi.completed, pi.archived, pi.repo
 FROM project_item_memberships m
@@ -1143,24 +918,10 @@ func (q *Queries) ListTasksByItem(ctx context.Context, itemID string) ([]Project
 	return items, nil
 }
 
-const maxPendingSyncID = `-- name: MaxPendingSyncID :one
-SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) AS max_id FROM pending_sync
-`
-
-func (q *Queries) MaxPendingSyncID(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, maxPendingSyncID)
-	var max_id int64
-	err := row.Scan(&max_id)
-	return max_id, err
-}
-
 const nextItemNumber = `-- name: NextItemNumber :one
 SELECT COALESCE(MAX(number), 0) + 1 FROM project_items
 `
 
-// Only used when sync is off and this database assigns its own numbers. With
-// sync on the server is the authority and this would hand out a number it is
-// about to disagree with.
 func (q *Queries) NextItemNumber(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, nextItemNumber)
 	var column_1 int64
@@ -1284,7 +1045,7 @@ type RestoreProjectParams struct {
 	CreatedAt    string
 }
 
-// Undo: a restore carries each column a pull leaves alone.
+// Undo: a restore inserts the whole row, or, where it is still there, rewrites what an edit can change.
 func (q *Queries) RestoreProject(ctx context.Context, arg RestoreProjectParams) error {
 	_, err := q.db.ExecContext(ctx, restoreProject,
 		arg.ID,
@@ -1378,35 +1139,6 @@ func (q *Queries) SearchItems(ctx context.Context, arg SearchItemsParams) ([]Pro
 	return items, nil
 }
 
-const setItemNumber = `-- name: SetItemNumber :exec
-UPDATE project_items SET number = ? WHERE id = ?
-`
-
-type SetItemNumberParams struct {
-	Number sql.NullInt64
-	ID     string
-}
-
-func (q *Queries) SetItemNumber(ctx context.Context, arg SetItemNumberParams) error {
-	_, err := q.db.ExecContext(ctx, setItemNumber, arg.Number, arg.ID)
-	return err
-}
-
-const setSyncOrigin = `-- name: SetSyncOrigin :exec
-INSERT INTO sync_origin (id, api_url, adopted_at)
-VALUES (1, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-ON CONFLICT(id) DO UPDATE SET
-    api_url = excluded.api_url,
-    adopted_at = excluded.adopted_at
-`
-
-// Adoption is deliberate and always overwrites: the caller has already decided
-// this database belongs to this API.
-func (q *Queries) SetSyncOrigin(ctx context.Context, apiUrl string) error {
-	_, err := q.db.ExecContext(ctx, setSyncOrigin, apiUrl)
-	return err
-}
-
 const updateItem = `-- name: UpdateItem :one
 UPDATE project_items
 SET title = ?,
@@ -1468,20 +1200,6 @@ type UpdateItemPositionParams struct {
 
 func (q *Queries) UpdateItemPosition(ctx context.Context, arg UpdateItemPositionParams) error {
 	_, err := q.db.ExecContext(ctx, updateItemPosition, arg.Position, arg.ItemID, arg.ProjectID)
-	return err
-}
-
-const updatePendingSyncError = `-- name: UpdatePendingSyncError :exec
-UPDATE pending_sync SET attempts = attempts + 1, last_error = ? WHERE id = ?
-`
-
-type UpdatePendingSyncErrorParams struct {
-	LastError sql.NullString
-	ID        int64
-}
-
-func (q *Queries) UpdatePendingSyncError(ctx context.Context, arg UpdatePendingSyncErrorParams) error {
-	_, err := q.db.ExecContext(ctx, updatePendingSyncError, arg.LastError, arg.ID)
 	return err
 }
 
@@ -1600,151 +1318,5 @@ type UpsertDependencyParams struct {
 
 func (q *Queries) UpsertDependency(ctx context.Context, arg UpsertDependencyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDependency, arg.ItemID, arg.DependsOnID)
-	return err
-}
-
-const upsertItem = `-- name: UpsertItem :exec
-INSERT INTO project_items (id, number, title, notes, repo, completed, archived, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    number = excluded.number,
-    title = excluded.title,
-    notes = excluded.notes,
-    repo = excluded.repo,
-    completed = excluded.completed,
-    archived = excluded.archived,
-    updated_at = excluded.updated_at
-`
-
-type UpsertItemParams struct {
-	ID        string
-	Number    sql.NullInt64
-	Title     string
-	Notes     sql.NullString
-	Repo      sql.NullString
-	Completed int64
-	Archived  int64
-	CreatedAt string
-	UpdatedAt string
-}
-
-func (q *Queries) UpsertItem(ctx context.Context, arg UpsertItemParams) error {
-	_, err := q.db.ExecContext(ctx, upsertItem,
-		arg.ID,
-		arg.Number,
-		arg.Title,
-		arg.Notes,
-		arg.Repo,
-		arg.Completed,
-		arg.Archived,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-	)
-	return err
-}
-
-const upsertMembership = `-- name: UpsertMembership :exec
-INSERT INTO project_item_memberships (item_id, project_id, position)
-VALUES (?, ?, ?)
-ON CONFLICT(item_id, project_id) DO UPDATE SET
-    position = excluded.position
-`
-
-type UpsertMembershipParams struct {
-	ItemID    string
-	ProjectID string
-	Position  int64
-}
-
-func (q *Queries) UpsertMembership(ctx context.Context, arg UpsertMembershipParams) error {
-	_, err := q.db.ExecContext(ctx, upsertMembership, arg.ItemID, arg.ProjectID, arg.Position)
-	return err
-}
-
-const upsertProject = `-- name: UpsertProject :exec
-
-INSERT INTO projects (id, name, description, status, status_reason, closed_at, position, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    name = excluded.name,
-    description = excluded.description,
-    status = excluded.status,
-    status_reason = excluded.status_reason,
-    closed_at = excluded.closed_at,
-    position = excluded.position
-`
-
-type UpsertProjectParams struct {
-	ID           string
-	Name         string
-	Description  sql.NullString
-	Status       string
-	StatusReason sql.NullString
-	ClosedAt     sql.NullString
-	Position     int64
-	CreatedAt    string
-}
-
-// Sync: pull reconciliation (upserts)
-func (q *Queries) UpsertProject(ctx context.Context, arg UpsertProjectParams) error {
-	_, err := q.db.ExecContext(ctx, upsertProject,
-		arg.ID,
-		arg.Name,
-		arg.Description,
-		arg.Status,
-		arg.StatusReason,
-		arg.ClosedAt,
-		arg.Position,
-		arg.CreatedAt,
-	)
-	return err
-}
-
-const upsertSyncState = `-- name: UpsertSyncState :exec
-INSERT INTO sync_state (entity_type, last_pull_at, last_push_at)
-VALUES (?, ?, ?)
-ON CONFLICT(entity_type) DO UPDATE SET
-    last_pull_at = CASE WHEN excluded.last_pull_at > sync_state.last_pull_at THEN excluded.last_pull_at ELSE sync_state.last_pull_at END,
-    last_push_at = CASE WHEN excluded.last_push_at > sync_state.last_push_at THEN excluded.last_push_at ELSE sync_state.last_push_at END
-`
-
-type UpsertSyncStateParams struct {
-	EntityType string
-	LastPullAt string
-	LastPushAt string
-}
-
-func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams) error {
-	_, err := q.db.ExecContext(ctx, upsertSyncState, arg.EntityType, arg.LastPullAt, arg.LastPushAt)
-	return err
-}
-
-const upsertTask = `-- name: UpsertTask :exec
-INSERT INTO project_item_tasks (id, item_id, title, completed, position, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-    title = excluded.title,
-    completed = excluded.completed,
-    position = excluded.position
-`
-
-type UpsertTaskParams struct {
-	ID        string
-	ItemID    string
-	Title     string
-	Completed int64
-	Position  int64
-	CreatedAt string
-}
-
-func (q *Queries) UpsertTask(ctx context.Context, arg UpsertTaskParams) error {
-	_, err := q.db.ExecContext(ctx, upsertTask,
-		arg.ID,
-		arg.ItemID,
-		arg.Title,
-		arg.Completed,
-		arg.Position,
-		arg.CreatedAt,
-	)
 	return err
 }

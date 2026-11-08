@@ -137,7 +137,7 @@ func NewRootCommand() *cobra.Command {
 	)...)
 	root.AddCommand(inGroup(groupItems, withAPIFlag(newItemsCommand()))...)
 	root.AddCommand(inGroup(groupScreen, withAPIFlag(newTUICommand()))...)
-	root.AddCommand(inGroup(groupSetup, newAuthCommand(), newSyncCommand(), VersionCmd(), UpdateCmd())...)
+	root.AddCommand(inGroup(groupSetup, newAuthCommand(), VersionCmd(), UpdateCmd())...)
 	return root
 }
 

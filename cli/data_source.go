@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,14 +20,12 @@ import (
 
 	"github.com/datapointchris/projects/api/requestlog"
 	"github.com/datapointchris/projects/api/routes"
-	"github.com/datapointchris/projects/api/wire"
 	"github.com/datapointchris/projects/apiclient"
 	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/config"
 	"github.com/datapointchris/projects/repos"
 	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/sqlite"
-	"github.com/datapointchris/projects/sync"
 )
 
 // inProcessBase is the address the client is given when the routes run inside
@@ -58,11 +55,6 @@ type dataSource struct {
 	// Database mode.
 	database *sql.DB
 	local    *service.Service
-	engine   *sync.Engine
-	started  bool
-
-	// writeRefusal is set where a write through the routes would be lost.
-	writeRefusal string
 }
 
 // LocalService is the service over a database this machine owns outright, which
@@ -81,7 +73,7 @@ const (
 
 // openDataSource opens where this run's data lives, as decideMode answers it.
 func openDataSource(cmd *cobra.Command) (*dataSource, error) {
-	cfg, deployment, mode, err := decideMode(cmd.Context())
+	cfg, deployment, mode, err := decideMode(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +84,10 @@ func openDataSource(cmd *cobra.Command) (*dataSource, error) {
 }
 
 // decideMode reads the config file and the login settings in it, and answers
-// which store this run uses. goclilogin's reading of api is the one the mode
-// follows, because it is the one every request is then sent with.
-func decideMode(ctx context.Context) (*config.Config, goclilogin.Deployment, runMode, error) {
+// which store this run uses: the API api names, or this machine's database when
+// it names none. goclilogin's reading of api is the one the mode follows, because
+// it is the one every request is then sent with.
+func decideMode(cmd *cobra.Command) (*config.Config, goclilogin.Deployment, runMode, error) {
 	if err := config.RefuseConfigUnderFormerName(); err != nil {
 		return nil, goclilogin.Deployment{}, databaseMode, err
 	}
@@ -102,10 +95,11 @@ func decideMode(ctx context.Context) (*config.Config, goclilogin.Deployment, run
 	if err != nil {
 		return nil, goclilogin.Deployment{}, databaseMode, err
 	}
-	deployment, loadErr := loadDeployment(ctx, apiOverride)
-	mode, err := chooseMode(cfg, deployment.API.Value, apiPhrase(deployment.API))
-	if err != nil {
-		return nil, deployment, mode, err
+	warnOfRetiredSyncSection(cmd, cfg)
+	deployment, loadErr := loadDeployment(cmd.Context(), apiOverride)
+	mode := databaseMode
+	if deployment.API.Value != "" {
+		mode = apiMode
 	}
 	// With no api, the deployment's only error worth stopping for is a file it
 	// could not read: a broken api line must not fall back to the database.
@@ -115,52 +109,16 @@ func decideMode(ctx context.Context) (*config.Config, goclilogin.Deployment, run
 	return cfg, deployment, mode, nil
 }
 
-// chooseMode is the one answer to where a run's data lives: the API api names, or
-// this machine's database when it names none. A synced database beside an API is
-// refused, because the two are authorities for the same rows. apiPhrase says
-// what named the API.
-func chooseMode(cfg *config.Config, api, apiPhrase string) (runMode, error) {
-	if api == "" {
-		return databaseMode, nil
+// warnOfRetiredSyncSection names a [sync] section the run ignores. It warns rather
+// than refuses, because a machine's config is rewritten only by its next apply,
+// and a refusal would stop the tool there until then.
+func warnOfRetiredSyncSection(cmd *cobra.Command, cfg *config.Config) {
+	if cfg.RetiredSync == nil {
+		return
 	}
-	if cfg.Sync.Enabled {
-		chosenBy, remedy := syncChosenBy()
-		return apiMode, fmt.Errorf("%s, and %s keeps a synced database, which are two authorities for the same rows; "+
-			"%s to work through the API", apiPhrase, chosenBy, remedy)
-	}
-	return apiMode, nil
-}
-
-// apiPhrase names what chose the API, as the first thing a person checks.
-func apiPhrase(api goclilogin.Setting) string {
-	if api.Source == goclilogin.SourceCommandLine {
-		return "--api sends this command to " + api.Value
-	}
-	return fmt.Sprintf("api in %s sends every command to %s", homeAsTilde(api.From), api.Value)
-}
-
-// syncChosenBy names what turned sync on and how to turn it off. The variable
-// outranks the file, so it is named whenever it is set.
-func syncChosenBy() (chosenBy, remedy string) {
-	if value := os.Getenv(config.SyncVariable); value != "" {
-		return fmt.Sprintf("%s=%s in the environment", config.SyncVariable, value), "unset " + config.SyncVariable
-	}
-	path := homeAsTilde(configFilePath())
-	return "[sync] enabled = true in " + path, "remove [sync] from " + path
-}
-
-// openForWriting is openDataSource for a command that writes, refused before it
-// asks anything where the write would be lost.
-func openForWriting(cmd *cobra.Command) (*dataSource, error) {
-	source, err := openDataSource(cmd)
-	if err != nil {
-		return nil, err
-	}
-	if source.writeRefusal != "" {
-		_ = source.Close()
-		return nil, errors.New(source.writeRefusal)
-	}
-	return source, nil
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: [sync] in %s is ignored, because projects keeps no synced copy "+
+		"of an API. Remove the section. `projects auth login <url>` writes api, which sends every command to an API.\n",
+		homeAsTilde(configFilePath()))
 }
 
 func openAPI(ctx context.Context, cfg *config.Config, deployment goclilogin.Deployment) (*dataSource, error) {
@@ -231,63 +189,24 @@ func openDatabase(cfg *config.Config) (*dataSource, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
-	source := &dataSource{cfg: cfg, database: database}
-	if cfg.Sync.Enabled {
-		source.local = service.New(sqlite.New(database), service.RefusingRepoNames(repos.DefaultPath()))
-		source.engine = sync.New(database, cfg.Sync.APIURL, cfg.Sync.TokenCommand)
-		chosenBy, remedy := syncChosenBy()
-		source.writeRefusal = fmt.Sprintf("%s keeps this database a copy of %s, and a write from a command would "+
-			"never reach it; make the change in `projects tui`, or %s and set api in %s to write through the projects API",
-			chosenBy, cfg.Sync.APIURL, remedy, homeAsTilde(configFilePath()))
-	} else {
-		source.local = LocalService(database, repos.DefaultPath())
-	}
+	source := &dataSource{cfg: cfg, database: database, local: LocalService(database, repos.DefaultPath())}
 
 	// A fault in a route is logged with its cause, which the answer only names by
 	// request id. The request line itself is for a server's log, not a terminal.
 	faults := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := requestlog.Middleware(quiet, routes.New(source.local, faults))
-	if source.writeRefusal != "" {
-		handler = refusingWrites(handler, source.writeRefusal)
-	}
 	source.client = apiclient.New(inProcessBase, &http.Client{Transport: apiclient.InProcess(handler)})
 	return source, nil
 }
 
-// refusingWrites answers every request but a read with the sentence saying why.
-// It backs up openForWriting for any write a command reaches without it.
-func refusingWrites(next http.Handler, sentence string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			next.ServeHTTP(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(wire.Error{Error: http.StatusText(http.StatusConflict), Message: sentence})
-	})
-}
-
-// startSync starts the background push loop, for the commands that sync.
-func (s *dataSource) startSync() {
-	if s.engine != nil && !s.started {
-		s.engine.Start()
-		s.started = true
-	}
-}
-
 // boardBackend is what the TUI reads and writes: the API over the client, or the
-// database's own service, wrapped to queue each write when sync is on.
+// database's own service.
 func (s *dataSource) boardBackend() backend.Backend {
-	switch {
-	case s.deployment != nil:
+	if s.deployment != nil {
 		return apiclient.NewBackend(s.client)
-	case s.engine != nil:
-		return sync.NewSyncBackend(s.local, s.engine)
-	default:
-		return s.local
 	}
+	return s.local
 }
 
 // repoRegistry is what a repo tag is checked against: this machine's registry in
@@ -312,9 +231,6 @@ func (s *dataSource) apiHost() string {
 }
 
 func (s *dataSource) Close() error {
-	if s.engine != nil && s.started {
-		s.engine.Stop()
-	}
 	if s.database != nil {
 		return s.database.Close()
 	}

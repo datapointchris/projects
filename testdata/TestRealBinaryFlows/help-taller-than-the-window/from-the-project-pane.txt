@@ -1,3 +1,4 @@
+                        │    a              Add project                    │
                         │    m              Move/reorder project           │
                         │    C              Show/hide shelved and closed   │
                         │  projects                                        │
@@ -20,8 +21,7 @@
                         │    2              Filter: all + archived         │
                         │  (toggle)                                        │
                         │    0              Filter: reset                  │
-                        │    R              Sync now (runs automatically   │
-                        │  too)                                            │
+                        │    R              Read the data again now        │
                         │    q  Ctrl+C      Quit                           │
                         │    ?              Toggle this help               │
                         │                                                  │

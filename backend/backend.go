@@ -2,8 +2,8 @@ package backend
 
 import "github.com/datapointchris/projects/model"
 
-// Backend defines the interface for all data operations.
-// service.Service holds the rules over a store; SyncBackend wraps it with background push/pull.
+// Backend defines the interface for all data operations. service.Service holds
+// the rules over a store, and apiclient.Backend reaches them through the API.
 type Backend interface {
 	// Projects
 	// ListProjectsByStatus takes a status name or model.StatusAll.
