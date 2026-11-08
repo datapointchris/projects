@@ -171,8 +171,7 @@ func statusMark(status string) string {
 	}
 }
 
-// handle is an item's number, or the tail of its id while it has none: an item
-// made on a synced database before its create reached the API.
+// handle is an item's number, or the tail of its id where it has none.
 func handle(number *int, id string) string {
 	if number != nil {
 		return strconv.Itoa(*number)

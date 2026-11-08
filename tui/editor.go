@@ -80,7 +80,7 @@ func projectDescriptionFileName(p model.Project) string {
 
 // openInEditor hands the terminal to the editor on a temporary file holding
 // text. The app sits in modeExternalEdit meanwhile, which keeps the background
-// pull from rewriting the row the save is about to update.
+// read from replacing the row the save is about to update.
 func (m *App) openInEditor(target editTarget, fileName, text string) tea.Cmd {
 	dir, err := os.MkdirTemp("", "projects-")
 	if err != nil {

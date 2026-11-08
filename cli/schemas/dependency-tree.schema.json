@@ -35,7 +35,7 @@
         "id": { "type": "string", "format": "uuid" },
         "number": {
           "type": ["integer", "null"],
-          "description": "The item's handle. Null only on a synced database whose API has not assigned one yet."
+          "description": "The item's handle. Null on an item from before numbers existed, or one a database kept as a copy of an API created before the API numbered it."
         },
         "title": { "type": "string" },
         "status": { "type": "string", "enum": ["open", "completed", "archived"] },

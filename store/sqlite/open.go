@@ -23,7 +23,7 @@ var lookupRows string
 // `PRAGMA foreign_keys=ON` through db.Exec sets it on whichever single
 // connection served that call and leaves every other one with SQLite's default,
 // which is off — so the ON DELETE CASCADE on every child table was inert, and a
-// project deleted by a sync sweep left its memberships behind as orphans.
+// deleted project left its memberships behind as orphans.
 //
 // A transaction takes the write lock when it begins, because a rule reads inside
 // it and then writes. SQLite refuses a deferred transaction's upgrade from read to
@@ -67,7 +67,7 @@ func migrate(db *sql.DB) error {
 	var name string
 	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='project_items'").Scan(&name)
 	if err == sql.ErrNoRows {
-		// Fresh database — apply full schema (includes sync tables)
+		// Fresh database — apply full schema
 		if _, err := db.Exec(schema); err != nil {
 			return fmt.Errorf("applying schema: %w", err)
 		}
@@ -77,10 +77,7 @@ func migrate(db *sql.DB) error {
 	}
 
 	// Existing database — apply incremental migrations
-	if err := migrateSyncTables(db); err != nil {
-		return err
-	}
-	if err := migrateSyncOrigin(db); err != nil {
+	if err := dropSyncTables(db); err != nil {
 		return err
 	}
 	if err := migrateOrphanedChildRows(db); err != nil {
@@ -137,40 +134,55 @@ CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
 	return nil
 }
 
-// migrateSyncOrigin adds the table that pairs a database with its API. Left
-// empty for an existing database: which API it belongs to is not derivable from
-// anything in it, so the first pull is what records it.
-func migrateSyncOrigin(db *sql.DB) error {
+// dropSyncTables removes what a database kept while it was a copy of an API: the
+// queue of pushes, the pull times, and the API it was bound to. It refuses while
+// the queue holds a row, because that edit never reached the API and the queue is
+// the only record saying so. The other two hold nothing a person wrote.
+//
+// MIGRATION: retires with config/retired_sync.go.
+func dropSyncTables(db *sql.DB) error {
 	var name string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_origin'").Scan(&name)
-	if err == nil {
-		return nil
-	} else if err != sql.ErrNoRows {
-		return fmt.Errorf("checking sync_origin: %w", err)
+	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='pending_sync'").Scan(&name)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("checking pending_sync: %w", err)
 	}
-
-	const create = `
-CREATE TABLE sync_origin (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    api_url TEXT NOT NULL,
-    adopted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);`
-	if _, err := db.Exec(create); err != nil {
-		return fmt.Errorf("creating sync_origin: %w", err)
+	if err == nil {
+		var queued int
+		if err := db.QueryRow("SELECT COUNT(*) FROM pending_sync").Scan(&queued); err != nil {
+			return fmt.Errorf("counting pending_sync: %w", err)
+		}
+		if queued > 0 {
+			return fmt.Errorf("%d edits here were queued for %s and never reached it. Push them with `projects sync` "+
+				"from v1.24.2, or discard them with DELETE FROM pending_sync", queued, boundAPI(db))
+		}
+	}
+	const drop = `
+DROP TABLE IF EXISTS pending_sync;
+DROP TABLE IF EXISTS sync_state;
+DROP TABLE IF EXISTS sync_origin;`
+	if _, err := db.Exec(drop); err != nil {
+		return fmt.Errorf("dropping the sync tables: %w", err)
 	}
 	return nil
 }
 
+// boundAPI is the API a synced database was bound to, as its refusal names it.
+func boundAPI(db *sql.DB) string {
+	var url string
+	if err := db.QueryRow("SELECT api_url FROM sync_origin WHERE id = 1").Scan(&url); err != nil {
+		return "the API this database synced with"
+	}
+	return url
+}
+
 // migrateOrphanedChildRows deletes rows the cascades would never have allowed:
 // memberships, dependencies and tasks whose parent is gone. Every database
-// written before foreign keys were actually enforced has them — a sync sweep
-// that deleted a project left its memberships pointing at nothing, and a real
-// database had accumulated 46 of them.
+// written before foreign keys were actually enforced has them — a deleted
+// project left its memberships pointing at nothing.
 //
 // Deleting is not a data loss decision. A membership whose project does not
-// exist names no project, so nothing can reach it and nothing can render it;
-// were the project to come back, the item pull rebuilds the membership from the
-// server's own answer. It runs before migrateProjectStatus because that
+// exist names no project, so nothing can reach it and nothing can render it. It
+// runs before migrateProjectStatus because that
 // migration's foreign key check is what these rows fail.
 func migrateOrphanedChildRows(db *sql.DB) error {
 	sweeps := []struct {
@@ -209,9 +221,8 @@ func migrateOrphanedChildRows(db *sql.DB) error {
 //
 // The unique constraint is why this is a table rebuild rather than three ALTER
 // TABLE ADD COLUMNs. SQLite attaches it as an implicit index that no DDL can
-// drop, and leaving it would fail the entire pull transaction the first time the
-// server returned a completed project beside a live one sharing its name —
-// exactly the case the partial index exists to allow.
+// drop, and leaving it would refuse a completed project beside a live one
+// sharing its name — exactly the case the partial index exists to allow.
 //
 // Foreign keys are off for the swap because project_item_memberships references
 // projects ON DELETE CASCADE, so dropping the old table with them on would take
@@ -289,9 +300,8 @@ ALTER TABLE projects_rebuilt RENAME TO projects;`
 }
 
 // migrateItemNumber adds project_items.number to databases created before the
-// column existed. Left null rather than backfilled: with sync on the server
-// owns the numbering and the next pull fills every row in, and with sync off
-// the first create allocates from an empty column, which starts at 1.
+// column existed. Left null rather than backfilled, so the first create
+// allocates from an empty column, which starts at 1.
 //
 // The UNIQUE constraint lives in indexes.sql because ALTER TABLE ADD COLUMN
 // cannot carry one.
@@ -311,7 +321,7 @@ func migrateItemNumber(db *sql.DB) error {
 
 // migrateItemRepo adds project_items.repo to databases created before the
 // column existed. Detected by column presence rather than a version counter,
-// matching how migrateSyncTables probes for its tables.
+// as every migration here is.
 func migrateItemRepo(db *sql.DB) error {
 	var name string
 	err := db.QueryRow("SELECT name FROM pragma_table_info('project_items') WHERE name = 'repo'").Scan(&name)
@@ -322,35 +332,6 @@ func migrateItemRepo(db *sql.DB) error {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("checking project_items.repo: %w", err)
-	}
-	return nil
-}
-
-func migrateSyncTables(db *sql.DB) error {
-	var name string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='pending_sync'").Scan(&name)
-	if err == sql.ErrNoRows {
-		const syncMigration = `
-CREATE TABLE pending_sync (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    operation TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    attempts INTEGER NOT NULL DEFAULT 0,
-    last_error TEXT
-);
-CREATE TABLE sync_state (
-    entity_type TEXT PRIMARY KEY,
-    last_pull_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z',
-    last_push_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'
-);`
-		if _, err := db.Exec(syncMigration); err != nil {
-			return fmt.Errorf("applying sync migration: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("checking sync tables: %w", err)
 	}
 	return nil
 }

@@ -48,7 +48,7 @@ func newDependenciesAddCommand() *cobra.Command {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -83,7 +83,7 @@ func newDependenciesRemoveCommand() *cobra.Command {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -316,8 +316,7 @@ func crossProjectTag(item, parent wire.ProjectItem, hasParent bool) string {
 // drawing, so a consumer wanting another shape parses no box-drawing.
 // cli/schemas/dependency-tree.schema.json is its shape. An edge runs from an item
 // to what it depends on whichever way the drawing ran, and only roots follows
-// --invert. Edges and roots name items by id, because an item made on a synced
-// database has no number until its create reaches the API.
+// --invert. Edges and roots name items by id, because an item may have no number.
 type treeShown struct {
 	SchemaVersion int        `json:"schema_version"`
 	Nodes         []treeNode `json:"nodes"`

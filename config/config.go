@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
@@ -14,7 +13,10 @@ import (
 // Config holds the application configuration loaded from TOML and env vars.
 type Config struct {
 	Local LocalConfig `mapstructure:"local"`
-	Sync  SyncConfig  `mapstructure:"sync"`
+
+	// RetiredSync holds a [sync] section, which the command layer warns is ignored.
+	// It is declared because ErrorUnused refuses a key the struct has no home for.
+	RetiredSync map[string]any `mapstructure:"sync"`
 
 	// ReposRegistry names a registry maintained outside the tool's data directory,
 	// which is how a machine sharing one between tools declares it. Empty, or no
@@ -34,22 +36,6 @@ type Config struct {
 	TokenCommand []string `mapstructure:"token_command"`
 }
 
-// SyncConfig holds settings for background sync with the remote API.
-type SyncConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	APIURL  string `mapstructure:"api_url"`
-
-	// TokenCommand prints a bearer token for APIURL, the way a CLI's
-	// `auth token` does. It is split on spaces and run without a shell. Empty
-	// sends no Authorization header, which a dev API that sets its own identity
-	// wants.
-	TokenCommand string `mapstructure:"token_command"`
-
-	// Interval is the longest the tool will go without reconciling: the TUI's
-	// background pull period.
-	Interval time.Duration `mapstructure:"interval"`
-}
-
 // LocalConfig holds settings for the local embedded mode.
 type LocalConfig struct {
 	DBPath string `mapstructure:"db_path"`
@@ -60,10 +46,7 @@ type LocalConfig struct {
 func Load() (*Config, error) {
 	v := newViper()
 
-	// Defaults. Every pull is a full reconcile, so the interval trades API load
-	// against staleness. Two minutes keeps an unattended TUI current.
 	v.SetDefault("local.db_path", defaultDBPath())
-	v.SetDefault("sync.interval", 2*time.Minute)
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -74,10 +57,6 @@ func Load() (*Config, error) {
 	// Env var overrides
 	v.SetEnvPrefix("PROJECTS")
 	_ = v.BindEnv("local.db_path", "PROJECTS_DB")
-	_ = v.BindEnv("sync.enabled", SyncVariable)
-	_ = v.BindEnv("sync.api_url", "PROJECTS_SYNC_URL")
-	_ = v.BindEnv("sync.token_command", "PROJECTS_SYNC_TOKEN_COMMAND")
-	_ = v.BindEnv("sync.interval", "PROJECTS_SYNC_INTERVAL")
 
 	// ErrorUnused, so a key the tool does not read is refused rather than dropped.
 	// viper decodes the merged settings map, and every default set above maps to a
@@ -88,65 +67,29 @@ func Load() (*Config, error) {
 	// naming its registry under a key the tool does not read would fall back to the
 	// data directory, find no registry there, and lift the ban with nothing
 	// reporting why.
-	if err := refuseTokenCommandInTheOtherShape(v); err != nil {
+	if err := refuseTokenCommandAsOneString(v); err != nil {
 		return nil, err
 	}
 	var cfg Config
-	if err := v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.StringToTimeDurationHookFunc()), func(dc *mapstructure.DecoderConfig) {
+	if err := v.Unmarshal(&cfg, func(dc *mapstructure.DecoderConfig) {
 		dc.ErrorUnused = true
 	}); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
-
-	if cfg.Sync.Enabled && cfg.Sync.APIURL == "" {
-		return nil, fmt.Errorf("sync.api_url is required when sync is enabled (set in config or PROJECTS_SYNC_URL)")
-	}
-
-	// A token command answers for the URL beside it. A URL from the environment
-	// names an API the config file does not describe, so the file's command
-	// never pairs with it: a dev .envrc overriding the URL would otherwise send a
-	// production token to the dev API. PROJECTS_SYNC_TOKEN_COMMAND is then the only
-	// source, and unset means no token.
-	if os.Getenv("PROJECTS_SYNC_URL") != "" {
-		cfg.Sync.TokenCommand = os.Getenv("PROJECTS_SYNC_TOKEN_COMMAND")
-	}
-	if cfg.Sync.TokenCommand != "" && strings.TrimSpace(cfg.Sync.TokenCommand) == "" {
-		return nil, fmt.Errorf("sync.token_command names no command")
-	}
-
-	// time.NewTicker panics on a non-positive duration, and a config typo must not
-	// take the TUI down. Disabling automatic sync is what sync.enabled is for.
-	if cfg.Sync.Interval < minSyncInterval {
-		cfg.Sync.Interval = minSyncInterval
-	}
-
 	return &cfg, nil
 }
 
-// SyncVariable turns sync on or off from the environment, over the file's
-// sync.enabled.
-const SyncVariable = "PROJECTS_SYNC"
-
-// refuseTokenCommandInTheOtherShape refuses a token_command written the way the
-// other key takes it. Beside api it is an argument list printing a JSON token
-// response; under [sync] it is one string printing a bare token. A command moved
-// from one to the other would otherwise fail on a type error naming neither.
-func refuseTokenCommandInTheOtherShape(v *viper.Viper) error {
+// refuseTokenCommandAsOneString refuses a token_command written as one string. It
+// is an argument list printing a JSON token response, and a string would otherwise
+// fail on a type error naming neither.
+func refuseTokenCommandAsOneString(v *viper.Viper) error {
 	if command, isString := v.Get("token_command").(string); isString {
 		return fmt.Errorf("token_command beside api is a list of arguments, run without a shell, that prints a JSON "+
-			"token response: token_command = [\"%s\"]; one string is [sync]'s form",
+			"token response: token_command = [\"%s\"]",
 			strings.Join(strings.Fields(command), `", "`))
-	}
-	if _, isList := v.Get("sync.token_command").([]any); isList {
-		return fmt.Errorf("[sync] token_command is one string, split on spaces, that prints a bare token, " +
-			"such as token_command = \"<cli> auth token\"; a list is the form beside api")
 	}
 	return nil
 }
-
-// minSyncInterval floors the reconcile period. A full pull is 2+2N requests, so
-// anything shorter is a self-inflicted denial of service on the API.
-const minSyncInterval = 15 * time.Second
 
 // newViper points a fresh viper at the tool's config file. Shared by both readers
 // here so they cannot drift on where that file is.
@@ -168,10 +111,9 @@ func newViper() *viper.Viper {
 // should not have to hold a file saying so.
 //
 // A read of its own rather than a field off Load's result, because Load
-// validates. Sync enabled without an api_url is an error there and has nothing
-// to do with where the registry lives, so resolving through it would turn that
-// unrelated failure into an empty registry — which bans nothing and reports
-// nothing.
+// refuses a key it does not read. That has nothing to do with where the registry
+// lives, so resolving through it would turn an unrelated failure into an empty
+// registry, which bans nothing and reports nothing.
 func ConfiguredReposRegistry() string {
 	v := newViper()
 	if err := v.ReadInConfig(); err != nil {

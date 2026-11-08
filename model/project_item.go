@@ -16,9 +16,10 @@ const (
 // ProjectItem is the base representation of an item in the system.
 type ProjectItem struct {
 	ID string `json:"id"`
-	// Number is the handle — short, server-assigned, and the only one of the two
-	// identifiers meant to be read or typed. Nil for an item created while sync
-	// was unreachable, which has no number until its create is pushed.
+	// Number is the handle — short, assigned as the item is created, and the only
+	// one of the two identifiers meant to be read or typed. Nil on an item from
+	// before numbers existed, or one a database once kept as a copy of an API
+	// created before the API numbered it.
 	Number    *int    `json:"number,omitempty"`
 	Title     string  `json:"title"`
 	Notes     *string `json:"notes,omitempty"`
@@ -47,11 +48,8 @@ func (i ProjectItem) Status() string {
 
 // ProjectItemDetail is a ProjectItem with everything filed against it.
 //
-// DependencyIDs and Tasks decode to nil when a server omits the field and to an
-// empty slice when it sends one, which is the only way a pull can tell a server
-// predating the embed from an item that genuinely has neither. Keep them as plain
-// slices and keep the API sending `[]`; anything that collapses nil and empty
-// makes an old server look like an instruction to delete every task.
+// DependencyIDs and Tasks hold an empty slice rather than nil where an item has
+// none, so the API answers `[]` for them.
 type ProjectItemDetail struct {
 	ProjectItem
 	Projects      []Project         `json:"projects"`

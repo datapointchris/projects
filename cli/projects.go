@@ -168,7 +168,7 @@ func newProjectsCreateCommand() *cobra.Command {
 			if cmd.Flags().Changed("position") {
 				input.Position = &position
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -332,7 +332,7 @@ func newProjectStatusCommand(verb statusVerb) *cobra.Command {
 }
 
 func runProjectUpdate(cmd *cobra.Command, ref string, edit apiclient.ProjectChanges, asJSON bool, done string) error {
-	source, err := openForWriting(cmd)
+	source, err := openDataSource(cmd)
 	if err != nil {
 		return err
 	}
@@ -359,7 +359,7 @@ func newProjectsDeleteCommand() *cobra.Command {
 		Example: "  projects delete \"Kitchen remodel\"\n  projects delete \"Kitchen remodel\" --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}

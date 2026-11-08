@@ -20,7 +20,7 @@ func TestEveryWriteIsAuditedWithItsWriter(t *testing.T) {
 	ctx := store.WithWriter(context.Background(), store.Writer{
 		Actor: "a-person", RequestID: "a-request", JobRunID: "a-run", Traceparent: "a-trace", Baggage: "a-baggage",
 	})
-	svc := service.New(postgres.New(pool), service.AssigningItemNumbers()).WithContext(ctx)
+	svc := service.New(postgres.New(pool)).WithContext(ctx)
 
 	project, err := svc.CreateProject(model.CreateProject{Name: "audited"})
 	if err != nil {

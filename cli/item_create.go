@@ -49,7 +49,7 @@ func newItemsCreateCommand() *cobra.Command {
 				return goclikit.UsageError(fmt.Errorf("%s required — pass %s, or run from a terminal to be asked",
 					strings.Join(missing, " and "), pronoun))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}

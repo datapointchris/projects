@@ -328,7 +328,7 @@ func newItemsEditCommand() *cobra.Command {
 			if edit == (apiclient.ItemChanges{}) {
 				return goclikit.UsageError(errors.New("nothing to change — pass --title, --notes or --repo"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -372,7 +372,7 @@ func newItemStateCommand(verb, short, done string, edit apiclient.ItemChanges) *
 }
 
 func runItemUpdate(cmd *cobra.Command, ref string, edit apiclient.ItemChanges, asJSON bool, done string) error {
-	source, err := openForWriting(cmd)
+	source, err := openDataSource(cmd)
 	if err != nil {
 		return err
 	}
@@ -401,7 +401,7 @@ func newItemsDeleteCommand() *cobra.Command {
 		Example: "  projects items delete 118 --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -449,7 +449,7 @@ func newItemsReorderCommand() *cobra.Command {
 			if !cmd.Flags().Changed("position") {
 				return goclikit.UsageError(errors.New("--position is required"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}

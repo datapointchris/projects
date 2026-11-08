@@ -36,7 +36,7 @@ func newMembershipsAddCommand() *cobra.Command {
 			if project == "" {
 				return goclikit.UsageError(errors.New("--project is required"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}
@@ -71,7 +71,7 @@ func newMembershipsRemoveCommand() *cobra.Command {
 			if project == "" {
 				return goclikit.UsageError(errors.New("--project is required"))
 			}
-			source, err := openForWriting(cmd)
+			source, err := openDataSource(cmd)
 			if err != nil {
 				return err
 			}

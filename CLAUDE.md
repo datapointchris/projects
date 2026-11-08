@@ -6,50 +6,32 @@ the browser page over that API, in Vue, and nothing in Go imports it.
 
 ## How to run and test
 
-**A hand run is `direnv exec . go run .` from the repo root, against the dev
-database. Do not build a throwaway binary to `/tmp` for one, and do not seed a
-synthetic database for one.** A test fixture is allowed, and it needs at least one
-long note.
-
-`.envrc` pairs a dedicated dev database with the sync API's local dev stack, so
-nothing run here touches production data. This is the whole file:
+**A hand run is `go run .` from the repo root, against the dev database, with the
+machine's config kept out. Do not build a throwaway binary to `/tmp` for one, and
+do not seed a synthetic database for one.** A test fixture is allowed, and it needs
+at least one long note.
 
 ```bash
-export PROJECTS_DB="$HOME/.local/share/projects/dev.db"
-export PROJECTS_SYNC=true
-export PROJECTS_SYNC_URL="https://api.docker.localhost"
+XDG_CONFIG_HOME="$(mktemp -d)" PROJECTS_DB="$HOME/.local/share/projects/dev.db" go run . list
+XDG_CONFIG_HOME="$(mktemp -d)" PROJECTS_DB="$HOME/.local/share/projects/dev.db" go run . tui
 ```
 
-The dev API needs no token, because its proxy injects the user header. The
-server's own repo starts it, and the first sync binds `dev.db` to it. Its seed
-data carries notes one line long. A change about notes needs a real-length
-markdown note written into the dev API first.
+⚠️ **Name both, every time.** A desk's config file holds `api`, which puts every
+command in API mode against the production API and ignores `PROJECTS_DB`. So
+`PROJECTS_DB` alone writes to production. An empty `XDG_CONFIG_HOME` leaves no
+`api`, and the run opens the database `PROJECTS_DB` names.
 
-⚠️ **`.envrc` is machine-local and is not in this repo. Check it exists before
-running anything here.** Without it nothing is overridden, so `go run . tui` opens
-the production database against the production API — which is the accident the
-coupled-variables rule below exists to prevent, arrived at from the other
-direction. `task setup`, which `worktree new` runs, links the primary
-checkout's `.envrc` into a worktree.
+`.envrc` is machine-local. `task setup`, which `worktree new` runs, links the
+primary checkout's copy into a worktree. `TestRealDatabaseSurvivesEverySizeAndProject`
+reads `PROJECTS_DB`, and skips without it. A `PROJECTS_SYNC*` line left in an
+`.envrc` stops every run with exit 2.
 
-**A shell without direnv's hook ignores `.envrc`, and Claude Code's tool shell is
-one.** There, a bare `go run . list` reads production even with the file in place.
-Load it explicitly:
+**A retired variable refuses from one table.** `config/retired_variables.go` holds it, `main.go`
+refuses any variable in it that is set before anything runs, and each retirement adds its rows from
+its own file.
 
-```bash
-direnv exec . go run . tui    # the board against dev.db
-direnv exec . go run . list   # a command against dev.db
-direnv exec . go run . sync   # one reconcile against the dev API
-direnv exec . env | rg '^PROJECTS'   # nothing printed: no .envrc here
-```
-
-`.envrc` turns sync on, so a command that writes refuses there, naming `api`. Reads
-answer from `dev.db`. A write is checked in the board, or through `both_modes_test.go`.
-A config file that sets `api` beside the `PROJECTS_SYNC=true` from `.envrc` refuses
-every command, naming both, so the pair cannot cross into production that way either.
-
-**The former name is handled in one file.** `config/former_name.go` refuses a retired variable that is
-still set, and a config still at the former path. It moves the old data directory on the first run
+**The former name is handled in one file.** `config/former_name.go` adds the `TODOUI_*` variables to
+that table, and refuses a config still at the former path. It moves the old data directory on the first run
 that opens the default database. A run naming its database moves nothing, so a run from `.envrc` leaves
 the real data where it is. An `.envrc` still exporting the old names is refused rather than ignored,
 which keeps it from falling through to the production database. On a machine upgrading, run `projects`
@@ -57,6 +39,13 @@ once on the default database before editing `.envrc`, so `dev.db` moves with the
 marker there says when the file retires. Anything that opens the database stays after
 `MoveDataUnderFormerName` in `openDatabase` in `cli/data_source.go`, because opening first creates an
 empty database, and the move refuses to run over one.
+
+**The synced copy's leftovers retire together, under the `MIGRATION` marker in
+`config/retired_sync.go`.** Its rows refuse a set `PROJECTS_SYNC*` or `TODOUI_SYNC*` variable with
+exit 2, because `PROJECTS_SYNC_URL` chose an API. `Config.RetiredSync` keeps a `[sync]` section
+loading, and `warnOfRetiredSyncSection` in `cli/data_source.go` warns of it rather than refusing,
+because a machine's config changes only at its next apply. `dropSyncTables` in `store/sqlite/open.go`
+drops the synced copy's own tables on the first open, and refuses while its push queue holds a row.
 
 Build, vet and unit tests check code correctness, not TUI correctness. A TUI change is verified by
 driving the built binary, which the flows below do with nobody at the keyboard.
@@ -80,8 +69,7 @@ go test -run TestTheCommandsAnswerTheSameInBothModes . # the commands, in both m
 ```
 
 - **`seedFixtureDatabase` writes through `service.Service`**, the path the TUI writes through, so
-  the fixture holds only what the tool's own rules allow. There is no stand-in of the sync API, and sync
-  stays off because no `PROJECTS_SYNC` reaches the program.
+  the fixture holds only what the tool's own rules allow.
 - **`XDG_CONFIG_HOME` points under the test's temporary directory**, so the machine's own config file
   never reaches the program.
 - **The API is `routes.New` over a seeded SQLite database in an `httptest.Server`.** `serveOverHTTP`
@@ -117,9 +105,9 @@ Ports and adapters at the storage seam, so a second store runs the same rules an
 ```text
 cli commands                tui                          api/main.go
     │ apiclient.Client          │ backend.Backend, which        │
-    │                           │ sync.SyncBackend and          │
-    ▼                           │ apiclient.Backend also        ▼
-api/routes, in process          │ satisfy                    api/routes
+    │                           │ apiclient.Backend also        │
+    ▼                           │ satisfies                     ▼
+api/routes, in process          │                            api/routes
     │ in database mode;         │                               │ *service.Service, scoped
     │ across HTTP to            │                               │ to each request by
     │ projects-api otherwise    │                               │ WithContext
@@ -132,7 +120,7 @@ store/postgres       the same, with goose migrations and an audit trigger
 ```
 
 - **`store/sqlite` opens the database and holds no decision.** It owns the schema, the migrations,
-  `queries.sql` and sqlc's `generated`. It turns the driver's no-row answer, and each unique answer
+  `queries.sql` and sqlc's `internal/generated`, which nothing outside it can import. It turns the driver's no-row answer, and each unique answer
   `store/store.go` promises a sentinel for, into `model` sentinels, so `service` matches no driver text
   and imports no `database/sql`.
 - **`service.Service` satisfies `backend.Backend`**, so the TUI reaches every rule through that
@@ -157,19 +145,12 @@ store/postgres       the same, with goose migrations and an audit trigger
   `store/store.go` states each on its method: a new row's position, an item's `updated_at`, and a
   restore's handling of a row already there. Each store states them in its own `queries.sql`.
 
-Two carve-outs are declared here rather than assumed:
+One carve-out is declared here rather than assumed:
 
-- **`sync` reaches `store/sqlite/generated` directly.** A pull rewrites rows wholesale, with no undo entry
-  and none of the rules, and the push queue and origin binding belong to no rule. Routing that through
-  `service` would give the rules a surface only the engine calls. A pull writes only the columns it has
-  always carried, so on a synced database `kind` and `completed_at` are what that database set, and neither
-  arrives from elsewhere. It ends when the sync engine is deleted. `generated` can then move under
-  `store/sqlite/internal`, where the compiler enforces the seam.
 - **Database mode links `service` and `api/routes` directly.** A client normally depends on the wire
   contract and never on a server's types, because importing them couples deploy order. Database mode
   serves itself, so that reason does not reach it. `apiclient` speaks `api/wire` and converts to
-  `model` for the board, and imports no route, service or store. The sync engine keeps its own lean
-  structs.
+  `model` for the board, and imports no route, service or store.
 
 ## `projects` is a command line, and `projects tui` is the board
 
@@ -180,12 +161,6 @@ builds the tree. Help renders through `gotermstyle/cobrahelp`.
 - **The `api` key, or `--api`, chooses the mode, and neither means the database.** `decideMode` in
   `cli/data_source.go` reads goclilogin's parse of the key, so the mode and the login read one
   setting. It runs in each command's `RunE`, so `help`, `completion` and `version` open nothing.
-- **`api` beside sync refuses**, through `chooseMode`, the one check every command, `projects sync`
-  and `auth login` take. The two are two authorities for the same rows. The refusal names
-  `PROJECTS_SYNC` when the environment turned sync on, and the config file's `[sync]` otherwise.
-- **With sync on, a command that writes refuses before it asks anything.** `openForWriting` holds the
-  sentence, and `refusingWrites` answers 409 with it for any write that reaches the in-process routes
-  without it. A write there would land in the copy with nothing queued, and the next pull deletes it.
 - **Exit codes are 0, 1 for refused or failed, 2 for usage, and 4 for no answer.** `exitCodeFor` in
   `cli/root.go` maps them, and `explain` in `cli/api_errors.go` words them. A 422 is usage.
   A refused credential is 1.
@@ -209,17 +184,13 @@ builds the tree. Help renders through `gotermstyle/cobrahelp`.
   an API serves tags written from every machine. `repoRegistry` on the data source answers an empty
   registry in API mode.
 
-An item shows its **number**, the handle the API assigns and answers with. The UUID is the sync key
+An item shows its **number**, the handle the API assigns and answers with. The UUID is the key
 and stops there.
 
-The number is assigned by whichever database is the authority. Through an API, the API numbers it as
-it creates it. With sync on that is the API, and
-`pushCreatedItem` writes the number from the create response into the local row, so the TUI shows
-it once the push lands rather than after the next pull. With sync off, `AssigningItemNumbers` makes
-`projects` allocate `max+1` itself, which cannot collide because that database is a disjoint universe.
-
-An item created while the API is unreachable has no number until its push lands, and shows its UUID
-tail until then (`itemHandle` in `tui/app.go`).
+`service.CreateItem` numbers each item as it is created, from the store's `NextItemNumber`: the
+`item_numbers` sequence on Postgres, and `max+1` on SQLite. An item with no number, which only a
+database from before numbers or from the synced copy holds, shows its UUID tail (`itemHandle` in
+`tui/app.go`).
 
 ## A project name is bounded work, never a repo
 
@@ -284,75 +255,8 @@ adding columns, because SQLite attaches the old column-level `UNIQUE(name)` as
 an implicit index no DDL can drop. Foreign keys are off across the swap:
 `project_item_memberships` cascades off `projects`, so dropping the old table
 with them on would take every membership. Do not simplify it into three
-`ALTER TABLE ADD COLUMN`s — leaving the global constraint in place fails the
-entire pull transaction the first time the server returns a done project beside
-a live one sharing its name.
-
-## A database and its API are a pair — never mix a dev half with a prod half
-
-`.envrc` exports two coupled variables, `PROJECTS_DB` and `PROJECTS_SYNC_URL`, and
-`PROJECTS_SYNC_TOKEN_COMMAND` where the dev API wants a token. They name one
-environment. A URL from the environment never takes the config file's
-`token_command` (`config.Load`), so the dev URL cannot carry the production
-token. Overriding one of them names an environment that does not exist, and
-for this tool that is destructive rather than merely wrong: a pull deletes
-every local row the server did not return, so
-a production database reconciled against the dev API is emptied of everything
-dev has never heard of. A sync run that way once deleted 42 projects and 286
-items and printed `Synced.`
-
-**To run against production data, run from outside this repo**, where direnv has
-loaded nothing. Un-setting your way out is how the accident happened: `env -u`
-on the variable you remembered still leaves the one you did not.
-
-`sync_origin` is the enforcement, because a rule only prose enforces is
-decoration. The first pull records which API the database belongs to, and every
-pull and push after that refuses any other (`OriginMismatch`). `--adopt` is the
-only way the pairing changes. A database that has pulled before but carries no
-origin — anything predating this — refuses to guess and asks to be bound, since
-inferring it from whichever environment is loaded *is* the mistake.
-
-`guardSweep` is the second layer, for when the API is right but its answer is
-not. A pull that would delete ten or more local projects, and more than half of
-them, is refused, and items are guarded the same way. A truncated response, an
-auth failure that still returns 200, and a genuine mass deletion are the same
-event seen from here. `--force` allows it. The floor counts rows deleted, not
-rows held, so 8 deletions out of 15 pass. It keeps the guard silent on small
-databases, where losing most of it is a handful of rows; a guard that fires on
-ordinary days gets forced past by reflex and stops guarding anything.
-
-Neither override is reachable from the background timers. A guard something
-automatic can waive is not a guard.
-
-## Sync is automatic; `projects sync` is a convenience, not a requirement
-
-`sync.interval` (default 2m, floored at 15s) is the single knob for how stale `projects` may ever be,
-and it drives two loops:
-
-- **TUI** — `syncPullTickMsg` re-arms itself every interval, and always reschedules, even on the
-  ticks it skips: a tick that returns no command kills background sync for the session.
-  `safeToAutoPull` gates the reconcile to `modeNormal`, because a pull rewrites items, memberships
-  and ordering wholesale and would move the ground under a grab or a text entry.
-- **Push** — `pushLoop` carries a retry ticker alongside `Notify`, which fires only on a local
-  mutation, so a push that failed while the API was down retries without another edit.
-
-An automatic pull neither flashes on success nor claims the status bar on failure; failure surfaces
-through the engine status (`SYNC ERR`). Local-first means an unreachable API degrades to local
-data, never an error.
-
-`Pull` records a pending-sync high-water mark before it fetches, then clears only the ops at or
-below it and spares entities queued above it from the "deleted upstream" sweeps. Without that mark,
-an item typed mid-pull is deleted by the same pull and its queued create dropped with it. Do not
-restore `DeleteAllPendingSync` here.
-
-**Absent is not empty, and that is what keeps deploy order between this repo and its server
-irrelevant.** The item list embeds memberships, dependencies and tasks; when the server omits
-`dependency_ids`/`tasks`, the pull falls back to the per-item endpoints — decode into slices and
-branch on nil, never on empty, or the first pull against an older API deletes every local task and
-dependency. The project pull asks for `?status=all` because the sweep deletes any local project the
-server did not return, so an active-only response would read "completed" as "deleted" and cascade
-through the memberships. A server sending no project status is read as `active`. Do not drop either
-fallback just because the API has shipped.
+`ALTER TABLE ADD COLUMN`s — leaving the global constraint in place refuses a
+done project beside a live one sharing its name.
 
 ## The API is `service` over Postgres, and a handler holds no rule
 
@@ -400,7 +304,7 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   `lookup_rows.sql`. `postgres.Migrate` upserts Postgres's from `model`, and
   `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it. The project schemas' `enum`
   and the web app's `types.ts` list them too, and a test holds each to `model`.
-- **Item numbers come from the `item_numbers` sequence**, through `AssigningItemNumbers`. A database
+- **Item numbers come from the `item_numbers` sequence**, through `NextItemNumber`. A database
   loaded from elsewhere needs the sequence set from the old sequence's own counter, because numbers it
   already handed out can outrun the rows left.
 - **`.sqlfluffignore` keeps the SQLite hook off `store/postgres`**, and a second hook in

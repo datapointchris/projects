@@ -45,7 +45,7 @@ func newAPI(t *testing.T) api {
 	provider := authtest.NewProvider(t)
 	config := authentication.Config(provider.URL)
 	verifier := provider.Verifier(t, config.PersonPrefix, config.ServicePrefix)
-	mux := routes.New(service.New(sqlite.New(database), service.AssigningItemNumbers()), log)
+	mux := routes.New(service.New(sqlite.New(database)), log)
 	authentication.Metadata(mux, "https://projects.example.com", provider.URL)
 	protected := authentication.Protect(mux, routes.ServiceScopes, verifier, nil, "", log, routes.PublicPaths...)
 

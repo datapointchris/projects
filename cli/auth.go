@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,8 +13,6 @@ import (
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
-
-	"github.com/datapointchris/projects/config"
 )
 
 // loginTimeout is a backstop. The device code carries its own expiry, and the
@@ -76,9 +73,6 @@ func newAuthLoginCommand() *cobra.Command {
 				}
 				url = args[0]
 			}
-			if err := refuseLoginBesideSync(url); err != nil {
-				return err
-			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), loginTimeout)
 			defer cancel()
 
@@ -128,18 +122,6 @@ func newAuthLoginCommand() *cobra.Command {
 	cmd.Flags().StringVar(&clientID, "client-id", "",
 		"Log in as this OAuth client when the config file names none (default projects-cli-<short hostname>)")
 	return cmd
-}
-
-// refuseLoginBesideSync refuses a login that would write api beside a synced
-// database, because every command after it would refuse the pair.
-func refuseLoginBesideSync(url string) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-	_, err = chooseMode(cfg, cmp.Or(url, "the API it logs in to"),
-		"logging in writes api to "+homeAsTilde(configFilePath()))
-	return err
 }
 
 func newAuthLogoutCommand() *cobra.Command {

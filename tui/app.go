@@ -2,7 +2,6 @@ package tui
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"slices"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/datapointchris/projects/backend"
 	"github.com/datapointchris/projects/model"
-	"github.com/datapointchris/projects/sync"
 )
 
 // App is the top-level Bubble Tea model for the TUI.
@@ -121,25 +119,18 @@ type App struct {
 	errorMsg string // transient error shown in status bar
 	loading  bool   // true while an async operation is in-flight
 
-	// Sync
-	syncEngine   *sync.Engine
-	syncStatus   sync.SyncStatus
-	syncInterval time.Duration
-
 	where Where
 }
 
 // Where names the data the board shows, for its status line: a database on this
-// machine, or the API at APIHost. A database with sync on is named by its engine.
+// machine, or the API at APIHost.
 type Where struct {
 	DatabasePath string
 	APIHost      string
 }
 
-// NewApp creates a new TUI application backed by the given Backend. syncEngine
-// is nil unless the database syncs. syncInterval is how often the board rereads
-// what it shows: a pull with sync on, and a read of the API in API mode.
-func NewApp(b backend.Backend, syncEngine *sync.Engine, where Where, syncInterval time.Duration) *App {
+// NewApp creates a new TUI application backed by the given Backend.
+func NewApp(b backend.Backend, where Where) *App {
 	ti := textinput.New()
 	ti.CharLimit = 200
 	ti.SetStyles(inputStyles())
@@ -155,8 +146,6 @@ func NewApp(b backend.Backend, syncEngine *sync.Engine, where Where, syncInterva
 		itemBlockers: make(map[string][]model.ProjectItem),
 		titleInput:   ti,
 		depFilter:    df,
-		syncEngine:   syncEngine,
-		syncInterval: syncInterval,
 		where:        where,
 	}
 }
@@ -270,18 +259,11 @@ type errMsg struct{ error }
 // moved flashSeq on, so an older flash's timer leaves it on screen.
 type clearStatusMsg struct{ seq int }
 
-// Sync messages. A pull carries whether the user asked for it: an automatic one
-// runs every syncInterval, so announcing it would flash the status bar forever
-// and a transient failure would pin an error banner over a working app.
-type (
-	syncStatusMsg   sync.SyncStatus
-	syncPullTickMsg struct{}
-	syncPullDoneMsg struct{ manual bool }
-	syncPullErrMsg  struct {
-		error
-		manual bool
-	}
-)
+// rereadTickMsg reads the API again, since another client may have written.
+type rereadTickMsg struct{}
+
+// apiRereadInterval is how stale the board may grow through an API.
+const apiRereadInterval = 2 * time.Minute
 
 const statusFlashDuration = 3 * time.Second
 
@@ -295,9 +277,8 @@ func (m *App) flash(msg string) tea.Cmd {
 }
 
 // itemHandle names an item the way it is typed on the command line: its number,
-// or the UUID tail while it is still waiting for one. An item created here
-// while the API was unreachable has no number until its create is pushed, and
-// showing nothing in that window would leave the row unnameable.
+// or the UUID tail for an item that has none, which a database once kept as a
+// copy of an API may still hold.
 func itemHandle(item model.ProjectItem) string {
 	if item.Number != nil {
 		return strconv.Itoa(*item.Number)
@@ -327,34 +308,12 @@ func truncate(s string, maxWidth int) string {
 	return string(runes[:maxWidth-1]) + "…"
 }
 
-// --- Sync commands ---
-
-func syncPullCmd(e *sync.Engine, manual bool) tea.Cmd {
-	return func() tea.Msg {
-		if err := e.Pull(context.Background()); err != nil {
-			return syncPullErrMsg{error: err, manual: manual}
-		}
-		return syncPullDoneMsg{manual: manual}
-	}
-}
-
-func syncStatusTickCmd(e *sync.Engine) tea.Cmd {
-	return tea.Tick(2*time.Second, func(_ time.Time) tea.Msg {
-		return syncStatusMsg(e.Status())
+func rereadTickCmd() tea.Cmd {
+	return tea.Tick(apiRereadInterval, func(_ time.Time) tea.Msg {
+		return rereadTickMsg{}
 	})
 }
 
-func syncPullTickCmd(d time.Duration) tea.Cmd {
-	return tea.Tick(d, func(_ time.Time) tea.Msg {
-		return syncPullTickMsg{}
-	})
-}
-
-// safeToAutoPull reports whether a background reconcile can run without pulling
-// the ground out from under the user. A pull rewrites items, memberships and
-// ordering wholesale, which would corrupt a grab in progress or refresh a
-// reader into a snapshot of something else. Every other mode defers to
-// the next tick rather than skipping the pull outright.
 // projectStatusFilter is what the project pane is currently asking for. Closing
 // a project is what takes it out of the list, so the default hides the terminal
 // ones and `C` is how you get at them.
@@ -365,7 +324,11 @@ func (m *App) projectStatusFilter() string {
 	return model.StatusActive
 }
 
-func (m *App) safeToAutoPull() bool {
+// safeToReread reports whether a background read can land without pulling the
+// ground out from under the user. A read replaces the lists and their order,
+// which would corrupt a grab in progress or refresh a reader into a snapshot of
+// something else. Every other mode defers to the next tick.
+func (m *App) safeToReread() bool {
 	return m.appMode == modeNormal
 }
 
@@ -993,16 +956,8 @@ func (m *App) groupHeaderAt(idx int) string {
 }
 
 func (m *App) Init() tea.Cmd {
-	if m.syncEngine != nil {
-		return tea.Batch(
-			fetchProjectsCmd(m.backend, m.projectStatusFilter()),
-			syncPullCmd(m.syncEngine, false),
-			syncStatusTickCmd(m.syncEngine),
-			syncPullTickCmd(m.syncInterval),
-		)
-	}
 	if m.where.APIHost != "" {
-		return tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), syncPullTickCmd(m.syncInterval))
+		return tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), rereadTickCmd())
 	}
 	return fetchProjectsCmd(m.backend, m.projectStatusFilter())
 }
@@ -1252,40 +1207,14 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errorMsg = msg.Error()
 		return m, nil
 
-	case syncPullTickMsg:
-		next := syncPullTickCmd(m.syncInterval)
-		switch {
-		case !m.safeToAutoPull():
+	case rereadTickMsg:
+		// A tick re-arms even when it skips the read. One that returned nothing
+		// would end the rereads for the rest of the session.
+		next := rereadTickCmd()
+		if !m.safeToReread() {
 			return m, next
-		case m.syncEngine != nil:
-			return m, tea.Batch(syncPullCmd(m.syncEngine, false), next)
-		case m.where.APIHost != "":
-			// Another client may have written since the last read.
-			return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), next)
 		}
-		return m, next
-
-	case syncPullDoneMsg:
-		if !msg.manual {
-			return m, fetchProjectsCmd(m.backend, m.projectStatusFilter())
-		}
-		return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), m.flash("Synced with server"))
-
-	case syncPullErrMsg:
-		// An automatic pull failing is not an error the user did anything to
-		// cause. The status bar already reads SYNC ERR off the engine status;
-		// hijacking the bar every interval would bury real messages.
-		if msg.manual {
-			m.errorMsg = fmt.Sprintf("Sync: %v", msg.error)
-		}
-		return m, nil
-
-	case syncStatusMsg:
-		m.syncStatus = sync.SyncStatus(msg)
-		if m.syncEngine != nil {
-			return m, syncStatusTickCmd(m.syncEngine)
-		}
-		return m, nil
+		return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), next)
 	}
 
 	return m, nil
@@ -1626,14 +1555,11 @@ func (m *App) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// --- Phase 6: Advanced ---
 
 	case "R":
-		switch {
-		case m.syncEngine != nil:
-			return m, syncPullCmd(m.syncEngine, true)
-		case m.where.APIHost != "":
-			return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), m.flash("Read again from "+m.where.APIHost))
+		source := m.where.APIHost
+		if source == "" {
+			source = m.where.DatabasePath
 		}
-		disabled := m.flash("Sync is disabled — running local-only")
-		return m, disabled
+		return m, tea.Batch(fetchProjectsCmd(m.backend, m.projectStatusFilter()), m.flash("Read again from "+source))
 
 	case "?":
 		m.appMode = modeHelp
@@ -2581,7 +2507,7 @@ func (m *App) renderHelpOverlay() string {
   1              Filter: blocked only (toggle)
   2              Filter: all + archived (toggle)
   0              Filter: reset
-  R              Sync now (runs automatically too)
+  R              Read the data again now
   q  Ctrl+C      Quit
   ?              Toggle this help`
 
@@ -3324,19 +3250,6 @@ func clipHints(hints string, maxWidth int) string {
 func (m *App) renderStatusBar() string {
 	var modeStr string
 	switch {
-	case m.syncEngine != nil:
-		target := dimStyle.Render(" " + m.syncEngine.APIURL())
-		s := m.syncStatus
-		switch {
-		case s.Syncing:
-			modeStr = syncingStyle.Render("SYNCING...") + target
-		case s.LastError != "":
-			modeStr = syncErrorStyle.Render("SYNC ERR") + target
-		case s.PendingCount > 0:
-			modeStr = syncPendingStyle.Render(fmt.Sprintf("PENDING (%d)", s.PendingCount)) + target
-		default:
-			modeStr = syncOKStyle.Render("SYNCED") + target
-		}
 	case m.where.APIHost != "":
 		modeStr = modeAPIStyle.Render("API") + dimStyle.Render(" "+m.where.APIHost)
 	default:
@@ -3365,7 +3278,7 @@ func (m *App) renderStatusBar() string {
 		// rather than wrapped, and truncated before styling so no escape
 		// sequence is cut in half. The 5 is the two spaces this function adds,
 		// the style's own left and right padding, and the one column of gap
-		// that always separates the hints from the sync status.
+		// that always separates the hints from the mode on the right.
 		left = clipHints(m.statusBarHints(), m.width-modeWidth-5)
 	}
 

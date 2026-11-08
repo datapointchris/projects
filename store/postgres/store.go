@@ -266,14 +266,11 @@ func (o operations) NextItemNumber(ctx context.Context) (int, error) {
 	return int(next), nil
 }
 
-// errItemNeedsNumber is a service built without AssigningItemNumbers, because this
-// schema is its own authority for numbers and the column holds no null.
-var errItemNeedsNumber = errors.New("an item on Postgres needs a number from NextItemNumber")
+// errItemNeedsNumber is an undo record restoring an item with no number, which
+// the column cannot hold.
+var errItemNeedsNumber = errors.New("an item on Postgres needs a number")
 
 func (o operations) CreateItem(ctx context.Context, item model.ProjectItem) (model.ProjectItem, error) {
-	if item.Number == nil {
-		return model.ProjectItem{}, errItemNeedsNumber
-	}
 	row, err := o.q.CreateItem(ctx, generated.CreateItemParams{
 		ID:         item.ID,
 		ItemNumber: int64(*item.Number),

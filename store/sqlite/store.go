@@ -11,7 +11,7 @@ import (
 
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/store"
-	"github.com/datapointchris/projects/store/sqlite/generated"
+	"github.com/datapointchris/projects/store/sqlite/internal/generated"
 )
 
 // Store is store.Store over a database Open returned.
