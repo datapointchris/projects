@@ -64,24 +64,14 @@ func (m *App) actions() []action {
 
 // runKey runs the action bound to key, and reports whether one was.
 func (m *App) runKey(key string) (tea.Cmd, bool) {
-	for _, a := range m.actions() {
-		if slices.Contains(a.Keys, key) {
-			return a.Run(m), true
-		}
-	}
-	return nil, false
+	return gotermboard.RunKey(m, m.actions(), key)
 }
 
 // footerHints is the footer's words for each key the screen can use now, two spaces apart. The
 // status bar pins ? at its right, so the list leaves it out.
 func (m *App) footerHints() string {
-	var hints []string
-	for _, a := range m.actions() {
-		if a.Footer != "" && a.Keys[0] != "?" {
-			hints = append(hints, a.Footer)
-		}
-	}
-	return strings.Join(hints, hintGap)
+	shown := slices.DeleteFunc(m.actions(), func(a action) bool { return a.Keys[0] == "?" })
+	return strings.Join(gotermboard.FooterHints(shown), hintGap)
 }
 
 // hintGap parts one hint from the next, which a hint's own words never hold.
@@ -110,21 +100,13 @@ func keysText(keys []string) string {
 // order each section first appears, each label wrapped at width under its own column so no word
 // of it reads as a key.
 func (m *App) helpLines(width int) []string {
-	var sections []string
-	bySection := map[string][]action{}
-	for _, a := range m.actions() {
-		if _, seen := bySection[a.Section]; !seen {
-			sections = append(sections, a.Section)
-		}
-		bySection[a.Section] = append(bySection[a.Section], a)
-	}
 	var lines []string
-	for i, section := range sections {
+	for i, section := range gotermboard.BySection(m.actions()) {
 		if i > 0 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, "  "+overlayTitleStyle.Render(section))
-		for _, a := range bySection[section] {
+		lines = append(lines, "  "+overlayTitleStyle.Render(section.Section))
+		for _, a := range section.Actions {
 			keys := "  " + padRight(keysText(a.Keys), 18)
 			indent := strings.Repeat(" ", lipgloss.Width(keys))
 			label := strings.Split(ansi.Wordwrap(a.Label, max(width-len(indent), 10), ""), "\n")
