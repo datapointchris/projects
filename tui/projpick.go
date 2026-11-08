@@ -124,7 +124,8 @@ func (p *projectPicker) toRemove() []string {
 	return ids
 }
 
-func (p *projectPicker) view(width int) string {
+// view draws the picker in an overlay, over the hint line the key table builds.
+func (p *projectPicker) view(width int, hints string) string {
 	var header string
 	if p.intent == pickerCreate {
 		header = fmt.Sprintf("Projects for new item: %s", p.itemTitle)
@@ -157,7 +158,7 @@ func (p *projectPicker) view(width int) string {
 		fmt.Sprintf("  Currently in %d project(s). Must belong to at least 1.", p.selectedCount()),
 	))
 	lines = append(lines, "")
-	lines = append(lines, dimStyle.Render("  [Space] Toggle  [Enter] Confirm  [Esc] Cancel"))
+	lines = append(lines, dimStyle.Render("  "+hints))
 
 	content := strings.Join(lines, "\n")
 

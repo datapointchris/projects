@@ -27,4 +27,4 @@
 │                                      │┃                                                        38┃
 │                                      │┃ 31/31                                                    ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [c]omplete [a]dd [e]dit [M]ove [Tab]view [/]filter        [?]help  LOCAL projects.db
+  [Enter]read [c]omplete [a]dd [n]ote [M]ove [Tab]view [/]filter        [?]help  LOCAL projects.db

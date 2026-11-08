@@ -25,6 +25,6 @@
          │      ○ Day 8: walk the next neighborhood  18                                   │
          │      ○ Day 9: walk the next neighborhood  19                                   │
          │                                                                                │
-         │    [Enter] Link  [/] Filter  [Esc] Cancel                                      │
+         │    [Enter]link [/]filter [Esc]cancel                                           │
          │                                                                                │
          ╰────────────────────────────────────────────────────────────────────────────────╯

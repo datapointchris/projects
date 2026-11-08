@@ -115,10 +115,12 @@ type App struct {
 }
 
 // Where names the data the board shows, for its status line: a database on this
-// machine, or the API at APIHost.
+// machine, or the API at APIHost. Checkout is where this machine has a repo checked
+// out, and whether its registry names a place, for C. A nil Checkout names none.
 type Where struct {
 	DatabasePath string
 	APIHost      string
+	Checkout     func(repo string) (path string, named bool, err error)
 }
 
 // NewApp creates a new TUI application backed by the given Backend.
@@ -155,7 +157,7 @@ func NewApp(b backend.Backend, where Where) *App {
 
 // OpenOn starts the board on the view --view names. A name ViewNames does not hold changes nothing.
 func (m *App) OpenOn(name string) {
-	at := slices.Index(viewNames, name)
+	at := slices.Index(ViewNames(), name)
 	if at < 0 {
 		return
 	}
@@ -166,7 +168,7 @@ func (m *App) OpenOn(name string) {
 }
 
 // ViewName is the name of the view showing, as --view takes it.
-func (m *App) ViewName() string { return viewNames[m.view] }
+func (m *App) ViewName() string { return views[m.view].name }
 
 // depGroup holds items belonging to a single project, for display in the dep overlay.
 type depGroup struct {
@@ -921,10 +923,10 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case claudeSessionEndedMsg:
 		if msg.err != nil {
-			cmd := m.flash(fmt.Sprintf("The Claude session on %s ended: %v", msg.handle, msg.err))
+			cmd := m.flash(fmt.Sprintf("The Claude session on %s, in %s, ended: %v", msg.handle, msg.ranIn, msg.err))
 			return m, cmd
 		}
-		cmd := m.flash("Back from the Claude session on " + msg.handle)
+		cmd := m.flash(fmt.Sprintf("Back from the Claude session on %s, which ran in %s", msg.handle, msg.ranIn))
 		return m, cmd
 
 	case projectCreatedMsg:
@@ -1137,124 +1139,112 @@ func (m *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	m.errorMsg = ""
+	cmd, bound := m.runKey(msg.String())
+	if !bound && m.typesText() {
+		cmd = m.typeKey(msg)
+	}
+	return m, cmd
+}
 
+// typesText says the screen has a text box, which takes every key its table leaves free.
+func (m *App) typesText() bool {
 	switch m.appMode {
-	case modeNormal, modeMove, modeMoveProject:
-		cmd, _ := m.runKey(msg.String())
-		return m, cmd
-	case modeAddItem, modeAddItemMulti, modeAddProject, modeAddTask, modeRenameItem, modeRenameProject, modeDropProject:
-		return m.handleInputKey(msg)
-	case modeProjectPicker:
-		return m.handlePickerKey(msg)
-	case modeHelp:
-		return m.handleHelpKey(msg)
-	case modeFilter:
-		return m.handleFilterKey(msg)
+	case modeAddItem, modeAddItemMulti, modeAddProject, modeAddTask, modeRenameItem, modeRenameProject, modeDropProject, modeFilter:
+		return true
 	case modeDepLink, modeDepUnlink:
-		return m.handleDepLinkKey(msg)
+		return m.depFiltering
 	}
-	return m, nil
+	return false
 }
 
-func (m *App) handleInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
-		value := strings.TrimSpace(m.titleInput.Value())
-		if value == "" {
-			return m, nil
+// typeKey sends a key to the text box. The filter narrows the project list as it is typed, so
+// the item pane follows the project the cursor lands on.
+func (m *App) typeKey(msg tea.KeyPressMsg) tea.Cmd {
+	if m.appMode != modeFilter {
+		return m.updateFocusedInput(msg)
+	}
+	before := m.cursorProjectID()
+	cmd := m.updateFocusedInput(msg)
+	return tea.Batch(cmd, m.refetchAfterProjectFilter(before))
+}
+
+// cursorProjectID is the project under the project pane's cursor, or "" with none.
+func (m *App) cursorProjectID() string {
+	if m.projectCursor < len(m.projects) {
+		return m.projects[m.projectCursor].ID
+	}
+	return ""
+}
+
+// confirmPrompt is Enter in a prompt: it does what the prompt asks with what was typed, and
+// nothing while the box is empty.
+func (m *App) confirmPrompt() tea.Cmd {
+	value := strings.TrimSpace(m.titleInput.Value())
+	if value == "" {
+		return nil
+	}
+	m.titleInput.Blur()
+	asked := m.appMode
+	m.appMode = modeNormal
+	switch asked {
+	case modeAddItem:
+		projectID := m.projects[m.projectCursor].ID
+		return createItemCmd(m.backend, model.CreateProjectItem{Title: value, ProjectIDs: []string{projectID}})
+	case modeAddItemMulti:
+		m.pendingTitle = value
+		currentProjectID := ""
+		if !m.isGroupedView() {
+			currentProjectID = m.cursorProjectID()
 		}
-		m.titleInput.Blur()
+		m.picker = newPickerForCreate(m.allProjects, currentProjectID, value)
+		m.appMode = modeProjectPicker
+	case modeAddProject:
+		return createProjectCmd(m.backend, model.CreateProject{Name: value})
+	case modeAddTask:
+		return createTaskCmd(m.backend, m.addTaskItemID, value)
+	case modeRenameItem:
+		return updateItemCmd(m.backend, m.renameItemID, model.UpdateProjectItem{Title: &value})
+	case modeRenameProject:
+		return updateProjectCmd(m.backend, m.promptProject.ID, model.UpdateProject{Name: &value})
+	case modeDropProject:
+		return setProjectStatusCmd(m.backend, m.promptProject.ID, model.StatusDropped, &value)
+	}
+	return nil
+}
 
-		switch m.appMode {
-		case modeAddItem:
-			m.appMode = modeNormal
-			projectID := m.projects[m.projectCursor].ID
-			return m, createItemCmd(m.backend, model.CreateProjectItem{Title: value, ProjectIDs: []string{projectID}})
+func (m *App) cancelPrompt() tea.Cmd {
+	m.appMode = modeNormal
+	m.titleInput.Blur()
+	m.pendingTitle = ""
+	return nil
+}
 
-		case modeAddItemMulti:
-			m.pendingTitle = value
-			currentProjectID := ""
-			if !m.isGroupedView() && m.projectCursor < len(m.projects) {
-				currentProjectID = m.projects[m.projectCursor].ID
-			}
-			m.picker = newPickerForCreate(m.allProjects, currentProjectID, value)
-			m.appMode = modeProjectPicker
-			return m, nil
-
-		case modeAddProject:
-			m.appMode = modeNormal
-			return m, createProjectCmd(m.backend, model.CreateProject{Name: value})
-
-		case modeAddTask:
-			m.appMode = modeNormal
-			return m, createTaskCmd(m.backend, m.addTaskItemID, value)
-
-		case modeRenameItem:
-			m.appMode = modeNormal
-			return m, updateItemCmd(m.backend, m.renameItemID, model.UpdateProjectItem{Title: &value})
-
-		case modeRenameProject:
-			m.appMode = modeNormal
-			return m, updateProjectCmd(m.backend, m.promptProject.ID, model.UpdateProject{Name: &value})
-
-		case modeDropProject:
-			m.appMode = modeNormal
-			return m, setProjectStatusCmd(m.backend, m.promptProject.ID, model.StatusDropped, &value)
-		}
-
-	case "esc":
-		m.appMode = modeNormal
-		m.titleInput.Blur()
+// confirmPicker files the item in the projects ticked, or creates it there.
+func (m *App) confirmPicker() tea.Cmd {
+	m.appMode = modeNormal
+	switch m.picker.intent {
+	case pickerCreate:
 		m.pendingTitle = ""
-		return m, nil
-
-	default:
-		cmd := m.updateFocusedInput(msg)
-		return m, cmd
+		return createItemCmd(m.backend, model.CreateProjectItem{Title: m.picker.itemTitle, ProjectIDs: m.picker.selectedIDs()})
+	case pickerManage:
+		toAdd, toRemove := m.picker.toAdd(), m.picker.toRemove()
+		if len(toAdd) == 0 && len(toRemove) == 0 {
+			return nil
+		}
+		return updateMembershipCmd(m.backend, m.picker.itemID, toAdd, toRemove)
 	}
-	return m, nil
+	return nil
 }
 
-func (m *App) handlePickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "j", "down":
-		m.picker.down()
-	case "k", "up":
-		m.picker.up()
-	case "g", "home":
-		m.picker.cursor = 0
-	case "G", "end":
-		if last := len(m.picker.projects) - 1; last >= 0 {
-			m.picker.cursor = last
-		}
-	case "space":
-		m.picker.toggle()
-	case "enter":
-		m.appMode = modeNormal
-		switch m.picker.intent {
-		case pickerCreate:
-			m.pendingTitle = ""
-			return m, createItemCmd(m.backend, model.CreateProjectItem{Title: m.picker.itemTitle, ProjectIDs: m.picker.selectedIDs()})
-		case pickerManage:
-			toAdd, toRemove := m.picker.toAdd(), m.picker.toRemove()
-			if len(toAdd) == 0 && len(toRemove) == 0 {
-				return m, nil
-			}
-			return m, updateMembershipCmd(m.backend, m.picker.itemID, toAdd, toRemove)
-		}
-	case "esc":
-		m.appMode = modeNormal
-		m.pendingTitle = ""
-	}
-	return m, nil
+func (m *App) cancelPicker() tea.Cmd {
+	m.appMode = modeNormal
+	m.pendingTitle = ""
+	return nil
 }
 
-func (m *App) handleHelpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "?", "q":
-		m.appMode = m.returnMode
-	}
-	return m, nil
+func (m *App) closeHelp() tea.Cmd {
+	m.appMode = m.returnMode
+	return nil
 }
 
 // --- Views ---
@@ -1281,7 +1271,7 @@ func (m *App) switchView(v view, focusID string) tea.Cmd {
 }
 
 func (m *App) cycleView(direction int) tea.Cmd {
-	return m.switchView(view((int(m.view)+direction+len(viewNames))%len(viewNames)), "")
+	return m.switchView(view((int(m.view)+direction+len(views))%len(views)), "")
 }
 
 // readAgain is R: every list the board shows, read again now.
@@ -1386,25 +1376,20 @@ func (m *App) refetchAfterProjectFilter(before string) tea.Cmd {
 	return nil
 }
 
-func (m *App) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	before := ""
-	if m.projectCursor < len(m.projects) {
-		before = m.projects[m.projectCursor].ID
-	}
-	switch msg.String() {
-	case "enter":
-		m.appMode = modeNormal
-		m.filterInput.Blur()
-	case "esc":
-		m.applyQuery("")
-		m.appMode = modeNormal
-		m.filterInput.Blur()
-	default:
-		cmd := m.updateFocusedInput(msg)
-		return m, tea.Batch(cmd, m.refetchAfterProjectFilter(before))
-	}
-	cmd := m.refetchAfterProjectFilter(before)
-	return m, cmd
+// keepFilter is Enter while typing a filter: the list stays narrowed and takes the keys again.
+func (m *App) keepFilter() tea.Cmd {
+	before := m.cursorProjectID()
+	m.appMode = modeNormal
+	m.filterInput.Blur()
+	return m.refetchAfterProjectFilter(before)
+}
+
+func (m *App) clearFilter() tea.Cmd {
+	before := m.cursorProjectID()
+	m.applyQuery("")
+	m.appMode = modeNormal
+	m.filterInput.Blur()
+	return m.refetchAfterProjectFilter(before)
 }
 
 // filterLine is the line under a pane's title that the filter takes: the line being typed, or
@@ -1806,60 +1791,41 @@ func (m *App) updateDepFilter(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *App) handleDepLinkKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.depFiltering {
-		switch msg.String() {
-		case "esc":
-			if m.depFilter.Value() != "" {
-				m.depFilter.SetValue("")
-				m.depItems = flattenDepGroups(m.depAllItems)
-				m.depCursor = 0
-			}
-			m.depFilter.Blur()
-			m.depFiltering = false
-			return m, nil
-		case "enter":
-			m.depFilter.Blur()
-			m.depFiltering = false
-			return m, nil
-		default:
-			cmd := m.updateFocusedInput(msg)
-			return m, cmd
-		}
-	}
+func (m *App) startDepFilter() tea.Cmd {
+	m.depFiltering = true
+	return m.depFilter.Focus()
+}
 
-	switch msg.String() {
-	case "j", "down":
-		if m.depCursor < len(m.depItems)-1 {
-			m.depCursor++
-		}
-	case "k", "up":
-		if m.depCursor > 0 {
-			m.depCursor--
-		}
-	case "g", "home":
+// stopDepFilter hands the keys back to the list, keeping what the filter kept or clearing it.
+func (m *App) stopDepFilter(clear bool) tea.Cmd {
+	if clear && m.depFilter.Value() != "" {
+		m.depFilter.SetValue("")
+		m.depItems = flattenDepGroups(m.depAllItems)
 		m.depCursor = 0
-	case "G", "end":
-		if last := len(m.depItems) - 1; last >= 0 {
-			m.depCursor = last
-		}
-	case "/":
-		m.depFiltering = true
-		return m, m.depFilter.Focus()
-	case "enter":
-		if len(m.depItems) > 0 {
-			selected := m.depItems[m.depCursor]
-			wasUnlink := m.appMode == modeDepUnlink
-			m.appMode = modeNormal
-			if wasUnlink {
-				return m, removeDependencyCmd(m.backend, m.depItemID, selected.ID)
-			}
-			return m, addDependencyCmd(m.backend, m.depItemID, selected.ID)
-		}
-	case "esc":
-		m.appMode = modeNormal
 	}
-	return m, nil
+	m.depFilter.Blur()
+	m.depFiltering = false
+	return nil
+}
+
+func (m *App) moveDepCursor(to int) {
+	m.depCursor = max(0, min(to, len(m.depItems)-1))
+}
+
+// chooseDependency links the item under the cursor as one this item waits on, or unlinks it.
+func (m *App) chooseDependency() tea.Cmd {
+	selected := m.depItems[m.depCursor]
+	unlinking := m.appMode == modeDepUnlink
+	m.appMode = modeNormal
+	if unlinking {
+		return removeDependencyCmd(m.backend, m.depItemID, selected.ID)
+	}
+	return addDependencyCmd(m.backend, m.depItemID, selected.ID)
+}
+
+func (m *App) cancelDepLink() tea.Cmd {
+	m.appMode = modeNormal
+	return nil
 }
 
 // syncScroll adjusts scroll offset so the cursor stays visible within the viewport.
@@ -1906,7 +1872,7 @@ func (m *App) screen() string {
 	case modeAddItem, modeAddItemMulti, modeAddProject, modeAddTask, modeRenameItem, modeRenameProject, modeDropProject:
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.renderInputOverlay())
 	case modeProjectPicker:
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.picker.view(m.width))
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.picker.view(m.width, m.footerHints()))
 	case modeHelp:
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.renderHelpOverlay())
 	case modeDepLink, modeDepUnlink:
@@ -1944,12 +1910,12 @@ func (m *App) itemPaneWidth() int {
 // renderViewHeader names every view, the one showing bold in the active border's color, so
 // Tab's effect is read off the top line.
 func (m *App) renderViewHeader() string {
-	parts := make([]string, len(viewLabels))
-	for i, label := range viewLabels {
+	parts := make([]string, len(views))
+	for i, v := range views {
 		if view(i) == m.view {
-			parts[i] = activeViewStyle.Render(label)
+			parts[i] = activeViewStyle.Render(v.label)
 		} else {
-			parts[i] = dimStyle.Render(label)
+			parts[i] = dimStyle.Render(v.label)
 		}
 	}
 	return truncate(" ", m.width) + strings.Join(parts, dimStyle.Render("   "))
@@ -1978,22 +1944,23 @@ func (m *App) renderInputOverlay() string {
 		"",
 		"  " + inputView(m.titleInput),
 		"",
-		dimStyle.Render("  [Enter] Confirm  [Esc] Cancel"),
+		dimStyle.Render("  " + m.footerHints()),
 	}
 	return overlayBox(strings.Join(lines, "\n"), m.width, 30, 60)
 }
 
 // renderHelpOverlay is the action table under the overlay, as ? lists it.
 func (m *App) renderHelpOverlay() string {
+	const narrowest, widest = 50, 70
 	shown := m.appMode
 	m.appMode = m.returnMode
-	keys := m.helpLines()
+	keys := m.helpLines(overlayContentWidth(m.width, narrowest, widest))
 	m.appMode = shown
 
 	lines := []string{overlayTitleStyle.Render("Keys"), ""}
 	lines = append(lines, keys...)
-	lines = append(lines, "", dimStyle.Render("  [Esc] or [?] Close"))
-	return overlayBox(strings.Join(lines, "\n"), m.width, 50, 70)
+	lines = append(lines, "", dimStyle.Render("  "+m.footerHints()))
+	return overlayBox(strings.Join(lines, "\n"), m.width, narrowest, widest)
 }
 
 func (m *App) renderDepLinkOverlay() string {
@@ -2066,12 +2033,7 @@ func (m *App) renderDepLinkOverlay() string {
 		}
 	}
 
-	lines = append(lines, "")
-	if m.appMode == modeDepUnlink {
-		lines = append(lines, dimStyle.Render("  [Enter] Unlink  [Esc] Cancel"))
-	} else {
-		lines = append(lines, dimStyle.Render("  [Enter] Link  [/] Filter  [Esc] Cancel"))
-	}
+	lines = append(lines, "", dimStyle.Render("  "+m.footerHints()))
 	return overlayBox(strings.Join(lines, "\n"), m.width, 40, 80)
 }
 
@@ -2111,8 +2073,6 @@ func (m *App) statusBarHints() string {
 	switch {
 	case m.statusMsg != "":
 		return statusMsgStyle.Render(m.statusMsg)
-	case m.appMode == modeFilter:
-		return "[Enter]keep [Esc]clear"
 	case m.appMode == modeMove || m.appMode == modeMoveProject:
 		return moveIndicatorStyle.Render(m.footerHints())
 	}

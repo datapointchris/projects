@@ -381,14 +381,14 @@ func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 		t.Fatalf(". must bring the shelved project back as someday, got %v", app.projects)
 	}
 
-	keys(t, app, "c")
-	if app.projects[0].Status != model.StatusSomeday {
-		t.Errorf("c on a shelved project must be refused, status = %q", app.projects[0].Status)
+	keys(t, app, "x")
+	if app.appMode != modeNormal || app.projects[0].Status != model.StatusSomeday {
+		t.Errorf("x on a shelved project must be refused, mode %v, status %q", app.appMode, app.projects[0].Status)
 	}
 
-	keys(t, app, "r")
+	keys(t, app, "c")
 	if app.projects[0].Status != model.StatusActive {
-		t.Errorf("r must reopen a shelved project, status = %q", app.projects[0].Status)
+		t.Errorf("c must reopen a shelved project, status = %q", app.projects[0].Status)
 	}
 }
 
@@ -697,5 +697,39 @@ func TestPasteGoesToTheFocusedInputAndNarrowsItsFilter(t *testing.T) {
 	paste("unrelated-b")
 	if got := forestTitles(app); len(got) != 2 || got[1] != "unrelated-b" {
 		t.Errorf("tree search narrowed to %v, want the pasted match and the row above it", got)
+	}
+}
+
+// All items shows an item filed in two projects under both. Marking the second copy done reads
+// the list again, and the cursor stays under the second project.
+func TestTheCursorStaysOnTheSecondCopyOfAnItemFiledInTwoProjects(t *testing.T) {
+	app := newTestApp(t, 120, 30, "Plan")
+	home, err := app.backend.CreateProject(model.CreateProject{Name: "home"})
+	if err != nil {
+		t.Fatalf("creating project: %v", err)
+	}
+	shared := model.CreateProjectItem{Title: "Pick tile", ProjectIDs: []string{app.allProjects[0].ID, home.ID}}
+	if _, err := app.backend.CreateItem(shared); err != nil {
+		t.Fatalf("creating item: %v", err)
+	}
+	keys(t, app, "R")
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	second := -1
+	for i, row := range app.rows {
+		if row.kind == rowItem && app.items[row.itemIdx].Title == "Pick tile" {
+			second = i
+		}
+	}
+	app.rowCursor = second
+	under := app.groups[app.rows[second].group].projectName
+	keys(t, app, "c")
+
+	row := app.currentRow()
+	if got := app.items[row.itemIdx]; got.Title != "Pick tile" || !got.Completed {
+		t.Fatalf("cursor on %q, completed %v, want the done Pick tile", got.Title, got.Completed)
+	}
+	if got := app.groups[row.group].projectName; got != under || under != "home" {
+		t.Errorf("cursor under %q after c, want it under %q, the second project", got, under)
 	}
 }

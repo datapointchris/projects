@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [space]note [c]omplete [a]dd [e]dit [M]ove [Tab]view …    [?]help  LOCAL projects.db
+  [Enter]read [space]note [c]omplete [a]dd [n]ote [M]ove [Tab]view …    [?]help  LOCAL projects.db

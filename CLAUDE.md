@@ -169,9 +169,11 @@ Bare `projects` prints help. The project verbs sit at the root, and the item ver
 `projects items`, with `tasks`, `dependencies` and `memberships` as nouns under it. `cli/root.go`
 builds the tree. Help renders through `gotermstyle/cobrahelp`.
 
-- **Every key the board takes is a row in `tui/action_table.go`.** The key handler, the status bar's
-  hints and the `?` overlay all read it, so a key added there shows in all three, and a row's `applies`
-  keeps it out of all three where it does not act.
+- **Every key the board takes is a row in `tui/action_table.go`, in every mode.** The key handler, the
+  hints in the status bar and in each prompt, picker and overlay, and the `?` overlay all read it. So a
+  key added there shows in each, and a row's `applies` keeps it out of each where it does not act. A
+  mode with a text box binds only keys that type nothing, and `typesText` hands the rest to the box.
+  The hosted reader takes its own keys while it shows.
 - **The board hosts gotermboard's `Reader` and not its `Model`.** Its own panes, glyphs and footer are
   drawn in `tui`, so `App` forwards keys, pastes and window sizes to the reader while one shows, and
   `Reader.ClosesWith` hands the screen back.

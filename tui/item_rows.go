@@ -122,14 +122,20 @@ func (m *App) cursorKey() string {
 	return m.keyOf(*row)
 }
 
+// keyOf names a row in a group under its group's project too, because an item filed in two
+// projects shows under both.
 func (m *App) keyOf(r paneRow) string {
+	under := ""
+	if r.group >= 0 {
+		under = m.groups[r.group].projectID + "/"
+	}
 	switch r.kind {
 	case rowGroup:
 		return "group:" + m.groups[r.group].projectID
 	case rowTask:
-		return "task:" + m.itemTasks[m.items[r.itemIdx].ID][r.taskIdx].ID
+		return "task:" + under + m.itemTasks[m.items[r.itemIdx].ID][r.taskIdx].ID
 	}
-	return "item:" + m.items[r.itemIdx].ID
+	return "item:" + under + m.items[r.itemIdx].ID
 }
 
 // rebuildRows lays the item pane's cursor stops out from m.items, the groups, the filter and

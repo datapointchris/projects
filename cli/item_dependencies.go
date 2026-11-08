@@ -195,7 +195,8 @@ func newDependenciesTreeCommand() *cobra.Command {
 				}
 			}
 			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), treeShownOf(tree, byID, drawings, invert, maxDepth))
+				node := func(id string) treeNode { return treeNodeOf(byID[id]) }
+				return encodeJSON(cmd.OutOrStdout(), treeShownOf(tree, node, drawings, invert, maxDepth))
 			}
 			printTrees(cmd.OutOrStdout(), tree, byID, drawings, invert, maxDepth)
 			if len(args) == 0 && !cmd.Flags().Changed("status") {
@@ -340,7 +341,9 @@ type treeEdge struct {
 
 const treeShownVersion = 1
 
-func treeShownOf(tree *graph.Tree, byID map[string]wire.ProjectItem, drawings []drawing, invert bool, maxDepth int) treeShown {
+// treeShownOf is the drawn part of each drawing, with node saying what each item is. The
+// command reads items from the API, and the board's --json from the map it drew.
+func treeShownOf(tree *graph.Tree, node func(id string) treeNode, drawings []drawing, invert bool, maxDepth int) treeShown {
 	shown := treeShown{SchemaVersion: treeShownVersion, Nodes: []treeNode{}, Edges: []treeEdge{}, Roots: []string{}}
 	for _, d := range drawings {
 		drawn := make(map[string]bool)
@@ -351,21 +354,23 @@ func treeShownOf(tree *graph.Tree, byID map[string]wire.ProjectItem, drawings []
 			if !drawn[id] {
 				continue
 			}
-			item := byID[id]
-			projects := make([]string, 0, len(item.Projects))
-			for _, p := range item.Projects {
-				projects = append(projects, p.Name)
-			}
-			shown.Nodes = append(shown.Nodes, treeNode{
-				ID: item.ID, Number: item.Number, Title: item.Title, Status: item.Status, Repo: item.Repo, Projects: projects,
-			})
-			for _, dependency := range item.DependencyIDs {
+			shown.Nodes = append(shown.Nodes, node(id))
+			for _, dependency := range tree.Children(id, false) {
 				if drawn[dependency] {
-					shown.Edges = append(shown.Edges, treeEdge{Item: item.ID, DependsOn: dependency})
+					shown.Edges = append(shown.Edges, treeEdge{Item: id, DependsOn: dependency})
 				}
 			}
 		}
 		shown.Roots = append(shown.Roots, d.roots...)
 	}
 	return shown
+}
+
+// treeNodeOf is an item the API answered with, as a tree's node.
+func treeNodeOf(item wire.ProjectItem) treeNode {
+	projects := make([]string, 0, len(item.Projects))
+	for _, p := range item.Projects {
+		projects = append(projects, p.Name)
+	}
+	return treeNode{ID: item.ID, Number: item.Number, Title: item.Title, Status: item.Status, Repo: item.Repo, Projects: projects}
 }

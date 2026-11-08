@@ -1,18 +1,17 @@
-# The ? overlay from each pane, in a window shorter than the overlay. It lists what the
-# action table binds for the row behind it, as the footer does.
+# The ? overlay from each pane, in a window shorter than the overlay. Its foot keeps the
+# close hint, and a label too long for the box wraps under its own column.
 wait Export posts from the old CMS
 
 press ?
-wait [Esc] or [?] Close
+wait [Esc]close [q]quit
 frame from-the-project-pane
 press ?
-gone [Esc] or [?] Close
+gone [Esc]close [q]quit
 
 press l
 wait [Enter]read
 press ?
-wait [Esc] or [?] Close
-frame from-the-item-pane
+wait [Esc]close [q]quit
 press esc
 wait [Enter]read
 
@@ -20,7 +19,6 @@ press j
 wait [D]elete
 press ?
 wait On a task
-frame from-a-task
 press esc
 
 press k
@@ -29,7 +27,6 @@ press M
 wait [Enter]drop
 press ?
 wait Moving a row
-frame while-moving
 press esc
 press esc
 gone MOVING

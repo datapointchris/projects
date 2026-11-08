@@ -1,4 +1,4 @@
-# Add a task from the list, then toggle one and delete one. d deletes nothing.
+# Add a task from the list, then toggle one and delete one.
 wait Export posts from the old CMS
 press l
 wait [Enter]read
@@ -19,7 +19,6 @@ wait /> +○ Convert HTML to markdown/
 press space
 wait [2/4]
 frame task-toggled
-press d
 press D
 wait [1/3]
 gone Convert HTML to markdown

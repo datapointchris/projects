@@ -1,9 +1,9 @@
               │    space             mark the project, to list several projects'     │
-              │  items                                                               │
+              │                      items                                           │
               │    a                 add a project                                   │
               │    A                 add an item to several projects                 │
-              │    n                 rename the project                              │
-              │    e                 edit the description in $EDITOR                 │
+              │    r                 rename the project                              │
+              │    e n               write the description in $EDITOR                │
               │    c                 complete the project                            │
               │    x                 drop the project, saying why                    │
               │    S                 shelve the project for someday                  │
@@ -25,6 +25,6 @@
               │    ?                 show these keys                                 │
               │    q Ctrl+c          quit                                            │
               │                                                                      │
-              │    [Esc] or [?] Close                                                │
+              │    [Esc]close [q]quit                                                │
               │                                                                      │
               ╰──────────────────────────────────────────────────────────────────────╯

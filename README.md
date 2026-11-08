@@ -99,7 +99,8 @@ projects items dependencies add 43 --depends-on 42       # 43 waits on 42
 - `delete` and every `remove` ask first. `--yes` skips the question. With `--no-input`, or no
   terminal, they refuse unless `--yes` is passed.
 - `projects tui --once` prints one frame at `COLUMNS` by `LINES` and exits. `projects tui --json`
-  prints what the board is drawn from. With neither and no terminal, `projects tui` refuses.
+  prints what the board is drawn from, in whichever view `--view` names. With neither and no
+  terminal, `projects tui` refuses.
 
 | Exit | Meaning |
 | ---- | ------- |
@@ -162,21 +163,23 @@ because the first default run moves that directory out from under it.
 A retired `TODOUI_*` variable set to a value stops every command with exit 2, naming the variable that
 replaced it. Ignoring `TODOUI_DB` would open the default database where the variable chose another.
 
-## The TUI — three views, one key table, every key one press away
+## The TUI — views on Tab, one key table, every key one press away
 
 ```text
-Tab       the next view: By project, All items, Dependencies     /       filter the list in place
+Tab       the next view, in the order the header names them      /       filter the list in place
 j / k     move through rows                                      [ / ]   jump item to item, past tasks
 h / l     move between the project and item panes                Enter   read it full screen
 space     open the note under its row, or mark a task done       c       mark done
 a         add a project, or an item to this project              M       move the row
+n / e     write the note, or the description, in $EDITOR         r       rename
 T         the dependency map on this item                        C       a Claude session on the row
 u         undo the last change                                   R       read the data again now
 ?         every key the row you are on takes                     q       quit
 ```
 
-One table of actions builds the key handling, the status bar's hints and the `?` overlay. A key
-the row cannot take is in none of the three. The header names the view showing.
+One table of actions builds the key handling, the hints in the status bar and in each prompt and
+picker, and the `?` overlay. A key the row cannot take is in none of them. The header names the view
+showing.
 
 **By project** lists the projects on the left and the items of the one under the cursor on the right.
 `space` on a project marks it, and the item pane then lists every marked project's items, each under
@@ -205,14 +208,16 @@ Through an API, the status bar reads `API` and the API's host. The board reads t
 what blocks it, what it blocks, its tasks, and its note rendered as markdown. A project shows its
 status, its open and done counts, and its description rendered the same way. `[` and `]` jump
 section to section, `/` searches the text, and `Esc` or `space` goes back to the row it came from.
+The note alone opens in place with `space`, so `Enter` goes full screen however short it is.
 
-`e` edits the note, or a project's description, in `$EDITOR`. `n` renames. `t` adds a task, `D`
-deletes one, and `d` deletes nothing. `M` grabs a row, `j` and `k` carry it, `Enter` drops it and
-`Esc` puts it back.
+`n` or `e` writes the note, or a project's description, in `$EDITOR`. `r` renames. `t` adds a task,
+and `D` deletes one. `M` grabs a row, `j` and `k` carry it, `Enter` drops it and `Esc` puts it back.
 
 `C` opens a Claude session on the row. Inside tmux it opens in a window of its own, and outside tmux
 it takes the terminal until it ends. It runs in the checkout the repo registry names for the item's
-repo tag, or for a project's one repo, and in the board's own directory otherwise.
+repo tag, or for a project's one repo. With no checkout named, it runs in the board's own directory,
+and the session's first message and the status bar say so. A checkout named but missing opens no
+session.
 
 `b` links an item this one is blocked by. A link that would close a cycle is refused. **Dependencies**
 shows the dependency map. The left pane is every tree, filtered with `/`. The right pane is the tree
@@ -235,7 +240,7 @@ in database mode only. Through an API it bans nothing, because the API holds no 
 registry is a JSON file with a `repos` array, and each entry's `name` is a banned project name:
 
 ```json
-{ "repos": [{ "name": "projects" }] }
+{ "repos": [{ "name": "projects", "path": "~/code/projects" }] }
 ```
 
 The match ignores case and surrounding spaces. An entry's `path`, where it has one, is the checkout
@@ -250,8 +255,8 @@ A missing registry bans nothing. A registry that does not parse fails every crea
 the parse error.
 
 A project's status is `active`, `someday`, `completed` or `dropped`. On a project's row, `c`
-completes it, `x` drops it, `S` shelves it for someday, and `r` reopens a shelved or closed one. On
-the command line those are `projects complete`, `close --reason`, `shelve` and `reopen`.
+completes it, or reopens a shelved or closed one. `x` drops it, and `S` shelves it for someday. On
+the command line those are `projects complete`, `reopen`, `close --reason` and `shelve`.
 Completing a project is what takes it out of the list, so there is no separate archive step the way
 items have one. A shelved project leaves the list too, but records no closing date. `.` shows
 shelved and closed projects again, each marked with its status.

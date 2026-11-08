@@ -10,14 +10,21 @@ const (
 	viewDependencies             // the dependency map beside the tree the cursor stands in
 )
 
-// viewNames is what --view takes for each view, and viewLabels what the header calls it.
-var (
-	viewNames  = []string{"projects", "items", "dependencies"}
-	viewLabels = []string{"By project", "All items", "Dependencies"}
-)
+// views is what --view takes for each view, and what the header calls it.
+var views = []struct{ name, label string }{
+	viewProjects:     {"projects", "By project"},
+	viewItems:        {"items", "All items"},
+	viewDependencies: {"dependencies", "Dependencies"},
+}
 
 // ViewNames is every view --view opens on, in the order Tab cycles them.
-func ViewNames() []string { return append([]string(nil), viewNames...) }
+func ViewNames() []string {
+	names := make([]string, len(views))
+	for i, v := range views {
+		names[i] = v.name
+	}
+	return names
+}
 
 type pane int
 

@@ -1,16 +1,7 @@
-# M grabs a row, j and k carry it, Enter drops it and esc puts it back. m is unbound,
-# so it changes nothing.
+# M grabs a row, j and k carry it, Enter drops it and esc puts it back.
 wait Export posts from the old CMS
 press l
 wait [Enter]read
-
-press m
-press j
-wait /> +✓ Dump the database/
-gone MOVING
-frame m-is-unbound
-press k
-wait /> +▸ ○ Export posts from the old CMS/
 
 press M
 wait ◀ MOVING

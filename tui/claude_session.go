@@ -7,8 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
-
-	"github.com/datapointchris/projects/repos"
 )
 
 // The first message of the Claude session C opens. It names the record by its handle alone, so
@@ -22,9 +20,11 @@ const (
 		"then wait before changing anything."
 )
 
-// claudeSessionEndedMsg is a Claude session that held the terminal giving it back.
+// claudeSessionEndedMsg is a Claude session that held the terminal giving it back. ranIn is the
+// directory it ran in, with why where it was not the record's checkout.
 type claudeSessionEndedMsg struct {
 	handle string
+	ranIn  string
 	err    error
 }
 
@@ -50,36 +50,42 @@ func (m *App) claudeOnProject() tea.Cmd {
 
 // openClaudeSession is C: a Claude session in the repo's checkout. Inside tmux it opens in a
 // window of its own, so the board stays usable while the session works, and outside tmux it
-// takes the board's terminal until it ends.
+// takes the board's terminal until it ends. A session in the board's own directory is told so
+// in its brief, because that directory may hold another repo's code.
 func (m *App) openClaudeSession(handle, repo, brief string) tea.Cmd {
 	if _, err := exec.LookPath("claude"); err != nil {
 		return m.flash(fmt.Sprintf("claude is not on PATH, so no session opened on %s", handle))
 	}
-	directory, fallback, err := sessionDirectory(handle, repo)
+	directory, fallback, err := m.sessionDirectory(handle, repo)
 	if err != nil {
 		return m.flash(err.Error())
+	}
+	ranIn := directory
+	if fallback != "" {
+		ranIn += ", because " + fallback
+		brief += fmt.Sprintf(" This session runs in %s, because %s.", directory, fallback)
 	}
 	if os.Getenv("TMUX") != "" {
 		if err := gotermboard.OpenWindow("claude "+handle, directory, []string{"claude", brief}); err != nil {
 			return m.flash(err.Error())
 		}
-		return m.flash(fmt.Sprintf("Opened a Claude session on %s in a tmux window, in %s%s", handle, directory, fallback))
+		return m.flash(fmt.Sprintf("Opened a Claude session on %s in a tmux window, in %s", handle, ranIn))
 	}
 	session := exec.Command("claude", brief)
 	session.Dir = directory
-	return tea.ExecProcess(session, func(err error) tea.Msg { return claudeSessionEndedMsg{handle: handle, err: err} })
+	return tea.ExecProcess(session, func(err error) tea.Msg { return claudeSessionEndedMsg{handle: handle, ranIn: ranIn, err: err} })
 }
 
 // sessionDirectory is where C opens Claude: the checkout the registry names for the repo, else
 // the board's own directory with why it fell back. A checkout named and missing opens nothing,
 // so a session never plans against another repo's code.
-func sessionDirectory(handle, repo string) (directory, fallback string, err error) {
-	if repo != "" {
-		registry, err := repos.Load(repos.DefaultPath())
+func (m *App) sessionDirectory(handle, repo string) (directory, fallback string, err error) {
+	if repo != "" && m.where.Checkout != nil {
+		checkout, named, err := m.where.Checkout(repo)
 		if err != nil {
 			return "", "", err
 		}
-		if checkout, named := registry.Checkout(repo); named {
+		if named {
 			if info, err := os.Stat(checkout); err != nil || !info.IsDir() {
 				return "", "", fmt.Errorf("%s is not checked out at %s, so no session opened on %s", repo, checkout, handle)
 			}
@@ -91,7 +97,7 @@ func sessionDirectory(handle, repo string) (directory, fallback string, err erro
 		return "", "", fmt.Errorf("no directory to open a session on %s in: %w", handle, err)
 	}
 	if repo == "" {
-		return here, fmt.Sprintf(", since %s names no one repo", handle), nil
+		return here, fmt.Sprintf("%s names no one repo", handle), nil
 	}
-	return here, fmt.Sprintf(", since the repo registry names no checkout of %s", repo), nil
+	return here, fmt.Sprintf("the repo registry names no checkout of %s", repo), nil
 }

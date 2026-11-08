@@ -38,8 +38,14 @@ func paneBox(active bool, width, innerHeight int) lipgloss.Style {
 // overlayBox frames an overlay as wide as the window allows, held between lo and hi
 // columns inside its border.
 func overlayBox(content string, windowWidth, lo, hi int) string {
-	inside := max(min(windowWidth-4, hi), lo)
-	return overlayBoxStyle.Width(inside + 2).Render(content)
+	return overlayBoxStyle.Width(overlayInside(windowWidth, lo, hi) + 2).Render(content)
+}
+
+func overlayInside(windowWidth, lo, hi int) int { return max(min(windowWidth-4, hi), lo) }
+
+// overlayContentWidth is the room overlayBox leaves a line, inside its border and padding.
+func overlayContentWidth(windowWidth, lo, hi int) int {
+	return overlayInside(windowWidth, lo, hi) - overlayBoxStyle.GetHorizontalPadding()
 }
 
 // All colors use ANSI 0-15 so the TUI adapts to the terminal's theme.

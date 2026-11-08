@@ -27,4 +27,4 @@
 ┃                                                                                                  ┃
 ┃ 6/44                                                                                             ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  [Enter]read [c]omplete [e]dit [Tab]view [/]filter                     [?]help  LOCAL projects.db
+  [Enter]read [c]omplete [n]ote [Tab]view [/]filter                     [?]help  LOCAL projects.db

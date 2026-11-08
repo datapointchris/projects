@@ -105,10 +105,7 @@ func (s *depTreeState) rebuildForest() {
 		return
 	}
 	var roots []string
-	for _, component := range s.tree.Components() {
-		if !s.showFinished && !graph.HasOpenWork(component, s.lookup) {
-			continue
-		}
+	for _, component := range s.shownComponents() {
 		roots = append(roots, s.tree.Roots(component, false)...)
 	}
 	rows := s.tree.Rows(roots, false, graph.Unlimited)
@@ -523,16 +520,19 @@ func (m *App) depTreeRow(row graph.Row, selected, markPinned bool, width int) st
 	return itemNormalStyle.Render(line)
 }
 
-func (m *App) depTreeCount() int {
-	s := &m.depTree
+func (m *App) depTreeCount() int { return len(m.depTree.shownComponents()) }
+
+// shownComponents is each tree the forest draws: every one with open work, and the finished
+// ones too once . shows them.
+func (s *depTreeState) shownComponents() [][]string {
 	if s.tree == nil {
-		return 0
+		return nil
 	}
-	count := 0
+	var shown [][]string
 	for _, component := range s.tree.Components() {
 		if s.showFinished || graph.HasOpenWork(component, s.lookup) {
-			count++
+			shown = append(shown, component)
 		}
 	}
-	return count
+	return shown
 }
