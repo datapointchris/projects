@@ -13,6 +13,8 @@ import (
 	"github.com/datapointchris/goselfupdate/autoupdate"
 	"github.com/datapointchris/gotermstyle/cobrahelp"
 	"github.com/spf13/cobra"
+
+	"github.com/datapointchris/projects/config"
 )
 
 // noInput is bound to --no-input, which forces the non-interactive path from a
@@ -163,7 +165,8 @@ func exitCodeFor(err error) int {
 	if errors.As(err, &code) {
 		return int(code)
 	}
-	if errors.Is(err, goclikit.ErrUsage) {
+	var missingConfig *config.MissingNamedFileError
+	if errors.Is(err, goclikit.ErrUsage) || errors.As(err, &missingConfig) {
 		return 2
 	}
 	var silent noAnswerError

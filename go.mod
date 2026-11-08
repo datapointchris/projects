@@ -16,7 +16,7 @@ require (
 	github.com/datapointchris/goapiauth v0.2.0
 	github.com/datapointchris/gobrowserlogin v0.2.0
 	github.com/datapointchris/goclikit v0.5.3
-	github.com/datapointchris/goclilogin v0.8.0
+	github.com/datapointchris/goclilogin v0.9.0
 	github.com/datapointchris/goselfupdate v0.11.0
 	github.com/datapointchris/gotermboard v0.20.0
 	github.com/datapointchris/gotermstyle v0.2.1

@@ -93,8 +93,8 @@ github.com/datapointchris/gobrowserlogin v0.2.0 h1:rJ8MlbL//Xvy8uJbjXR8Hy/57nyaM
 github.com/datapointchris/gobrowserlogin v0.2.0/go.mod h1:wfN8b/nONCpCdrZH2S15bNNK6YSqtVjpxgeQanY5Yw8=
 github.com/datapointchris/goclikit v0.5.3 h1:6ec9nuswLXeIqZLa0YVEQeqsCnrjkqF/3gDtCBSowNQ=
 github.com/datapointchris/goclikit v0.5.3/go.mod h1:hEbplQyvrWq5m5UepXVNKfv8jvvlmQshNMrWdoHBb6Y=
-github.com/datapointchris/goclilogin v0.8.0 h1:pHeTUzgl++YT+jI0iSir9Wtow+L5u+JM1cVZ3p8Fsbk=
-github.com/datapointchris/goclilogin v0.8.0/go.mod h1:BKusVBeatnZ7i7rx6xM7B9lADkTlfer9efrvuYjRIOI=
+github.com/datapointchris/goclilogin v0.9.0 h1:xajsKfzuBvuREUZqw7B9Gv5PHxylSc8ssKX+XEEwef4=
+github.com/datapointchris/goclilogin v0.9.0/go.mod h1:oiMIbY0jwfqH5pX8G1T1iBPa+cG1m3JQhqpaP9JxJ+w=
 github.com/datapointchris/goselfupdate v0.11.0 h1:aUJ27Cm9ZNGMfC7+kKChBsnm8offBE99wwUa10lFo2w=
 github.com/datapointchris/goselfupdate v0.11.0/go.mod h1:YcgyvM+wH6nh9zo9xioUqTHeH5HTYeCHevv4U+G7INc=
 github.com/datapointchris/gotermboard v0.20.0 h1:pTU/e2wt8+Ihz+uvkIosaSHY9swYuqxsSaVK3sd4nus=

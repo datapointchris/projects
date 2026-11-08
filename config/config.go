@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,17 +43,58 @@ type LocalConfig struct {
 	DBPath string `mapstructure:"db_path"`
 }
 
+// FileVariable names the config file, in place of the one under the XDG config
+// home. It names the whole file rather than one key, because api, issuer,
+// client_id and token_command are one environment, and a repo's .envrc swaps
+// them together.
+const FileVariable = "PROJECTS_CONFIG"
+
+// FilePath is the config file every reader takes, and the one login writes:
+// $PROJECTS_CONFIG where it is set, and otherwise config.toml under the XDG
+// config home. Use XDG explicitly rather than Go's UserConfigDir, which returns
+// ~/Library/Application Support on macOS, not where CLI tools put config.
+func FilePath() string {
+	if named := os.Getenv(FileVariable); named != "" {
+		return ExpandTilde(named)
+	}
+	return filepath.Join(userConfigDir(), toolName, "config.toml")
+}
+
+// MissingNamedFileError is a $PROJECTS_CONFIG naming a file that does not exist.
+// Reading no config there would open the default database, so a write would land
+// where the user is not looking.
+type MissingNamedFileError struct{ Path string }
+
+func (e *MissingNamedFileError) Error() string {
+	return fmt.Sprintf("$%s names %s, which does not exist. Create it, or unset the variable. "+
+		"`projects auth login <url>` creates it, holding the API's settings", FileVariable, e.Path)
+}
+
+// RefuseMissingNamedFile refuses a $PROJECTS_CONFIG naming a file that does not
+// exist. Every reader of the file calls it but login, which creates the file.
+func RefuseMissingNamedFile() error {
+	if os.Getenv(FileVariable) == "" {
+		return nil
+	}
+	path := FilePath()
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		return &MissingNamedFileError{Path: path}
+	}
+	return nil
+}
+
 // Load reads configuration from the TOML config file and environment variables.
 // Priority (highest to lowest): env vars → config file → defaults.
 func Load() (*Config, error) {
+	if err := RefuseMissingNamedFile(); err != nil {
+		return nil, err
+	}
 	v := newViper()
 
 	v.SetDefault("local.db_path", defaultDBPath())
 
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("reading config: %w", err)
-		}
+	if err := v.ReadInConfig(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
 	// Env var overrides
@@ -91,16 +134,11 @@ func refuseTokenCommandAsOneString(v *viper.Viper) error {
 	return nil
 }
 
-// newViper points a fresh viper at the tool's config file. Shared by both readers
-// here so they cannot drift on where that file is.
-//
-// Config file: $XDG_CONFIG_HOME/projects/config.toml or ~/.config/projects/config.toml.
-// Use XDG explicitly rather than Go's UserConfigDir, which returns
-// ~/Library/Application Support on macOS — not where CLI tools put config.
+// newViper points a fresh viper at FilePath. The type is set, because a file
+// $PROJECTS_CONFIG names may carry any extension.
 func newViper() *viper.Viper {
 	v := viper.New()
-	v.AddConfigPath(filepath.Join(userConfigDir(), toolName))
-	v.SetConfigName("config")
+	v.SetConfigFile(FilePath())
 	v.SetConfigType("toml")
 	return v
 }

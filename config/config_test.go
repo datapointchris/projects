@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv(FileVariable, "")
 	t.Setenv("PROJECTS_DB", "/tmp/test.db")
 
 	cfg, err := Load()
@@ -54,10 +56,36 @@ func TestReposRegistryIsReadFromTheConfigFile(t *testing.T) {
 	}
 }
 
+// A repo's .envrc names a dev config while the desk's own holds api. Every reader
+// takes the named file, and a name with no file behind it is refused.
+func TestProjectsConfigOutranksTheXDGFile(t *testing.T) {
+	writeConfig(t, "repos_registry = \"/desk/repos.json\"\napi = \"https://projects.example.com\"\n")
+	named := filepath.Join(t.TempDir(), "config.dev.toml")
+	if err := os.WriteFile(named, []byte("repos_registry = \"/dev/repos.json\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(FileVariable, named)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ReposRegistry != "/dev/repos.json" || cfg.API != "" || ConfiguredReposRegistry() != "/dev/repos.json" {
+		t.Errorf("read registry %q and api %q, want the named file's", cfg.ReposRegistry, cfg.API)
+	}
+
+	t.Setenv(FileVariable, filepath.Join(t.TempDir(), "absent.toml"))
+	var missing *MissingNamedFileError
+	if _, err := Load(); !errors.As(err, &missing) {
+		t.Errorf("Load with a missing named file answered %v, want MissingNamedFileError", err)
+	}
+}
+
 // A machine keeping its registry where the tool expects it holds no config at
 // all, so an absent or unreadable file answers "" rather than failing.
 func TestConfiguredReposRegistryIsEmptyWithoutAConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv(FileVariable, "")
 	if got := ConfiguredReposRegistry(); got != "" {
 		t.Errorf("ConfiguredReposRegistry() = %q, want empty", got)
 	}
@@ -80,4 +108,5 @@ func writeConfig(t *testing.T, body string) {
 		t.Fatalf("writing config: %v", err)
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv(FileVariable, "")
 }

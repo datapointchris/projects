@@ -271,9 +271,14 @@ API behaves as follows. `api` is how a machine works through an API.
 
 ## Configuration — one TOML file, every key overridable from the environment
 
-`projects` reads `$XDG_CONFIG_HOME/projects/config.toml`, else `~/.config/projects/config.toml`, on macOS
-as well as Linux. No config file is a valid configuration: a local database.
+`projects` reads the file `$PROJECTS_CONFIG` names, else `$XDG_CONFIG_HOME/projects/config.toml`, else
+`~/.config/projects/config.toml`, on macOS as well as Linux. Every command reads that one file, and
+`auth login` writes it. No config file is a valid configuration: a local database.
 [config.example.toml](config.example.toml) is an annotated copy.
+
+A `PROJECTS_CONFIG` naming a file that does not exist stops every command with exit 2, except
+`auth login`, which creates the file there. Reading no config would open the default database, so a
+write would land where nobody is looking.
 
 ```toml
 # Bare keys sit above the first [section].
@@ -292,11 +297,26 @@ Each variable overrides the key beside it:
 
 | Variable | Overrides |
 | -------- | --------- |
+| `PROJECTS_CONFIG` | the whole file |
 | `PROJECTS_DB` | `local.db_path` |
 | `PROJECTS_REPOS_REGISTRY` | `repos_registry` |
 
-`api`, `issuer`, `client_id` and `token_command` take no variable. `--api` outranks `api` for
-one run. `PROJECTS_CLIENT_SECRET` switches the login to the client-credentials grant.
+`api`, `issuer`, `client_id` and `token_command` take no variable of their own, because they name one
+environment together. `PROJECTS_CONFIG` swaps all four at once. `--api` outranks `api` for one run.
+`PROJECTS_CLIENT_SECRET` switches the login to the client-credentials grant.
+
+A checkout develops against a database of its own through an `.envrc`, which
+[direnv](https://direnv.net) loads on entering it:
+
+```bash
+export PROJECTS_CONFIG="$PWD/config.dev.toml"
+export PROJECTS_DB="$HOME/.local/share/projects/dev.db"
+```
+
+[config.dev.toml](config.dev.toml) holds no `api`, so a command run there opens `dev.db` even where the
+machine's own config sends every command to an API. The two lines are one environment. `PROJECTS_DB`
+alone leaves the machine's `api` in force, and the run goes to that API. Where no direnv hook runs, such
+as a script, `direnv exec . projects list` loads the file for one command.
 
 ## Every command speaks HTTP to the API's routes, served in the process or across the network
 

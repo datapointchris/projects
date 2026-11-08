@@ -38,7 +38,7 @@ func init() {
 // Reading none would drop its api and send every command to a database on this machine.
 func RefuseConfigUnderFormerName() error {
 	former := filepath.Join(userConfigDir(), formerName, "config.toml")
-	current := filepath.Join(userConfigDir(), toolName, "config.toml")
+	current := FilePath()
 	if !pathExists(former) || pathExists(current) {
 		return nil
 	}

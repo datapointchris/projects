@@ -1,5 +1,5 @@
 # projects configuration
-# Place at ~/.config/projects/config.toml
+# Place at ~/.config/projects/config.toml, or anywhere PROJECTS_CONFIG names
 # db_path and repos_registry can be overridden with environment variables. Bare
 # keys must stay above the first [section].
 

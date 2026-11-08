@@ -1,0 +1,4 @@
+# The config a checkout's .envrc names with PROJECTS_CONFIG, for developing projects.
+# It holds no api, so every command run in the checkout opens the database PROJECTS_DB
+# names, whatever the machine's own config points at. The README's configuration
+# section has the .envrc that names it.

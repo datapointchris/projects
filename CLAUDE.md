@@ -6,25 +6,37 @@ the browser page over that API, in Vue, and nothing in Go imports it.
 
 ## How to run and test
 
-**A hand run is `go run .` from the repo root, against the dev database, with the
-machine's config kept out. Do not build a throwaway binary to `/tmp` for one, and
-do not seed a synthetic database for one.** A test fixture is allowed, and it needs
-at least one long note.
+**A hand run is `go run .` from the repo root, through the checkout's `.envrc`, against
+the dev database. Do not build a throwaway binary to `/tmp` for one, and do not seed a
+synthetic database for one.** A test fixture is allowed, and it needs at least one long
+note.
 
 ```bash
-XDG_CONFIG_HOME="$(mktemp -d)" PROJECTS_DB="$HOME/.local/share/projects/dev.db" go run . list
-XDG_CONFIG_HOME="$(mktemp -d)" PROJECTS_DB="$HOME/.local/share/projects/dev.db" go run . tui
+direnv exec . go run . list
+direnv exec . go run . tui
 ```
 
-⚠️ **Name both, every time.** A desk's config file holds `api`, which puts every
-command in API mode against the production API and ignores `PROJECTS_DB`. So
-`PROJECTS_DB` alone writes to production. An empty `XDG_CONFIG_HOME` leaves no
-`api`, and the run opens the database `PROJECTS_DB` names.
+`.envrc` exports `PROJECTS_CONFIG`, naming the committed `config.dev.toml`, and
+`PROJECTS_DB`, naming `~/.local/share/projects/dev.db`. README § "Configuration — one
+TOML file, every key overridable from the environment" has its two lines.
+
+⚠️ **Run through `direnv exec .` wherever no direnv hook loaded `.envrc`, as in an
+agent's shell.** A desk's config file holds `api`, which puts every command in API mode
+against the production API and ignores `PROJECTS_DB`. So a run without the `.envrc`,
+or with `PROJECTS_DB` alone, writes to production. `config.dev.toml` holds no `api`,
+and the run opens the database `PROJECTS_DB` names.
 
 `.envrc` is machine-local. `task setup`, which `worktree new` runs, links the
-primary checkout's copy into a worktree. `TestRealDatabaseSurvivesEverySizeAndProject`
-reads `PROJECTS_DB`, and skips without it. A `PROJECTS_SYNC*` line left in an
-`.envrc` stops every run with exit 2.
+primary checkout's copy into a worktree and allows it. Editing it needs `direnv allow`
+again in each checkout. `TestRealDatabaseSurvivesEverySizeAndProject` reads
+`PROJECTS_DB`, and skips without it. A `PROJECTS_SYNC*` line left in an `.envrc`
+stops every run with exit 2.
+
+**`config.FilePath` is the one config path.** `config.Load`, `ConfiguredReposRegistry`,
+both goclilogin reads in `cli/api_login.go`, the file login saves, and every message
+naming the file take it. `config.RefuseMissingNamedFile` refuses a `PROJECTS_CONFIG`
+naming no file with exit 2, and every reader calls it but login, which creates the
+file there.
 
 **A retired variable refuses from one table.** `config/retired_variables.go` holds it, `main.go`
 refuses any variable in it that is set before anything runs, and each retirement adds its rows from

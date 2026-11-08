@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/datapointchris/projects/config"
 )
 
 func writeRegistry(t *testing.T, body string) string {
@@ -49,6 +51,7 @@ func withConfig(t *testing.T, body string) {
 		}
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv(config.FileVariable, "")
 }
 
 // The compiled default names nothing outside the tool's own XDG data directory,

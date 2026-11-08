@@ -87,11 +87,11 @@ func openDataSource(cmd *cobra.Command) (*dataSource, error) {
 // it names none. goclilogin's reading of api is the one the mode follows, because
 // it is the one every request is then sent with.
 func decideMode(cmd *cobra.Command) (*config.Config, goclilogin.Deployment, runMode, error) {
-	if err := config.RefuseConfigUnderFormerName(); err != nil {
-		return nil, goclilogin.Deployment{}, databaseMode, err
-	}
 	cfg, err := config.Load()
 	if err != nil {
+		return nil, goclilogin.Deployment{}, databaseMode, err
+	}
+	if err := config.RefuseConfigUnderFormerName(); err != nil {
 		return nil, goclilogin.Deployment{}, databaseMode, err
 	}
 	warnOfRetiredSyncSection(cmd, cfg)

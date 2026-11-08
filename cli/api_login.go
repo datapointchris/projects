@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/datapointchris/goclilogin"
+
+	"github.com/datapointchris/projects/config"
 )
 
 // product names this tool to goclilogin: its config file, keyring service and
@@ -34,7 +36,10 @@ const clientSecretEnv = "PROJECTS_CLIENT_SECRET"
 // A service missing a value is told which key to write rather than to log in,
 // since a service has no login.
 func loadDeployment(ctx context.Context, api string) (goclilogin.Deployment, error) {
-	d, err := goclilogin.LoadDeployment(ctx, product, api)
+	if err := config.RefuseMissingNamedFile(); err != nil {
+		return goclilogin.Deployment{Path: configFilePath()}, err
+	}
+	d, err := goclilogin.LoadDeploymentFrom(ctx, product, configFilePath(), api)
 	if d.HandsTokens() && isService() {
 		return d, fmt.Errorf("%s sets token_command and %s is set, so projects has two credentials; keep one",
 			d.Path, clientSecretEnv)
@@ -57,13 +62,15 @@ func loadDeployment(ctx context.Context, api string) (goclilogin.Deployment, err
 
 // deploymentForLogin is the deployment `projects auth login` logs in to: the
 // file's values, with whatever it lacks filled in from api, the API's RFC 9728
-// metadata and clientID.
+// metadata and clientID. A $PROJECTS_CONFIG naming no file yet is where login
+// creates it.
 func deploymentForLogin(ctx context.Context, api, clientID string) (goclilogin.Deployment, error) {
-	return goclilogin.DeploymentForLogin(ctx, product, api, clientID)
+	return goclilogin.DeploymentForLoginFrom(ctx, product, configFilePath(), api, clientID)
 }
 
-// configFilePath is the file login writes, whether or not it exists.
-func configFilePath() string { return goclilogin.ConfigPath(product) }
+// configFilePath is the file every command reads and login writes, whether or
+// not it exists.
+func configFilePath() string { return config.FilePath() }
 
 // defaultClientID is the client id login uses when neither the file nor
 // --client-id names one: projects-cli-<short hostname>.
