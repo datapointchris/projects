@@ -95,8 +95,7 @@ go test -run TestTheCommandsAnswerTheSameInBothModes . # the commands, in both m
 - **A wait after a create names the row, not the hints.** A status flash holds the hints back for
   `statusFlashDuration`, and it lands before the refresh that draws the row.
 - **A script masks each value that changes between runs.** A date left in a golden fails the next day.
-- **Search results sort by a creation time the fixture cannot hold still**, so the search flow's query
-  matches one item.
+  A mask rewrites frames and not waits, so a wait on a masked value names it with a pattern.
 
 To look at something while developing, write the keys to a script and replay it:
 
@@ -169,6 +168,13 @@ One carve-out is declared here rather than assumed:
 Bare `projects` prints help. The project verbs sit at the root, and the item verbs under
 `projects items`, with `tasks`, `dependencies` and `memberships` as nouns under it. `cli/root.go`
 builds the tree. Help renders through `gotermstyle/cobrahelp`.
+
+- **Every key the board takes is a row in `tui/action_table.go`.** The key handler, the status bar's
+  hints and the `?` overlay all read it, so a key added there shows in all three, and a row's `applies`
+  keeps it out of all three where it does not act.
+- **The board hosts gotermboard's `Reader` and not its `Model`.** Its own panes, glyphs and footer are
+  drawn in `tui`, so `App` forwards keys, pastes and window sizes to the reader while one shows, and
+  `Reader.ClosesWith` hands the screen back.
 
 - **The `api` key, or `--api`, chooses the mode, and neither means the database.** `decideMode` in
   `cli/data_source.go` reads goclilogin's parse of the key, so the mode and the login read one

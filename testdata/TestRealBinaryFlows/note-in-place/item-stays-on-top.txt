@@ -1,0 +1,30 @@
+ By project   All items   Dependencies
+╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects                             │┃ Move the blog to plain files                             ┃
+│> Move the blog to plain files ○3 ✓1  │┃> ▾ ○ Export posts from the old CMS ≡ [1/3]               ┃
+│   Replace the kitchen faucet ○3 ✓0   │┃                                                          ┃
+│   Plan the Lisbon trip ○31 ✓0        │┃       1. Dump the database from the read replica, never  ┃
+│                                      │┃          the primary.                                    ┃
+│                                      │┃       2. Convert each fragment to markdown with the      ┃
+│                                      │┃          script below.                                   ┃
+│                                      │┃       3. Download every image the posts reference into   ┃
+│                                      │┃          static/images/<year>/<slug>/.                   ┃
+│                                      │┃       4. Rewrite the image links to the new relative     ┃
+│                                      │┃          paths.                                          ┃
+│                                      │┃       5. Diff a sample of twenty rendered posts against  ┃
+│                                      │┃          the live site.                                  ┃
+│                                      │┃                                                          ┃
+│                                      │┃       ▌ Conversion script                                ┃
+│                                      │┃                                                          ┃
+│                                      │┃       ╭─ bash                                            ┃
+│                                      │┃       │ mysqldump --single-transaction blog posts >      ┃
+│                                      │┃       │ ↪ posts.sql                                      ┃
+│                                      │┃       │ python3 convert.py --input posts.sql --output    ┃
+│                                      │┃       │ ↪ content/posts                                  ┃
+│                                      │┃       │ rg --count '<img' content/posts | sort -t: -k2   ┃
+│                                      │┃       │ ↪ -n | tail -20                                  ┃
+│                                      │┃       ╰─                                                 ┃
+│                                      │┃                                                          ┃
+│                                      │┃ 1/7                                                      ┃
+╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  [J/K]scroll [Enter]read [space]note [c]omplete [a]dd [e]dit [M]ove …  [?]help  LOCAL projects.db

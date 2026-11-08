@@ -3,19 +3,22 @@
 mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 
 wait Export posts from the old CMS
-press tab
+press l
 wait [Enter]read
-press J
-wait > ✓ Pick a theme
+press ]
+wait /> +✓ Pick a theme/
 
-press n
+press e
 wait /Pick a theme ≡/
 frame note-saved
-press enter
+press space
 wait Written from the editor.
+frame note-in-place
+press enter
+wait Notes
 frame note-in-the-reader
 
-press q
-gone Written from the editor.
+press esc
+wait [Enter]read
 press q
 exits

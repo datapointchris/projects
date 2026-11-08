@@ -1,7 +1,6 @@
-# Add a task from the list and from the reader, then toggle and delete one.
-mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+# Add a task from the list, then toggle one and delete one. d deletes nothing.
 wait Export posts from the old CMS
-press tab
+press l
 wait [Enter]read
 
 press t
@@ -10,28 +9,20 @@ frame prompt
 type Check the image links
 press enter
 wait ○ Check the image links
+wait [1/4]
 frame added-from-the-list
 
-press enter
-wait ─── Notes ───
-press t
-wait New task for "Export posts from the old CMS"
-type Spot-check twenty posts
-press enter
-wait ○ Spot-check twenty posts
-frame added-from-the-reader
-press esc
-wait [1/5]
-
 press j
-wait > ✓ Dump the database
+wait /> +✓ Dump the database/
 press j
-wait > ○ Convert HTML to markdown
+wait /> +○ Convert HTML to markdown/
 press space
-wait [2/5]
+wait [2/4]
 frame task-toggled
 press d
-wait [1/4]
+press D
+wait [1/3]
+gone Convert HTML to markdown
 frame task-deleted
 
 press q

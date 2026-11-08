@@ -1,5 +1,5 @@
-# Walk the dependency browser, peek at an item and come back, then link and unlink
-# a dependency through its overlays.
+# Walk the dependency map, read an item and come back, then link and unlink a
+# dependency through its overlays.
 mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 
 wait Export posts from the old CMS
@@ -8,7 +8,7 @@ wait All trees
 frame forest
 
 press l
-wait [l]drill
+wait [i]flip
 frame focus-pane
 press i
 wait Tree — unblocks
@@ -17,15 +17,18 @@ press i
 wait Tree — waits on
 
 press enter
-wait ─── Blocked by ───
-frame peeked-at-an-item
+wait Blocked by
+frame read-an-item
 press esc
 wait All trees
 frame back-in-the-tree
+press h
 press esc
-gone All trees
+wait All trees
 
 press tab
+wait /(?m)^.*Projects/
+press l
 wait [Enter]read
 press b
 wait Link dependency for: Export posts from the old CMS (1)

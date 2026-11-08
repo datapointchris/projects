@@ -155,7 +155,7 @@ func TestAMovedItemLandsWhereItIsDroppedBelowAnArchivedOne(t *testing.T) {
 	}
 	move := func(keys string, want ...string) {
 		t.Helper()
-		pressKey(t, app, "m")
+		pressKey(t, app, "M")
 		for _, key := range keys {
 			pressKey(t, app, string(key))
 		}
@@ -199,19 +199,6 @@ func TestAddTaskPromptVisibleInShortWindow(t *testing.T) {
 	}
 }
 
-func TestAddTaskPromptNamesTargetItem(t *testing.T) {
-	app := newTestApp(t, 80, 24, "ship the thing")
-
-	pressKey(t, app, "t")
-
-	if got := app.addTaskItemTitle; got != "ship the thing" {
-		t.Errorf("expected target title %q, got %q", "ship the thing", got)
-	}
-	if view := app.screen(); !strings.Contains(view, "ship the thing") {
-		t.Errorf("prompt does not name the target item:\n%s", view)
-	}
-}
-
 // Escaping must return to normal navigation rather than leaving keystrokes
 // captured by an input the user cannot see.
 func TestAddTaskEscapeRestoresNavigation(t *testing.T) {
@@ -228,32 +215,6 @@ func TestAddTaskEscapeRestoresNavigation(t *testing.T) {
 	pressKey(t, app, "j")
 	if app.rowCursor == before {
 		t.Errorf("cursor did not move after esc; keys still captured by the input")
-	}
-}
-
-func TestAddTaskCreatesTaskOnTargetItem(t *testing.T) {
-	app := newTestApp(t, 80, 24, "first")
-
-	pressKey(t, app, "t")
-	for _, r := range "write tests" {
-		send(t, app, runeKey(r))
-	}
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	if app.appMode != modeNormal {
-		t.Fatalf("expected modeNormal after enter, got %v", app.appMode)
-	}
-
-	item := app.items[0]
-	tasks, err := app.backend.ListTasks(item.ID)
-	if err != nil {
-		t.Fatalf("listing tasks: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected 1 task, got %d", len(tasks))
-	}
-	if tasks[0].Title != "write tests" {
-		t.Errorf("expected task title %q, got %q", "write tests", tasks[0].Title)
 	}
 }
 
@@ -374,10 +335,6 @@ func TestCompletedProjectLeavesTheProjectPane(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
 
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if app.appMode != modeReader || app.projectDetail == nil {
-		t.Fatalf("expected the reader on the project, got mode %v", app.appMode)
-	}
 	keys(t, app, "c")
 
 	if len(app.projects) != 0 {
@@ -388,14 +345,12 @@ func TestCompletedProjectLeavesTheProjectPane(t *testing.T) {
 func TestShowClosedTogglesTheClosedProjectsBackIn(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "c")
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	keys(t, app, "C")
+	keys(t, app, ".")
 
 	if len(app.projects) != 1 {
-		t.Fatalf("C must bring closed projects back, got %d", len(app.projects))
+		t.Fatalf(". must bring closed projects back, got %d", len(app.projects))
 	}
 	if app.projects[0].Status != model.StatusCompleted {
 		t.Errorf("status = %q, want done", app.projects[0].Status)
@@ -404,31 +359,28 @@ func TestShowClosedTogglesTheClosedProjectsBackIn(t *testing.T) {
 		t.Errorf("the row must be labeled with its status:\n%s", app.screen())
 	}
 
-	keys(t, app, "C")
+	keys(t, app, ".")
 	if len(app.projects) != 0 {
-		t.Errorf("C again must hide them, got %d", len(app.projects))
+		t.Errorf(". again must hide them, got %d", len(app.projects))
 	}
 }
 
 // A shelved project is not closed, but it is not open either: it leaves the
-// pane, and its reader offers reopen and refuses complete.
+// pane, and its row offers reopen and refuses complete.
 func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "S")
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if len(app.projects) != 0 {
 		t.Fatalf("shelving must take the project out of the pane, still have %d", len(app.projects))
 	}
 
-	keys(t, app, "C")
+	keys(t, app, ".")
 	if len(app.projects) != 1 || app.projects[0].Status != model.StatusSomeday {
-		t.Fatalf("C must bring the shelved project back as someday, got %v", app.projects)
+		t.Fatalf(". must bring the shelved project back as someday, got %v", app.projects)
 	}
 
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
 	keys(t, app, "c")
 	if app.projects[0].Status != model.StatusSomeday {
 		t.Errorf("c on a shelved project must be refused, status = %q", app.projects[0].Status)
@@ -440,11 +392,16 @@ func TestShelvedProjectOffersOnlyReopen(t *testing.T) {
 	}
 }
 
-// A reason is required, so dropping is a prompt rather than a keypress.
+// A reason is required, so dropping is a prompt rather than a keypress, and Esc drops nothing.
 func TestDroppingAProjectAsksWhy(t *testing.T) {
 	app := newTestApp(t, 100, 30)
 	app.activePane = projectPane
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	keys(t, app, "x")
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if app.appMode != modeNormal || len(app.projects) != 1 {
+		t.Fatalf("Esc on the drop prompt left mode %v and %d projects, want normal and 1", app.appMode, len(app.projects))
+	}
 
 	keys(t, app, "x")
 
@@ -487,8 +444,8 @@ func assertPaneInvariants(t *testing.T, app *App, context string) {
 	if app.currentRow() == nil {
 		return
 	}
-	block := app.renderRowBlock(app.rowCursor, app.width-app.projectPaneWidth()-4)
-	if app.rowHasLeadingBlank(app.rowCursor) {
+	block := app.renderRowBlock(app.rowCursor, app.itemPaneWidth()-2)
+	for len(block) > 1 && strings.TrimSpace(block[0]) == "" {
 		block = block[1:]
 	}
 	if !strings.Contains(view, block[0]) {
@@ -555,9 +512,7 @@ func TestCursorStaysVisibleInTheGroupedView(t *testing.T) {
 		}
 	}
 	send(t, app, fetchProjectsCmd(app.backend, app.projectStatusFilter())())
-	app.showingAll = true
-	send(t, app, fetchAllItemsCmd(app.backend, app.projects, app.filter)())
-	app.activePane = itemPane
+	send(t, app, tea.KeyPressMsg{Code: tea.KeyTab})
 
 	if !app.isGroupedView() {
 		t.Fatal("expected the grouped All Items view")
@@ -625,7 +580,7 @@ func TestNoRenderedLineExceedsThePaneWidth(t *testing.T) {
 func TestProjectPaneShowsOpenAndDoneCounts(t *testing.T) {
 	app := newTestApp(t, 100, 30, "first", "second", "third")
 
-	pressKey(t, app, " ")
+	pressKey(t, app, "c")
 
 	projects, err := app.backend.ListProjectsByStatus(model.StatusActive)
 	if err != nil {
@@ -672,22 +627,6 @@ func TestProjectPaneNeverOverflowsItsBox(t *testing.T) {
 	}
 }
 
-func TestCancellingTheDropPromptLeavesTheProjectAlone(t *testing.T) {
-	app := newTestApp(t, 100, 30)
-	app.activePane = projectPane
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEnter})
-	keys(t, app, "x")
-
-	send(t, app, tea.KeyPressMsg{Code: tea.KeyEscape})
-
-	if app.appMode != modeReader {
-		t.Errorf("Esc must return to the reader it came from, got mode %v", app.appMode)
-	}
-	if len(app.projects) != 1 {
-		t.Error("canceling must not drop anything")
-	}
-}
-
 // A terminal that honors Bubble Tea's keyboard requests, such as tmux with
 // extended-keys on, reports these three apart from Esc, Enter and Tab.
 func TestKeysSomeTerminalsReportApartActAsEscEnterAndTab(t *testing.T) {
@@ -699,16 +638,15 @@ func TestKeysSomeTerminalsReportApartActAsEscEnterAndTab(t *testing.T) {
 		t.Errorf("ctrl+[ left mode %v, want help closed", app.appMode)
 	}
 
-	before := app.activePane
-	send(t, app, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl})
-	if app.activePane == before {
-		t.Error("ctrl+i did not switch panes")
-	}
-
 	keys(t, app, "a", "Typed")
 	send(t, app, tea.KeyPressMsg{Code: 'm', Mod: tea.ModCtrl})
 	if app.appMode != modeNormal {
 		t.Errorf("ctrl+m left mode %v, want the prompt submitted", app.appMode)
+	}
+
+	send(t, app, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl})
+	if app.view != viewItems {
+		t.Errorf("ctrl+i left view %v, want the next view", app.view)
 	}
 }
 

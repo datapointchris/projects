@@ -1,5 +1,5 @@
-# The help overlay from each pane, in a window shorter than the overlay. Its text
-# depends on the pane behind it.
+# The ? overlay from each pane, in a window shorter than the overlay. It lists what the
+# action table binds for the row behind it, as the footer does.
 wait Export posts from the old CMS
 
 press ?
@@ -8,13 +8,31 @@ frame from-the-project-pane
 press ?
 gone [Esc] or [?] Close
 
-press tab
+press l
 wait [Enter]read
 press ?
 wait [Esc] or [?] Close
 frame from-the-item-pane
 press esc
 wait [Enter]read
+
+press j
+wait [D]elete
+press ?
+wait On a task
+frame from-a-task
+press esc
+
+press k
+wait /> +▸ ○ Export posts from the old CMS/
+press M
+wait [Enter]drop
+press ?
+wait Moving a row
+frame while-moving
+press esc
+press esc
+gone MOVING
 
 press q
 exits

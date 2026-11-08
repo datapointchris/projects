@@ -3,7 +3,7 @@
  Projects: Move the blog to plain files
  Created: <date>
 
- ─── Notes ───
+ Notes
 
  Written from the editor.
 
@@ -27,4 +27,4 @@
 
 
 
-  Item updated                                                                                 8/8
+7/7  j/k scroll  [/] section  / search  y copy  ? keys  esc/space back  q quit

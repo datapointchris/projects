@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -15,9 +17,6 @@ import (
 	"github.com/datapointchris/projects/api/wire"
 	"github.com/datapointchris/projects/tui"
 )
-
-// tabProjects is the board's one tab, named for what it lists.
-const tabProjects = "projects"
 
 // The frame --once draws where COLUMNS and LINES are unset and stdout is no terminal.
 const (
@@ -37,6 +36,9 @@ type tuiShown struct {
 
 const tuiShownVersion = 1
 
+// viewDependencies is the view --json answers nothing for, because a command already prints the map.
+const viewDependencies = "dependencies"
+
 func newTUICommand() *cobra.Command {
 	var (
 		view         string
@@ -44,21 +46,27 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "Open the board: projects on the left, the selected one's items on the right",
-		Long: "Everything the commands do can be done here by key; ? lists the keys. The status\n" +
-			"line names where the data lives: LOCAL and the database's path, or API and its\n" +
-			"host. In API mode the board reads the API again on a timer, and R reads it now.\n" +
+		Short: "Open the board: projects and their items, every item, or the dependency map",
+		Long: "Everything the commands do can be done here by key; ? lists the keys. Tab cycles\n" +
+			"the three views, and --view opens on one. The status line names where the data\n" +
+			"lives: LOCAL and the database's path, or API and its host. In API mode the board\n" +
+			"reads the API again on a timer, and R reads it now.\n" +
 			"\n" +
 			"--once prints one frame at COLUMNS by LINES, else at the terminal's size, else at\n" +
 			"120 by 40, and --json what that frame is drawn from, so an agent reads what a\n" +
-			"person reads. With no terminal and neither flag it refuses.",
+			"person reads. The dependency map's --json is `projects items dependencies tree\n" +
+			"--json`. With no terminal and neither flag it refuses.",
 		Example: "  projects tui\n" +
-			"  COLUMNS=160 LINES=50 projects tui --once > frame.txt\n" +
+			"  projects tui --view items\n" +
+			"  COLUMNS=160 LINES=50 projects tui --once --view dependencies > frame.txt\n" +
 			"  projects tui --json | jq '.project.name'",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if view != "" && view != tabProjects {
-				return goclikit.UsageError(fmt.Errorf("--view takes %s, not %q", tabProjects, view))
+			if view != "" && !slices.Contains(tui.ViewNames(), view) {
+				return goclikit.UsageError(fmt.Errorf("--view takes %s, not %q", strings.Join(tui.ViewNames(), ", "), view))
+			}
+			if asJSON && view == viewDependencies {
+				return goclikit.UsageError(errors.New("the dependency map's --json is projects items dependencies tree --json"))
 			}
 			if once && asJSON {
 				return goclikit.UsageError(errors.New("--once prints a frame and --json what it is drawn from, so give one of them"))
@@ -74,6 +82,9 @@ func newTUICommand() *cobra.Command {
 			defer func() { _ = source.Close() }()
 			where := tui.Where{DatabasePath: source.cfg.Local.DBPath, APIHost: source.apiHost()}
 			app := tui.NewApp(source.boardBackend(), where)
+			if view != "" {
+				app.OpenOn(view)
+			}
 			if !printing {
 				_, err := tea.NewProgram(app).Run()
 				return err
@@ -93,7 +104,7 @@ func newTUICommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+tabProjects)
+	cmd.Flags().StringVar(&view, "view", "", "Open on this view: "+strings.Join(tui.ViewNames(), ", "))
 	cmd.Flags().BoolVar(&once, "once", false, "Print one frame at COLUMNS by LINES, else the terminal's size, then exit")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output what the board shows as it opens as JSON to stdout")
 	return cmd
@@ -103,7 +114,7 @@ func boardShown(app *tui.App) tuiShown {
 	projects, selected, items := app.Shown()
 	shown := tuiShown{
 		SchemaVersion: tuiShownVersion,
-		View:          tabProjects,
+		View:          app.ViewName(),
 		Projects:      wire.Map(projects, wire.NewProjectWithItemCount),
 		Items:         wire.Map(items, wire.NewProjectItemInProject),
 	}

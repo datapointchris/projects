@@ -1,33 +1,36 @@
-# Open an item and a project in the reader, scroll a long note, and close each.
+# Enter opens an item and a project full screen in gotermboard's reader. Esc closes each
+# onto the row it came from.
 mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
 mask /Project [0-9a-f]{8}/ "Project <id>"
 
 wait Export posts from the old CMS
-press tab
+press l
 wait [Enter]read
 
 press enter
-wait ─── Notes ───
+wait Item 1 ·
+wait esc/space back
 frame item-top
+press ]
+wait Blocks
 press ctrl+d
 wait Conversion script
 frame item-half-page-down
 press G
 wait Last line of the note.
 frame item-bottom
-press g
-wait Item 1 ·
 press esc
 wait [Enter]read
 frame closed-onto-the-list
 
 press h
-wait [a]dd project
+wait [space]mark
 press enter
-wait ─── Description ───
+wait /Project [0-9a-f]{8} · active/
+wait Why move
 frame project
-press q
-wait [a]dd project
+press space
+wait [space]mark
 
 press q
 exits

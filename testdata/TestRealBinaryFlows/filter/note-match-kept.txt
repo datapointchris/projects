@@ -1,0 +1,30 @@
+ By project   All items   Dependencies
+╭──────────────────────────────────────╮┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│ Projects                             │┃ Move the blog to plain files                             ┃
+│> Move the blog to plain files ○3 ✓1  │┃ /replica                                                 ┃
+│   Replace the kitchen faucet ○3 ✓0   │┃> ▸ ○ Export posts from the old CMS ≡ [1/3]               ┃
+│   Plan the Lisbon trip ○31 ✓0        │┃                                                         1┃
+│                                      │┃       ✓ Dump the database                                ┃
+│                                      │┃       ○ Convert HTML to markdown                         ┃
+│                                      │┃       ○ Download the images                              ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+│                                      │┃                                                          ┃
+╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  [Enter]read [space]note [c]omplete [a]dd [e]dit [Esc]back [Tab]view … [?]help  LOCAL projects.db

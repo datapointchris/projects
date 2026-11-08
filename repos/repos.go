@@ -19,13 +19,16 @@ import (
 type registryFile struct {
 	Repos []struct {
 		Name string `json:"name"`
+		Path string `json:"path"`
 	} `json:"repos"`
 }
 
-// Registry is the set of known repo names, empty when the file is absent.
+// Registry is the set of known repo names, empty when the file is absent, and where each is
+// checked out.
 type Registry struct {
-	names map[string]bool
-	path  string
+	names     map[string]bool
+	checkouts map[string]string
+	path      string
 }
 
 // DefaultPath is where this machine keeps the registry: $PROJECTS_REPOS_REGISTRY,
@@ -73,10 +76,23 @@ func Load(path string) (*Registry, error) {
 		return nil, fmt.Errorf("parsing repo registry %s: %w", path, err)
 	}
 	names := make(map[string]bool, len(parsed.Repos))
+	checkouts := make(map[string]string, len(parsed.Repos))
 	for _, repo := range parsed.Repos {
 		names[repo.Name] = true
+		if repo.Path != "" {
+			checkouts[repo.Name] = config.ExpandTilde(repo.Path)
+		}
 	}
-	return &Registry{names: names, path: path}, nil
+	return &Registry{names: names, checkouts: checkouts, path: path}, nil
+}
+
+// Checkout is where the registry says name is checked out, and whether it names a place.
+func (r *Registry) Checkout(name string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	checkout, named := r.checkouts[name]
+	return checkout, named
 }
 
 // Available reports whether the registry was found and had any repos in it.

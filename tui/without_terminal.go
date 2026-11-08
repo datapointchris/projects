@@ -17,11 +17,14 @@ func (m *App) Once(width, height int) (string, error) {
 	return lastRows(m.screen(), height), nil
 }
 
-// Read runs the board's opening reads in this goroutine: the projects, then the
-// items of the one under the cursor.
+// Read runs the board's opening reads in this goroutine: the projects, then what the view
+// lists, which is the items of the project under the cursor, every item, or the dependency map.
 func (m *App) Read() error {
 	if err := m.apply(fetchProjectsCmd(m.backend, m.projectStatusFilter())); err != nil {
 		return err
+	}
+	if m.view == viewDependencies {
+		return m.apply(fetchDepTreeCmd(m.backend, ""))
 	}
 	if cmd := m.fetchItems(); cmd != nil {
 		return m.apply(cmd)
@@ -38,11 +41,11 @@ func (m *App) apply(cmd tea.Cmd) error {
 	return nil
 }
 
-// Shown is what the board holds after Read: its projects, the one under the
-// cursor, and that project's items as the pane lists them.
+// Shown is what the board holds after Read: its projects, the one under the cursor, and the
+// items the item pane lists. All items has no project under a cursor, so it answers none.
 func (m *App) Shown() ([]model.ProjectWithItemCount, *model.ProjectWithItemCount, []model.ProjectItemInProject) {
 	var selected *model.ProjectWithItemCount
-	if m.projectCursor < len(m.projects) {
+	if m.view == viewProjects && m.projectCursor < len(m.projects) {
 		selected = &m.projects[m.projectCursor]
 	}
 	return m.projects, selected, m.items

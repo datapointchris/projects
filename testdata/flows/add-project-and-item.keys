@@ -14,7 +14,7 @@ frame project-added
 
 press G
 wait No items
-press tab
+press l
 wait /(?m)^╭.*┏/
 press a
 wait Enter item title

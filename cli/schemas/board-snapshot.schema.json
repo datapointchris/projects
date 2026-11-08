@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:projects:board-snapshot:v1",
   "title": "board-snapshot",
-  "description": "`projects tui --json`: what the board shows as it opens. The project pane lists the active projects, and the item pane the open items of the project under the cursor.",
+  "description": "`projects tui --json`: what the board shows as it opens. The project pane lists the active projects. The item pane lists the open items of the project under the cursor in the projects view, and every project's open items in the items view.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -21,9 +21,10 @@
     "view": {
       "type": "string",
       "enum": [
-        "projects"
+        "projects",
+        "items"
       ],
-      "description": "The tab the snapshot is of."
+      "description": "The view the snapshot is of."
     },
     "projects": {
       "type": "array",
@@ -32,7 +33,7 @@
       }
     },
     "project": {
-      "description": "The project under the cursor, or null with no projects.",
+      "description": "The project under the cursor, or null with no projects and in the items view.",
       "anyOf": [
         {
           "$ref": "#/$defs/project-with-item-count"

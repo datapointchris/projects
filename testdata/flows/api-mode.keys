@@ -5,7 +5,7 @@ wait Export posts from the old CMS
 wait /API 127\.0\.0\.1/
 frame opened
 
-press tab
+press l
 wait /(?m)^╭.*┏/
 press a
 wait Enter item title

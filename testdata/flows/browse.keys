@@ -1,23 +1,23 @@
-# Move through projects and items: panes, rows, task rows, filters, the All view,
-# multi-select and a list longer than the window.
+# Move through projects and items: panes, rows, task rows, filters, multi-select and a
+# list longer than the window.
 wait Export posts from the old CMS
 frame first-screen
 
-press tab
+press l
 wait [Enter]read
 frame items-focused
 
 press j
-wait > ✓ Dump the database
+wait /> +✓ Dump the database/
 frame cursor-on-task
 
-press J
-wait > ✓ Pick a theme
+press ]
+wait /> +✓ Pick a theme/
 press G
-wait > ○ Point DNS at the new host
+wait /> +○ Point DNS at the new host/
 frame cursor-on-last-item
 press g
-wait > ○ Export posts from the old CMS
+wait /> +▸ ○ Export posts from the old CMS/
 
 press 1
 wait [BLOCKED]
@@ -31,29 +31,27 @@ press 0
 gone [ALL]
 
 press h
-wait [a]dd project
-press k
-wait All Items
-frame all-projects
-press j
-wait > Move the blog to plain files
-
+wait [space]mark
 press space
 wait Selected (1)
-frame one-project-selected
+press j
+wait > Replace the kitchen faucet
+press space
+wait Selected (2)
+frame two-projects-selected
 press esc
-gone Selected (1)
+gone Selected (2)
 
 press G
 wait > Plan the Lisbon trip
 frame last-project
-press tab
+press l
 wait [Enter]read
 press ctrl+d
-wait > ○ Day 11: walk the next neighborhood
+wait /> +○ Day 10: walk the next neighborhood/
 frame long-list-half-page
 press G
-wait > ○ Day 28: walk the next neighborhood
+wait /> +○ Day 28: walk the next neighborhood/
 frame long-list-bottom
 
 press ctrl+c

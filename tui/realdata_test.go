@@ -45,24 +45,29 @@ func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
 		send(t, app, app.Init()())
 		app.activePane = itemPane
 
+		// Each list is walked twice: with the notes closed, then with every note open in place.
 		walk := func(label string) {
-			app.rowCursor, app.rowScroll = 0, 0
-			for i := range len(app.rows) {
-				if i > 0 {
-					pressKey(t, app, "j")
+			for _, open := range []bool{false, true} {
+				for _, item := range app.items {
+					app.opened[item.ID] = open
 				}
-				assertPaneInvariants(t, app, fmt.Sprintf("%dx%d %s", width, height, label))
+				app.rowCursor, app.rowScroll, app.scrolled = 0, 0, false
+				for i := range len(app.rows) {
+					if i > 0 {
+						pressKey(t, app, "j")
+					}
+					assertPaneInvariants(t, app, fmt.Sprintf("%dx%d %s, notes open %v", width, height, label, open))
+				}
 			}
 		}
 
 		for pi := range app.projects {
-			app.projectCursor, app.showingAll = pi, false
+			app.projectCursor = pi
 			send(t, app, app.fetchItems()())
 			walk(app.projects[pi].Name)
 		}
 
-		app.showingAll = true
-		send(t, app, fetchAllItemsCmd(app.backend, app.projects, app.filter)())
-		walk("All Items")
+		send(t, app, tea.KeyPressMsg{Code: tea.KeyTab})
+		walk("All items")
 	}
 }

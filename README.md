@@ -51,7 +51,7 @@ projects tui                                          # the board, reading that 
 ```
 
 Those lines are the whole setup for database mode. The right end of the board's status bar reads
-`LOCAL` and the database path. In the board, `a` adds a project, `Tab` moves to the item pane, and `a`
+`LOCAL` and the database path. In the board, `a` adds a project, `l` moves to the item pane, and `a`
 adds an item there. `q` quits.
 
 To work through an API instead:
@@ -162,47 +162,66 @@ because the first default run moves that directory out from under it.
 A retired `TODOUI_*` variable set to a value stops every command with exit 2, naming the variable that
 replaced it. Ignoring `TODOUI_DB` would open the default database where the variable chose another.
 
-## The TUI — projects on the left, their items on the right, every key one press away
+## The TUI — three views, one key table, every key one press away
 
 ```text
-j / k     move through items and their tasks as one list    J / K   jump item to item
-Tab       switch pane                                       Enter   read it in full
-a         add a project, or an item to this project         space   mark done
-T         dependency browser                                /       search every project
-u         undo the last change                              R       read the data again now
-?         every key the pane you are in takes               q       quit
+Tab       the next view: By project, All items, Dependencies     /       filter the list in place
+j / k     move through rows                                      [ / ]   jump item to item, past tasks
+h / l     move between the project and item panes                Enter   read it full screen
+space     open the note under its row, or mark a task done       c       mark done
+a         add a project, or an item to this project              M       move the row
+T         the dependency map on this item                        C       a Claude session on the row
+u         undo the last change                                   R       read the data again now
+?         every key the row you are on takes                     q       quit
 ```
 
-The status bar carries the keys the current row takes, and `?` lists every key for the pane.
+One table of actions builds the key handling, the status bar's hints and the `?` overlay. A key
+the row cannot take is in none of the three. The header names the view showing.
 
-The project pane opens on an `All` row, which shows every item grouped by project. `space` on a
-project adds it to a selection. The item pane then shows the selected projects' items, grouped the
-same way. An item belongs to one project or to several. `A` adds an item to more than one, and `p`
-changes which projects hold it. Each item carries a title, notes, a checklist of sub-tasks, and the
-items it waits on. The reader also names the repo the item is for. The board has no key that sets
-that tag. `projects items edit <item> --repo <name>` sets it.
+**By project** lists the projects on the left and the items of the one under the cursor on the right.
+`space` on a project marks it, and the item pane then lists every marked project's items, each under
+a header. **All items** lists every project's items under its header, and the header shows its open
+and done counts. `Enter` or `space` on a header folds it. An item belongs to one project or to
+several. `A` adds an item to more than one, and `P` changes which projects hold it. Each item carries
+a title, notes, a checklist of sub-tasks, a repo tag, and the items it waits on. The board has no key
+that sets the repo tag. `projects items edit <item> --repo <name>` sets it.
+
+A row takes two lines. The first holds the state, the title, `≡` for a note, `◈` for an item in
+several projects and the task count. The second, dim, holds the repo, the other projects holding the
+item, and its number at the right edge. A `▸` marks only a row whose note opens. `space` opens the
+note in place under the row, however tall, and `space` again closes it. While the cursor is on an
+open note, `J` and `K` scroll it a line, and `Ctrl+d` and `Ctrl+u` half a screen. Elsewhere `Ctrl+d`
+and `Ctrl+u` move half a screen of the list. Scrolling keeps the item's first line, and its group's
+header, at the top of the pane.
+
+`/` filters the list in place as each key lands. It matches titles and notes, ignoring case unless
+the filter holds a capital. `Enter` keeps the filter and `Esc` clears it. In the project pane it
+filters the projects.
 
 Through an API, the status bar reads `API` and the API's host. The board reads the API again every
 `apiRereadInterval` in `tui/app.go`, and `R` reads it at once.
 
-`Enter` opens the reader, a full screen holding one item or one project. An item shows its fields,
-what blocks it, what it blocks, its tasks, and its notes rendered as markdown. A project shows its
-status, its open and done counts, and its description rendered the same way. `j`/`k` scroll a line,
-`Ctrl+d`/`Ctrl+u` half a screen, and `g`/`G` jump to either end. `Esc`, `q` or `h` goes back to
-where the reader was opened: the list on the same row, or the dependency browser. The item keys act
-on the item shown, so `n` edits the note in `$EDITOR` and the reader shows the result. `u` undoes
-the last change, and the reader shows that too. A placeholder written as `<word>` shows as written
-rather than being read as an HTML tag. The list draws no note text. A `≡` on the row says the item
-has one.
+`Enter` opens an item or a project full screen in gotermboard's reader. An item shows its fields,
+what blocks it, what it blocks, its tasks, and its note rendered as markdown. A project shows its
+status, its open and done counts, and its description rendered the same way. `[` and `]` jump
+section to section, `/` searches the text, and `Esc` or `space` goes back to the row it came from.
 
-`b` links an item this one is blocked by. A link that would close a cycle is refused. `T` opens the
-dependency browser. The left pane is every tree, searchable with `/`. The right pane is the tree you
-are standing in. `l` drills in, so the row under the cursor becomes the root. `h` backs out one
-drill at a time. `i` flips the tree between what an item waits on and what it unblocks. Finished
-trees stay hidden until `a` shows them.
+`e` edits the note, or a project's description, in `$EDITOR`. `n` renames. `t` adds a task, `D`
+deletes one, and `d` deletes nothing. `M` grabs a row, `j` and `k` carry it, `Enter` drops it and
+`Esc` puts it back.
+
+`C` opens a Claude session on the row. Inside tmux it opens in a window of its own, and outside tmux
+it takes the terminal until it ends. It runs in the checkout the repo registry names for the item's
+repo tag, or for a project's one repo, and in the board's own directory otherwise.
+
+`b` links an item this one is blocked by. A link that would close a cycle is refused. **Dependencies**
+shows the dependency map. The left pane is every tree, filtered with `/`. The right pane is the tree
+you are standing in. `l` goes into it, then drills, so the row under the cursor becomes the root. `h`
+backs out one drill at a time. `i` flips the tree between what an item waits on and what it unblocks.
+Finished trees stay hidden until `.` shows them. `T` on an item opens the map standing on it.
 
 `x` archives an item. `1` filters to blocked items, `2` adds archived ones back, and `0` clears the
-filter.
+filter. `projects tui --view items` opens on All items, and `--view dependencies` on the map.
 
 ## A project is bounded work, and its name is never a repo's
 
@@ -219,7 +238,8 @@ registry is a JSON file with a `repos` array, and each entry's `name` is a banne
 { "repos": [{ "name": "projects" }] }
 ```
 
-The match ignores case and surrounding spaces. `projects` reads the first registry it finds, in this
+The match ignores case and surrounding spaces. An entry's `path`, where it has one, is the checkout
+`C` in the board opens a Claude session in. `projects` reads the first registry it finds, in this
 order:
 
 1. `$PROJECTS_REPOS_REGISTRY`
@@ -229,11 +249,11 @@ order:
 A missing registry bans nothing. A registry that does not parse fails every create and rename with
 the parse error.
 
-A project's status is `active`, `someday`, `completed` or `dropped`. Reading a project, `c`
+A project's status is `active`, `someday`, `completed` or `dropped`. On a project's row, `c`
 completes it, `x` drops it, `S` shelves it for someday, and `r` reopens a shelved or closed one. On
 the command line those are `projects complete`, `close --reason`, `shelve` and `reopen`.
 Completing a project is what takes it out of the list, so there is no separate archive step the way
-items have one. A shelved project leaves the list too, but records no closing date. `C` shows
+items have one. A shelved project leaves the list too, but records no closing date. `.` shows
 shelved and closed projects again, each marked with its status.
 Dropping requires a reason, because "deferred" invites the same idea back next month and "dropped,
 and here is why" does not.

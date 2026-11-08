@@ -69,8 +69,7 @@ type ProjectItemInProject struct {
 
 func (i ProjectItem) archived() bool { return i.Archived }
 
-// WithoutArchived drops the archived items, which the board's item lists and its
-// search leave out.
+// WithoutArchived drops the archived items, which the board's item lists leave out.
 func WithoutArchived[T interface{ archived() bool }](items []T) []T {
 	return slices.DeleteFunc(items, func(item T) bool { return item.archived() })
 }

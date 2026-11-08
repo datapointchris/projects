@@ -255,14 +255,6 @@ func (b *Backend) DeleteTask(itemID, taskID string) error {
 	return b.client.DeleteTask(b.ctx(), itemID, taskID)
 }
 
-func (b *Backend) Search(query string) ([]model.ProjectItem, error) {
-	items, err := b.items(b.client.SearchItems(b.ctx(), query, nil))
-	if err != nil {
-		return nil, err
-	}
-	return model.WithoutArchived(items), nil
-}
-
 func (b *Backend) ListBlocked() ([]model.ProjectItem, error) {
 	return b.items(b.client.ListBlockedItems(b.ctx(), nil))
 }
