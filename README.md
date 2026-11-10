@@ -461,7 +461,8 @@ cosign verify --certificate-identity https://github.com/datapointchris/projects/
 
 `deploy/app/api.yaml` and `deploy/app/web.yaml` list what a cluster supplies around those manifests.
 The API logs in from Secret `postgres-app`, as a role holding DML and no DDL. The migrate Job logs in
-from Secret `postgres`, as the schema's owner.
+from Secret `postgres`, as the schema's owner. A migration revokes UPDATE and DELETE on `audit_trail`
+from the role named for the database with `_app` after it, so the API appends entries and rewrites none.
 
 ## The web app — one page, on the API's own origin
 

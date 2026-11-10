@@ -8,7 +8,9 @@
 #   POSTGRES_PORT, POSTGRES_USERNAME, POSTGRES_PASSWORD and POSTGRES_DB. Its
 #   role needs SELECT, INSERT, UPDATE and DELETE on every table and USAGE on
 #   every sequence, including those a later migration creates, and nothing
-#   that changes the schema. The migration Job alone logs in as the owner.
+#   that changes the schema. The migration Job alone logs in as the owner. A
+#   role named for the database with _app after it loses UPDATE and DELETE on
+#   audit_trail to a migration, so it appends there and rewrites nothing.
 # - A Secret named projects-settings, holding WEB_CLIENT_SECRET. Without it the
 #   API logs no browser in, and only a bearer token reaches it.
 # - No route of its own. projects-web, in web.yaml, passes /api and

@@ -347,6 +347,12 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   subject and a service by client id. `undo_log` has no trigger: it writes on every write, and would copy
   each whole row the real tables already audit. A new table brings its trigger, or
   `TestEveryTableIsAuditedButWhatOptsOut` fails.
+- **The API logs in as a role that changes no schema, and only the migrate Job as the owner.** The
+  trigger function runs as the writer, so the API's role appends to `audit_trail` itself.
+  `00004_app_role_appends_to_audit_trail.sql` revokes UPDATE and DELETE there from `<database>_app`,
+  and skips a database with no such role, as a test's has none. A migration that narrows the role
+  leaves it at least one of SELECT, INSERT, UPDATE and DELETE on each table, because a cluster
+  granting it DML grants all four back on a table where it holds none.
 - **A kind or status is a row in `model.ProjectKinds` or `model.ProjectStatuses`**, and in SQLite's
   `lookup_rows.sql`. `postgres.Migrate` upserts Postgres's from `model`, and
   `TestEachStoreHoldsTheKnownKindsAndStatuses` holds both stores to it. The project schemas' `enum`
