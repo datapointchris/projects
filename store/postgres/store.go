@@ -43,7 +43,7 @@ var _ store.Store = (*Store)(nil)
 
 // New wraps a pool Connect returned. The caller keeps ownership of closing it.
 func New(pool *pgxpool.Pool) *Store {
-	return &Store{operations: operations{q: generated.New(pool)}, pool: pool}
+	return &Store{operations: operations{q: generated.New(unavailableNamingDB{pool})}, pool: pool}
 }
 
 // Ping reports whether the database answers.
@@ -58,11 +58,11 @@ func (s *Store) Ping(ctx context.Context) error {
 func (s *Store) InTx(ctx context.Context, fn func(tx store.Operations) error) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
+		return fmt.Errorf("beginning transaction: %w", unavailableError(err))
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
-	q := s.q.WithTx(tx)
+	q := generated.New(unavailableNamingDB{tx})
 	if err := q.TakeWriteLock(ctx, writeLockKey); err != nil {
 		return fmt.Errorf("taking the write lock: %w", err)
 	}
@@ -81,7 +81,7 @@ func (s *Store) InTx(ctx context.Context, fn func(tx store.Operations) error) er
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("committing transaction: %w", err)
+		return fmt.Errorf("committing transaction: %w", unavailableError(err))
 	}
 	return nil
 }

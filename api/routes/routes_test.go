@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/datapointchris/goapiauth/authtest"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -23,6 +24,7 @@ import (
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/service"
 	"github.com/datapointchris/projects/store/postgres"
+	"github.com/datapointchris/projects/store/postgres/postgrestest"
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
@@ -499,5 +501,54 @@ func TestAPodStaysReadyThroughAnOutageAndEachRequestAnswers503(t *testing.T) {
 	_ = json.Unmarshal(answer, &document)
 	if status != http.StatusServiceUnavailable || schema(t, "error").Validate(document) != nil {
 		t.Errorf("a write through the outage answered %d: %s", status, answer)
+	}
+}
+
+// A query Postgres cuts off while it stops answers the API's own 503, as a refused
+// connection does. A lock another transaction holds keeps the write in flight until
+// the stop reaches it.
+func TestAQueryPostgresCutsOffWhileStoppingAnswers503(t *testing.T) {
+	url, stop := postgrestest.StoppableServer(t)
+	pool, err := postgres.Connect(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	holder, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holder.Rollback(context.Background()) })
+	if _, err := holder.Exec(t.Context(), "LOCK TABLE projects"); err != nil {
+		t.Fatal(err)
+	}
+	handler := routes.New(service.New(postgres.New(pool)), slog.New(slog.DiscardHandler), "v0.0.0-test")
+	answered := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/projects", strings.NewReader(`{"name":"in flight"}`)))
+		answered <- recorder
+	}()
+
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		var waiting int
+		if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'").Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the write never waited on the lock")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	stop()
+
+	recorder := <-answered
+	var document any
+	_ = json.Unmarshal(recorder.Body.Bytes(), &document)
+	if recorder.Code != http.StatusServiceUnavailable || schema(t, "error").Validate(document) != nil {
+		t.Errorf("a write Postgres cut off answered %d: %s", recorder.Code, recorder.Body)
 	}
 }

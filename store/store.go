@@ -61,7 +61,9 @@ func WriterFrom(ctx context.Context) Writer {
 //
 // A read of one row answers model.ErrNotFound when the row is absent, and so does
 // a write that returns the row it changed. A list answers a non-nil empty slice
-// when nothing matches.
+// when nothing matches. A store that serves over a network wraps the driver's error
+// in model.ErrUnavailable where the database cut a request off while shutting down,
+// or refused a connection while starting up or shutting down.
 type Operations interface {
 	// ListProjects orders by position and then name.
 	ListProjects(ctx context.Context) ([]model.Project, error)

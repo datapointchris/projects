@@ -34,6 +34,9 @@ var (
 	ErrSelfDependency      = errors.New("an item cannot depend on itself")
 	ErrIncompleteOrphans   = errors.New("project holds incomplete items no other project holds")
 	ErrIncompleteTasks     = errors.New("item has incomplete tasks")
+	// ErrUnavailable is no refusal. The database stopped serving the request, as it
+	// does while it shuts down or starts up, so the same request may succeed later.
+	ErrUnavailable = errors.New("the database is unavailable")
 )
 
 // Refusal is a rule saying no, with the sentence a person reads. Kind is the
