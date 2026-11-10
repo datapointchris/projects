@@ -1,6 +1,5 @@
 # Get refused completing a blocked item, reopen a finished one and undo that, then
 # archive one and undo that.
-mask /on item [0-9a-f]{8}/ "on item <id>"
 
 wait Export posts from the old CMS
 press l

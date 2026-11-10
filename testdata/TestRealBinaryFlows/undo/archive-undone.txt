@@ -27,4 +27,4 @@
 │                                      │┃                                                          ┃
 │                                      │┃                                                          ┃
 ╰──────────────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  Undo: undid update on item <id>                                    ? keys  LOCAL projects.db
+  Undo: undid update on item 2                                           ? keys  LOCAL projects.db

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/store"
@@ -24,7 +25,7 @@ func (s *Service) Undo() (*model.UndoResult, error) {
 		}
 
 		result = &model.UndoResult{
-			Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, shortEntityID(entry.EntityID)),
+			Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, undoEntityHandle(ctx, tx, entry)),
 			Action:      entry.Action,
 			EntityType:  entry.EntityType,
 			EntityID:    entry.EntityID,
@@ -241,10 +242,21 @@ func undoProject(ctx context.Context, tx store.Operations, entry model.UndoEntry
 	return nil
 }
 
-// shortEntityID names whatever an undo entry points at. It stays the UUID tail
-// even for items, which display their number everywhere else: undoing a create
-// leaves nothing to look the number up on, so the one identifier that works for
-// every entry is the id the entry already carries.
+// undoEntityHandle names what an undo entry points at, read before the undo
+// runs, so an item undone out of existence can still be looked up. An item
+// shows its number, as it does everywhere else. An item with no number, or one
+// the store cannot read, falls back to the UUID tail, as does every other kind
+// of entry, because projects and tasks have no number of their own.
+func undoEntityHandle(ctx context.Context, tx store.Operations, entry model.UndoEntry) string {
+	if entry.EntityType == model.UndoEntityItem {
+		if item, err := tx.GetItem(ctx, entry.EntityID); err == nil && item.Number != nil {
+			return strconv.Itoa(*item.Number)
+		}
+	}
+	return shortEntityID(entry.EntityID)
+}
+
+// shortEntityID is the display handle for an id with no number.
 //
 // UUIDv7 front-loads the millisecond timestamp, so a prefix is identical for
 // everything created in the same ~65s window. The entropy is in the tail.
