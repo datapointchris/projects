@@ -39,7 +39,14 @@ type APIError struct {
 	Method     string
 	StatusCode int
 	Message    string
+	Code       string
+	Field      string
 	Problems   []wire.ValidationError
+}
+
+// UnknownField reports a body key the API refused, before writing anything, as one it does not read.
+func (e *APIError) UnknownField() bool {
+	return e.StatusCode == http.StatusUnprocessableEntity && e.Code == "unknown_field"
 }
 
 // Read is whether the refused request only read, so sending it again changes nothing.
@@ -110,6 +117,8 @@ func refusalOf(method string, status int, body []byte) *APIError {
 	var answer wire.Error
 	if json.Unmarshal(body, &answer) == nil {
 		refused.Message = answer.Message
+		refused.Code = answer.Code
+		refused.Field = answer.Field
 		refused.Problems = answer.Errors
 	}
 	return refused

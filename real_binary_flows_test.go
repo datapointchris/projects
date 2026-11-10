@@ -92,7 +92,7 @@ func serveOverHTTP(t *testing.T, path string) string {
 	}
 	t.Cleanup(func() { _ = database.Close() })
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(routes.New(cli.LocalService(database, ""), quiet))
+	server := httptest.NewServer(routes.New(cli.LocalService(database, ""), quiet, "v0.0.0-test"))
 	t.Cleanup(server.Close)
 	return server.URL
 }

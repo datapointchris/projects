@@ -289,6 +289,11 @@ type Error struct {
 	Errors  []ValidationError `json:"errors,omitempty"`
 }
 
+// Version is the release a server was built from, as its tag names it.
+type Version struct {
+	Version string `json:"version"`
+}
+
 // Probe answers /health and /ready. Reason says what is not ready, where something
 // is not.
 type Probe struct {

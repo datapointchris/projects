@@ -442,7 +442,9 @@ and a field sent as `null` clears it. A field that cannot be empty refuses `null
 A refusal is `{"error": <status phrase>, "message": <why>}`. A refused input adds `errors`, listing each
 field with its `loc` and `msg`. **A body key the route does not read is refused rather than ignored**,
 so a write never succeeds without a field it was sent. That 422 adds `"code": "unknown_field"` and
-`field`, naming the first such key. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
+`field`, naming the first such key. `GET /api/v1/version` answers `{"version": "v1.28.3"}`, the release
+the API was built from. `projects`, refused that way, reads it and adds a line naming both:
+`versions: projects v1.29.0, API v1.28.3`, or `API unread` where it could not read one. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
 `api/wire` holds the Go structs.
 
 **Each release publishes both images and their manifests under one version.**

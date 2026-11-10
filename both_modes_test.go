@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/datapointchris/tuidrive"
@@ -155,5 +159,56 @@ func matchesSchema(t *testing.T, name string, answer []byte) {
 	}
 	if err := schema.Validate(value); err != nil {
 		t.Errorf("%s does not match its schema: %v\n%s", name, err, answer)
+	}
+}
+
+// An API refusing a field the binary sent is asked its version, and the error names
+// both releases on one line, with nothing drawn from them.
+func TestAFieldTheAPIRefusesNamesBothVersions(t *testing.T) {
+	binary := tuidrive.Build(t, ".")
+	for _, c := range []struct {
+		name, answersVersion, wantServer string
+	}{
+		{"read", `{"version":"v0.0.1-stand-in"}`, "API v0.0.1-stand-in"},
+		{"unread", "", "API unread"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet && r.URL.Path == "/api/v1/version" && c.answersVersion != "" {
+					_, _ = io.WriteString(w, c.answersVersion)
+					return
+				}
+				if r.Method == http.MethodGet {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = io.WriteString(w, `{"error":"Not Found","message":"no route answers `+r.URL.Path+`"}`)
+					return
+				}
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = io.WriteString(w, `{"error":"Unprocessable Content","message":"kind: Extra inputs are not permitted","code":"unknown_field","field":"kind",`+
+					`"errors":[{"type":"extra_forbidden","loc":["body","kind"],"msg":"Extra inputs are not permitted","input":"work"}]}`)
+			}))
+			t.Cleanup(api.Close)
+			dir := t.TempDir()
+			writeAPIConfig(t, dir, api.URL)
+
+			cmd := exec.Command(binary, "create", "--name", "A project", "--kind", "work")
+			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "XDG_CONFIG_HOME=" + filepath.Join(dir, "config")}
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			_ = cmd.Run()
+			if code := cmd.ProcessState.ExitCode(); code != 2 {
+				t.Errorf("exited %d, want 2\n%s", code, stderr.String())
+			}
+			var line string
+			for candidate := range strings.Lines(stderr.String()) {
+				if strings.HasPrefix(candidate, "versions: ") {
+					line = strings.TrimSpace(candidate)
+				}
+			}
+			if !strings.HasPrefix(line, "versions: projects ") || !strings.HasSuffix(line, ", "+c.wantServer) {
+				t.Errorf("stderr holds no versions line ending %q:\n%s", c.wantServer, stderr.String())
+			}
+		})
 	}
 }

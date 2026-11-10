@@ -194,7 +194,7 @@ func openDatabase(cfg *config.Config) (*dataSource, error) {
 	// request id. The request line itself is for a server's log, not a terminal.
 	faults := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := requestlog.Middleware(quiet, routes.New(source.local, faults))
+	handler := requestlog.Middleware(quiet, routes.New(source.local, faults, Version()))
 	source.client = apiclient.New(inProcessBase, &http.Client{Transport: apiclient.InProcess(handler)})
 	return source, nil
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
@@ -45,6 +46,9 @@ func (s *dataSource) explain(err error) error {
 	if s.deployment != nil && errors.As(err, &noToken) {
 		return s.noToken(noToken.error)
 	}
+	if isRefusal && refused.UnknownField() {
+		return goclikit.UsageError(fmt.Errorf("%w\n%s", refused, s.versions()))
+	}
 	if isRefusal && refused.StatusCode == http.StatusUnprocessableEntity && refused.Message != "" {
 		return goclikit.UsageError(refused)
 	}
@@ -78,6 +82,24 @@ func (s *dataSource) explain(err error) error {
 		return noAnswerError{s.unanswered(err)}
 	}
 	return err
+}
+
+// versionReadTimeout bounds the read of the API's version after a refusal, which
+// adds a line to an error already decided.
+const versionReadTimeout = 10 * time.Second
+
+// versions names this binary's release and the API's, each as that side reports it.
+// It draws nothing from the two, because a server pinned or rolled back on purpose,
+// a field a newer server removed, or a client built from a branch each makes a
+// conclusion wrong, and the person reading knows which holds.
+func (s *dataSource) versions() string {
+	ctx, cancel := context.WithTimeout(context.Background(), versionReadTimeout)
+	defer cancel()
+	server := "unread"
+	if answered, err := s.client.Version(ctx); err == nil && answered.Version != "" {
+		server = answered.Version
+	}
+	return fmt.Sprintf("versions: projects %s, API %s", Version(), server)
 }
 
 // mayHaveBeenCarriedOut is a write that reached the API with no answer saying

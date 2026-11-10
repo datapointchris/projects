@@ -320,6 +320,11 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   `body.refusals()` after its last read. A client released ahead of the API would otherwise have its new
   field dropped from a write that answers 200. A new body route reads each field it takes before that
   call, and `TestAKeyTheRouteDoesNotReadIsRefusedAndNothingIsWritten` takes a row for it.
+- **The CLI answers `unknown_field` with both versions and nothing drawn from them.** `versions` in
+  `cli/api_errors.go` reads `GET /api/v1/version` and adds `versions: projects <its>, API <the API's>`.
+  It never says which side is behind, by how much, or when to retry: a server pinned or rolled back, a
+  field a newer server removed, or a branch build each make that wrong. The API's version is its
+  build's `version`, which `release.yml` sets to the tag, as goreleaser sets the CLI's.
 - **A wildcard holds an escaped slash.** `{id}` matches one escaped segment, so a project name holding
   `/` is reached as `%2F`. A catch-all would widen what `LimitServices` matches by pattern.
 - **A scope lists registered patterns**, in `routes.ServiceScopes`. Renaming a route's wildcard takes it

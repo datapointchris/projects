@@ -50,6 +50,7 @@ var ServiceScopes = map[string][]string{
 		"GET /api/v1/project-items/{id}/blockers",
 		"GET /api/v1/project-items/{item_id}/tasks",
 		"GET /api/v1/projects/{id}/items",
+		"GET /api/v1/version",
 	},
 }
 
@@ -63,6 +64,7 @@ type ReadinessCheck struct {
 type table struct {
 	service *service.Service
 	log     *slog.Logger
+	version string
 	ready   []ReadinessCheck
 	mux     *http.ServeMux
 }
@@ -74,9 +76,9 @@ func (t *table) scoped(r *http.Request) *service.Service {
 }
 
 // New registers every route. A wildcard takes an escaped slash, so a project name
-// holding one is reached by escaping it.
-func New(svc *service.Service, log *slog.Logger, ready ...ReadinessCheck) *http.ServeMux {
-	t := &table{service: svc, log: log, ready: ready, mux: http.NewServeMux()}
+// holding one is reached by escaping it. version is the release tag the build names.
+func New(svc *service.Service, log *slog.Logger, version string, ready ...ReadinessCheck) *http.ServeMux {
+	t := &table{service: svc, log: log, version: version, ready: ready, mux: http.NewServeMux()}
 	mux := t.mux
 
 	mux.HandleFunc("GET /health", t.health)
@@ -113,11 +115,19 @@ func New(svc *service.Service, log *slog.Logger, ready ...ReadinessCheck) *http.
 	mux.HandleFunc("POST /api/v1/undo", t.undo)
 	mux.HandleFunc("GET /api/v1/undo", t.undoState)
 
+	mux.HandleFunc("GET /api/v1/version", t.readVersion)
+
 	return mux
 }
 
 func (t *table) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, wire.Probe{Status: "ok"})
+}
+
+// readVersion answers the release this server was built from. A client refused for
+// a field it sent names it beside its own.
+func (t *table) readVersion(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, wire.Version{Version: t.version})
 }
 
 // readiness answers 503 while a dependency does not, which takes a pod out of its

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:projects:version:v1",
+  "title": "version",
+  "type": "object",
+  "description": "GET /api/v1/version: the release the server was built from. A field added is not a new version, and a field reshaped or removed is.",
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "The release tag, such as v1.28.3, or dev for a build that names none."
+    }
+  }
+}

@@ -47,7 +47,7 @@ func newAPI(t *testing.T) api {
 	provider := authtest.NewProvider(t)
 	config := authentication.Config(provider.URL)
 	verifier := provider.Verifier(t, config.PersonPrefix, config.ServicePrefix)
-	mux := routes.New(service.New(sqlite.New(database)), log)
+	mux := routes.New(service.New(sqlite.New(database)), log, "v0.0.0-test")
 	authentication.Metadata(mux, "https://projects.example.com", provider.URL)
 	protected := authentication.Protect(mux, routes.ServiceScopes, verifier, nil, "", log, routes.PublicPaths...)
 
@@ -219,6 +219,7 @@ func TestEveryAnswerMatchesItsSchema(t *testing.T) {
 		{http.MethodPatch, itemPath + "/tasks/" + task, map[string]any{"completed": true}, 200, "project-item-task", false},
 		{http.MethodGet, v1 + "/undo", nil, 200, "undo-state", false},
 		{http.MethodPost, v1 + "/undo", nil, 200, "undo-result", false},
+		{http.MethodGet, v1 + "/version", nil, 200, "version", false},
 
 		{http.MethodGet, v1 + "/projects/absent", nil, 404, "error", false},
 		{http.MethodPost, v1 + "/projects", map[string]any{"position": "first"}, 422, "error", false},
@@ -267,6 +268,7 @@ func TestATokenReachesWhatItsClientMay(t *testing.T) {
 		"/api/v1/project-items/" + item + "/blockers",
 		"/api/v1/project-items/" + item + "/tasks",
 		"/api/v1/projects/" + project + "/items",
+		"/api/v1/version",
 	}
 	for _, path := range reachable {
 		if status, answer := a.send(t, a.service, http.MethodGet, path, nil); status != http.StatusOK {

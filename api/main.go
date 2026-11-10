@@ -104,7 +104,7 @@ func serve(ctx context.Context, log *slog.Logger) error {
 	}
 
 	svc := service.New(postgresStore)
-	mux := routes.New(svc, log, checks...)
+	mux := routes.New(svc, log, version, checks...)
 	if loaded.PublicURL != "" {
 		authentication.Metadata(mux, loaded.PublicURL, loaded.OIDCIssuer)
 	} else {

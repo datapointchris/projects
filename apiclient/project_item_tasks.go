@@ -62,6 +62,13 @@ func (c *Client) Undo(ctx context.Context) (wire.UndoResult, error) {
 	return result, err
 }
 
+// Version is the release the API was built from.
+func (c *Client) Version(ctx context.Context) (wire.Version, error) {
+	var version wire.Version
+	err := c.call(ctx, http.MethodGet, "/version", nil, nil, &version)
+	return version, err
+}
+
 func (c *Client) UndoState(ctx context.Context) (wire.UndoState, error) {
 	var state wire.UndoState
 	err := c.call(ctx, http.MethodGet, "/undo", nil, nil, &state)

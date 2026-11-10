@@ -127,7 +127,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: PROJECTS_VERSION=${{ env.VERSION }}
+          # The release tag, as the CLI's goreleaser build names it, so the two
+          # versions a refused field prints are written alike.
+          build-args: PROJECTS_VERSION=v${{ env.VERSION }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha
