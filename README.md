@@ -420,9 +420,10 @@ docker run --rm --env-file settings.env ghcr.io/datapointchris/projects:latest p
 docker run --rm --env-file settings.env -p 8000:8000 ghcr.io/datapointchris/projects:latest
 ```
 
-`/health` answers for the process. `/ready` answers 503 while Postgres or the identity provider does
-not. A request that outlasts `requestDeadline` in `api/routes/routes.go`, as when Postgres stops
-answering, answers 503. TERM stops new requests and lets the ones in flight finish. It exits zero if
+`/health` answers for the process. `/ready` answers 503 until Postgres and the identity provider have
+each answered once, and 200 from then on. Every pod shares both, so an outage after that is answered
+per request: a request that cannot reach Postgres, or outlasts `requestDeadline` in
+`api/routes/routes.go` waiting on it, answers the API's own 503. TERM stops new requests and lets the ones in flight finish. It exits zero if
 they finish inside `drainTimeout` in `api/main.go`, and non-zero if one outlasts it. Logs are one JSON
 object per line on stdout, and each request's line names its caller, its `X-Request-ID` and its
 `traceparent`.

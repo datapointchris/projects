@@ -333,6 +333,10 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   rule read still holds at commit. It costs one writer at a time, which one person's write rate never
   feels. `WithRequestDeadline` bounds that wait, and every other, so a database that stops answering
   costs a client a 503.
+- **`/ready` turns ready on each dependency's first answer and stays ready.** Every pod shares Postgres
+  and the identity provider, so checking them on every probe would take every pod out at once, and
+  Traefik would answer with its own 503. A later outage is answered per request: `fail` answers a
+  network error with the API's own 503, because a route reaches nothing over a network but Postgres.
 - **Every write is audited by a row trigger**, into `audit_trail`, because a trigger also sees cascades.
   `InTx` binds `projects.actor`, `projects.request_id`, `projects.job_run_id`, `projects.traceparent` and
   `projects.baggage` with `set_config(..., true)`, and the trigger reads them. A person is recorded by

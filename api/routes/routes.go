@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/datapointchris/projects/api/wire"
@@ -54,7 +55,8 @@ var ServiceScopes = map[string][]string{
 	},
 }
 
-// ReadinessCheck answers nil when the named dependency can serve a request.
+// ReadinessCheck answers nil when the named dependency can serve a request. /ready
+// stops asking once it has.
 type ReadinessCheck struct {
 	Name  string
 	Check func(ctx context.Context) error
@@ -66,6 +68,7 @@ type table struct {
 	log     *slog.Logger
 	version string
 	ready   []ReadinessCheck
+	reached []atomic.Bool
 	mux     *http.ServeMux
 }
 
@@ -78,7 +81,7 @@ func (t *table) scoped(r *http.Request) *service.Service {
 // New registers every route. A wildcard takes an escaped slash, so a project name
 // holding one is reached by escaping it. version is the release tag the build names.
 func New(svc *service.Service, log *slog.Logger, version string, ready ...ReadinessCheck) *http.ServeMux {
-	t := &table{service: svc, log: log, version: version, ready: ready, mux: http.NewServeMux()}
+	t := &table{service: svc, log: log, version: version, ready: ready, reached: make([]atomic.Bool, len(ready)), mux: http.NewServeMux()}
 	mux := t.mux
 
 	mux.HandleFunc("GET /health", t.health)
@@ -130,10 +133,15 @@ func (t *table) readVersion(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, wire.Version{Version: t.version})
 }
 
-// readiness answers 503 while a dependency does not, which takes a pod out of its
-// Service without restarting it.
+// readiness answers 503 until each dependency has answered once, so a pod joins its
+// Service only after reaching them, and 200 from then on. Every pod shares the
+// dependencies, so a later outage checked here would take every pod out together,
+// and each request would get the ingress's bare 503 instead of the API's own.
 func (t *table) readiness(w http.ResponseWriter, r *http.Request) {
-	for _, dependency := range t.ready {
+	for i, dependency := range t.ready {
+		if t.reached[i].Load() {
+			continue
+		}
 		checking, cancel := context.WithTimeout(r.Context(), readinessCheckDeadline)
 		err := dependency.Check(checking)
 		cancel()
@@ -142,6 +150,7 @@ func (t *table) readiness(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusServiceUnavailable, wire.Probe{Status: "unavailable", Reason: dependency.Name})
 			return
 		}
+		t.reached[i].Store(true)
 	}
 	writeJSON(w, http.StatusOK, wire.Probe{Status: "ready"})
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -117,8 +118,9 @@ var statusOfRefusal = []struct {
 // fail answers what a rule returned. A refusal says its own words, and one naming a
 // field marks it the way a validation error does. A refusal whose kind has no row is
 // still the caller's to fix, so it answers as one and logs the missing row. A request
-// that ran out of time answers 503. Anything else is a fault of this server, and its
-// answer names the request whose log line holds the detail.
+// that ran out of time answers 503, and so does a network error, because a route
+// reaches nothing over a network but the database. Anything else is a fault of this
+// server, and its answer names the request whose log line holds the detail.
 func (t *table) fail(w http.ResponseWriter, r *http.Request, err error) {
 	for _, known := range statusOfRefusal {
 		if errors.Is(err, known.kind) {
@@ -127,6 +129,7 @@ func (t *table) fail(w http.ResponseWriter, r *http.Request, err error) {
 		}
 	}
 	var refusal *model.Refusal
+	var unreachable net.Error
 	switch {
 	case errors.As(err, &refusal):
 		t.logFailure(r, "a refusal's kind has no row in statusOfRefusal", err)
@@ -134,6 +137,9 @@ func (t *table) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		t.logFailure(r, "request ran out of time", err)
 		writeRefusal(w, r, http.StatusServiceUnavailable, "The database did not answer in time.", nil)
+	case errors.As(err, &unreachable):
+		t.logFailure(r, "database unreachable", err)
+		writeRefusal(w, r, http.StatusServiceUnavailable, "The database could not be reached.", nil)
 	default:
 		t.logFailure(r, "request failed", err)
 		writeRefusal(w, r, http.StatusInternalServerError, "Internal server error in request "+requestlog.RequestID(r.Context()), nil)

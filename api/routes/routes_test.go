@@ -2,6 +2,7 @@ package routes_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/datapointchris/projects/api/routes"
 	"github.com/datapointchris/projects/model"
 	"github.com/datapointchris/projects/service"
+	"github.com/datapointchris/projects/store/postgres"
 	"github.com/datapointchris/projects/store/sqlite"
 )
 
@@ -454,5 +456,48 @@ func TestAKeyTheRouteDoesNotReadIsRefusedAndNothingIsWritten(t *testing.T) {
 	}
 	if after := everything(); after != before {
 		t.Errorf("a refused write changed the data\nbefore: %s\nafter:  %s", before, after)
+	}
+}
+
+// /ready waits for each dependency's first answer, then stays ready through a later
+// outage, which a request then meets as the API's own 503. Port 1 refuses every
+// connection, as a stopped database's address does.
+func TestAPodStaysReadyThroughAnOutageAndEachRequestAnswers503(t *testing.T) {
+	pool, err := postgres.Connect(t.Context(), "postgres://projects@127.0.0.1:1/projects?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	database := postgres.New(pool)
+	answering := false
+	check := routes.ReadinessCheck{Name: "postgres", Check: func(ctx context.Context) error {
+		if answering {
+			return nil
+		}
+		return database.Ping(ctx)
+	}}
+	handler := routes.New(service.New(database), slog.New(slog.DiscardHandler), "v0.0.0-test", check)
+	send := func(method, path, body string) (int, []byte) {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(method, path, strings.NewReader(body)))
+		return recorder.Code, recorder.Body.Bytes()
+	}
+
+	if status, answer := send(http.MethodGet, "/ready", ""); status != http.StatusServiceUnavailable {
+		t.Errorf("before the first answer /ready answered %d: %s", status, answer)
+	}
+	answering = true
+	if status, answer := send(http.MethodGet, "/ready", ""); status != http.StatusOK {
+		t.Errorf("once answered /ready answered %d: %s", status, answer)
+	}
+	answering = false
+	if status, answer := send(http.MethodGet, "/ready", ""); status != http.StatusOK {
+		t.Errorf("through the outage /ready answered %d: %s", status, answer)
+	}
+	status, answer := send(http.MethodPost, "/api/v1/projects", `{"name":"while down"}`)
+	var document any
+	_ = json.Unmarshal(answer, &document)
+	if status != http.StatusServiceUnavailable || schema(t, "error").Validate(document) != nil {
+		t.Errorf("a write through the outage answered %d: %s", status, answer)
 	}
 }
