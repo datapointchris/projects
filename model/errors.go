@@ -10,6 +10,9 @@ var (
 	ErrLastProject      = errors.New("item must belong to at least one project")
 	ErrNoProjects       = errors.New("a new item needs a project")
 	ErrNothingToUndo    = errors.New("nothing to undo")
+	// An undo reverses its own writer's write. A later entry by another writer
+	// changed a row the undo would change, so carrying it out would revert theirs.
+	ErrUndoSuperseded = errors.New("a later write by another writer changed what the undo would change")
 	// A dropped project with no reason is indistinguishable from a deferred one,
 	// and deferred invites the same idea back next month.
 	ErrDropReasonRequired = errors.New("dropping a project requires a reason")

@@ -15,6 +15,9 @@ CREATE INDEX IF NOT EXISTS idx_tasks_item ON project_item_tasks(item_id);
 
 CREATE INDEX IF NOT EXISTS idx_undo_recent ON undo_log(created_at DESC);
 
+-- An undo reads its own writer's newest entry.
+CREATE INDEX IF NOT EXISTS idx_undo_writer ON undo_log(actor, client, id);
+
 -- SQLite allows any number of NULLs in a unique index, which is what lets an
 -- item wait for its number without colliding with every other item doing the
 -- same. Declared here rather than in schema.sql because ALTER TABLE ADD COLUMN

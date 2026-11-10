@@ -71,11 +71,16 @@ func (q *Queries) BindWriter(ctx context.Context, arg BindWriterParams) error {
 }
 
 const countUndoEntries = `-- name: CountUndoEntries :one
-SELECT count(*) FROM undo_log
+SELECT count(*) FROM undo_log WHERE actor = $1 AND client = $2
 `
 
-func (q *Queries) CountUndoEntries(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countUndoEntries)
+type CountUndoEntriesParams struct {
+	Actor  string
+	Client string
+}
+
+func (q *Queries) CountUndoEntries(ctx context.Context, arg CountUndoEntriesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUndoEntries, arg.Actor, arg.Client)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -317,11 +322,18 @@ func (q *Queries) GetItemProjects(ctx context.Context, itemID string) ([]Project
 }
 
 const getLatestUndoEntry = `-- name: GetLatestUndoEntry :one
-SELECT id, action, entity_type, entity_id, previous_state, created_at FROM undo_log ORDER BY id DESC LIMIT 1
+SELECT id, action, entity_type, entity_id, previous_state, created_at, actor, client FROM undo_log
+WHERE actor = $1 AND client = $2
+ORDER BY id DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestUndoEntry(ctx context.Context) (UndoLog, error) {
-	row := q.db.QueryRow(ctx, getLatestUndoEntry)
+type GetLatestUndoEntryParams struct {
+	Actor  string
+	Client string
+}
+
+func (q *Queries) GetLatestUndoEntry(ctx context.Context, arg GetLatestUndoEntryParams) (UndoLog, error) {
+	row := q.db.QueryRow(ctx, getLatestUndoEntry, arg.Actor, arg.Client)
 	var i UndoLog
 	err := row.Scan(
 		&i.ID,
@@ -330,6 +342,8 @@ func (q *Queries) GetLatestUndoEntry(ctx context.Context) (UndoLog, error) {
 		&i.EntityID,
 		&i.PreviousState,
 		&i.CreatedAt,
+		&i.Actor,
+		&i.Client,
 	)
 	return i, err
 }
@@ -391,14 +405,19 @@ func (q *Queries) GetTask(ctx context.Context, id string) (ProjectItemTask, erro
 }
 
 const insertUndoEntry = `-- name: InsertUndoEntry :exec
-INSERT INTO undo_log (action, entity_type, entity_id, previous_state)
-VALUES ($1, $2, $3, $4)
+INSERT INTO undo_log (action, entity_type, entity_id, actor, client, previous_state)
+VALUES (
+    $1, $2, $3,
+    $4, $5, $6
+)
 `
 
 type InsertUndoEntryParams struct {
 	Action        string
 	EntityType    string
 	EntityID      string
+	Actor         string
+	Client        string
 	PreviousState *string
 }
 
@@ -407,6 +426,8 @@ func (q *Queries) InsertUndoEntry(ctx context.Context, arg InsertUndoEntryParams
 		arg.Action,
 		arg.EntityType,
 		arg.EntityID,
+		arg.Actor,
+		arg.Client,
 		arg.PreviousState,
 	)
 	return err
@@ -887,6 +908,39 @@ func (q *Queries) ListTasksByItem(ctx context.Context, itemID string) ([]Project
 			&i.CompletedAt,
 			&i.Position,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUndoEntriesAfter = `-- name: ListUndoEntriesAfter :many
+SELECT id, action, entity_type, entity_id, previous_state, created_at, actor, client FROM undo_log WHERE id > $1 ORDER BY id
+`
+
+func (q *Queries) ListUndoEntriesAfter(ctx context.Context, id int64) ([]UndoLog, error) {
+	rows, err := q.db.Query(ctx, listUndoEntriesAfter, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UndoLog
+	for rows.Next() {
+		var i UndoLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.EntityType,
+			&i.EntityID,
+			&i.PreviousState,
+			&i.CreatedAt,
+			&i.Actor,
+			&i.Client,
 		); err != nil {
 			return nil, err
 		}

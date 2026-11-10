@@ -11,12 +11,18 @@ import (
 	"github.com/datapointchris/projects/store"
 )
 
+// Undo reverses the newest write the context's writer made, and never another
+// writer's. Where a later write by another writer changed a row the undo would
+// change, it refuses with that write named, and drops the entry. Kept, the entry
+// would refuse every later undo the same way, and nothing older could be reached.
 func (s *Service) Undo() (*model.UndoResult, error) {
 	ctx := s.ctx()
+	writer := store.WriterFrom(ctx)
 
 	var result *model.UndoResult
+	var refusal error
 	err := s.store.InTx(ctx, func(tx store.Operations) error {
-		entry, err := tx.GetLatestUndoEntry(ctx)
+		entry, err := tx.GetLatestUndoEntry(ctx, writer.Actor, writer.Client)
 		if err != nil {
 			if errors.Is(err, model.ErrNotFound) {
 				return model.ErrNothingToUndo
@@ -24,8 +30,20 @@ func (s *Service) Undo() (*model.UndoResult, error) {
 			return fmt.Errorf("getting undo log: %w", err)
 		}
 
+		refused, err := undoRefusal(ctx, tx, entry)
+		if err != nil {
+			return err
+		}
+		if refused != nil {
+			refusal = refused
+			if err := tx.DeleteUndoEntry(ctx, entry.ID); err != nil {
+				return fmt.Errorf("dropping a superseded undo entry: %w", err)
+			}
+			return nil
+		}
+
 		result = &model.UndoResult{
-			Description: fmt.Sprintf("undid %s on %s %s", entry.Action, entry.EntityType, undoEntityHandle(ctx, tx, entry)),
+			Description: "undid " + describeEntry(ctx, tx, entry),
 			Action:      entry.Action,
 			EntityType:  entry.EntityType,
 			EntityID:    entry.EntityID,
@@ -65,7 +83,9 @@ func (s *Service) Undo() (*model.UndoResult, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	if refusal != nil {
+		return nil, refusal
+	}
 	return result, nil
 }
 
@@ -267,8 +287,10 @@ func shortEntityID(id string) string {
 	return id
 }
 
+// CanUndo reports whether the context's writer has a write left to undo.
 func (s *Service) CanUndo() (bool, error) {
-	count, err := s.store.CountUndoEntries(s.ctx())
+	writer := store.WriterFrom(s.ctx())
+	count, err := s.store.CountUndoEntries(s.ctx(), writer.Actor, writer.Client)
 	if err != nil {
 		return false, fmt.Errorf("counting undo logs: %w", err)
 	}
@@ -466,8 +488,13 @@ func itemExists(ctx context.Context, tx store.Operations, id string) (bool, erro
 
 // logUndo records a mutation in the transaction that made it, because undo reads
 // the log newest first and a mutation left out would let it reach past that one.
+// The entry names the context's writer, whose undo alone reaches it.
 func logUndo(ctx context.Context, tx store.Operations, action, entityType, entityID string, previousState any) error {
-	entry := model.UndoEntry{Action: action, EntityType: entityType, EntityID: entityID}
+	writer := store.WriterFrom(ctx)
+	entry := model.UndoEntry{
+		Action: action, EntityType: entityType, EntityID: entityID,
+		Actor: writer.Actor, Client: writer.Client,
+	}
 	if previousState != nil {
 		data, err := json.Marshal(previousState)
 		if err != nil {

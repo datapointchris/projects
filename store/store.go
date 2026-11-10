@@ -28,9 +28,15 @@ type Store interface {
 }
 
 // Writer names who a transaction writes for. A store that keeps an audit trail
-// records it beside each change, and one that keeps none ignores it.
+// records it beside each change, and one that keeps none ignores it. The service
+// records Actor and Client on each undo entry, so an undo reverses only what its
+// own client wrote.
 type Writer struct {
-	Actor       string
+	Actor string
+	// Client is the client a write came through: a token's client id, or the
+	// browser login's client for a session. One person's machines differ here
+	// and share Actor.
+	Client      string
 	RequestID   string
 	JobRunID    string
 	Traceparent string
@@ -154,11 +160,17 @@ type Operations interface {
 	// CreatedAt.
 	RestoreTask(ctx context.Context, task model.ProjectItemTask) error
 
-	// InsertUndoEntry writes Action, EntityType, EntityID and PreviousState. The
-	// store assigns ID, which rises with each entry, and CreatedAt.
+	// InsertUndoEntry writes Action, EntityType, EntityID, Actor, Client and
+	// PreviousState. The store assigns ID, which rises with each entry, and
+	// CreatedAt.
 	InsertUndoEntry(ctx context.Context, entry model.UndoEntry) error
-	// GetLatestUndoEntry answers the entry with the highest ID.
-	GetLatestUndoEntry(ctx context.Context) (model.UndoEntry, error)
+	// GetLatestUndoEntry answers the entry with the highest ID that actor wrote
+	// through client.
+	GetLatestUndoEntry(ctx context.Context, actor, client string) (model.UndoEntry, error)
+	// ListUndoEntriesAfter answers every entry with an ID above id, lowest first,
+	// whoever wrote it.
+	ListUndoEntriesAfter(ctx context.Context, id int64) ([]model.UndoEntry, error)
 	DeleteUndoEntry(ctx context.Context, id int64) error
-	CountUndoEntries(ctx context.Context) (int, error)
+	// CountUndoEntries counts the entries actor wrote through client.
+	CountUndoEntries(ctx context.Context, actor, client string) (int, error)
 }

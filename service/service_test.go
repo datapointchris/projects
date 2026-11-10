@@ -873,7 +873,7 @@ func TestUndoSkipsALinkWhoseOtherEndIsGone(t *testing.T) {
 	if len(blockers) != 0 {
 		t.Errorf("expected no blocker restored, got %+v", blockers)
 	}
-	latest, err := b.store.GetLatestUndoEntry(ctx)
+	latest, err := b.store.GetLatestUndoEntry(ctx, "", "")
 	if err != nil {
 		t.Fatalf("reading the undo log: %v", err)
 	}

@@ -99,4 +99,6 @@ type UndoLog struct {
 	EntityID      string
 	PreviousState *string
 	CreatedAt     time.Time
+	Actor         string
+	Client        string
 }

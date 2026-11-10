@@ -84,6 +84,7 @@ var statusOfRefusal = []struct {
 	{model.ErrLastProject, http.StatusConflict},
 	{model.ErrIncompleteOrphans, http.StatusConflict},
 	{model.ErrNothingToUndo, http.StatusConflict},
+	{model.ErrUndoSuperseded, http.StatusConflict},
 
 	{model.ErrUnknownKind, http.StatusUnprocessableEntity},
 	{model.ErrUnknownStatus, http.StatusUnprocessableEntity},

@@ -3,7 +3,7 @@
   "$id": "urn:projects:undo-state:v1",
   "title": "undo-state",
   "type": "object",
-  "description": "Whether anything is left to undo. A field added is not a new version, and a field reshaped or removed is.",
+  "description": "Whether the calling client has a write of its own left to undo. A field added is not a new version, and a field reshaped or removed is.",
   "additionalProperties": false,
   "required": [
     "can_undo"

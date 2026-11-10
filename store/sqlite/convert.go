@@ -184,6 +184,8 @@ func toModelUndoEntry(row generated.UndoLog) model.UndoEntry {
 		Action:     row.Action,
 		EntityType: row.EntityType,
 		EntityID:   row.EntityID,
+		Actor:      row.Actor,
+		Client:     row.Client,
 		CreatedAt:  parseTime(row.CreatedAt),
 	}
 	if row.PreviousState.Valid {

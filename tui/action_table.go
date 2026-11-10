@@ -222,7 +222,7 @@ func notMap(m *App) bool { return m.view != viewDependencies }
 
 func everywhereActions() []action {
 	return []action{
-		{Keys: []string{"u"}, Section: gotermboard.SectionEverywhere, Label: "undo the last change", Run: func(m *App) tea.Cmd { return undoCmd(m.backend) }},
+		{Keys: []string{"u"}, Section: gotermboard.SectionEverywhere, Label: "undo this machine's last change", Run: func(m *App) tea.Cmd { return undoCmd(m.backend) }},
 		{Keys: []string{"R"}, Section: gotermboard.SectionEverywhere, Label: "read the data again now", Run: (*App).readAgain},
 	}
 }

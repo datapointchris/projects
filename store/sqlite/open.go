@@ -92,7 +92,10 @@ func migrate(db *sql.DB) error {
 	if err := migrateProjectStatus(db); err != nil {
 		return err
 	}
-	return migrateKindAndCompletedAt(db)
+	if err := migrateKindAndCompletedAt(db); err != nil {
+		return err
+	}
+	return migrateUndoLogWriter(db)
 }
 
 // migrateKindAndCompletedAt adds the lookup tables and the columns a database from
@@ -105,11 +108,28 @@ CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
 	if _, err := db.Exec(lookups); err != nil {
 		return fmt.Errorf("creating lookup tables: %w", err)
 	}
-	columns := []struct{ table, column, definition string }{
+	return addMissingColumns(db, []missingColumn{
 		{"projects", "kind", "TEXT NOT NULL DEFAULT 'life'"},
 		{"project_items", "completed_at", "TEXT"},
 		{"project_item_tasks", "completed_at", "TEXT"},
-	}
+	})
+}
+
+// migrateUndoLogWriter adds the writer an undo entry records. An entry written
+// before the columns holds two empty strings, the writer a database with no API
+// behind it records, so its undo history carries on.
+func migrateUndoLogWriter(db *sql.DB) error {
+	return addMissingColumns(db, []missingColumn{
+		{"undo_log", "actor", "TEXT NOT NULL DEFAULT ''"},
+		{"undo_log", "client", "TEXT NOT NULL DEFAULT ''"},
+	})
+}
+
+type missingColumn struct{ table, column, definition string }
+
+// addMissingColumns appends each column its table lacks, in order, so an existing
+// table ends with the columns schema.sql gives a fresh one.
+func addMissingColumns(db *sql.DB, columns []missingColumn) error {
 	for _, c := range columns {
 		// Tasks arrived with the schema rather than through a migration, so a
 		// database old enough may not have the table at all.

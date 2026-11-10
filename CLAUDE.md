@@ -152,6 +152,10 @@ store/postgres       the same, with goose migrations and an audit trigger
   `service/undo_records.go` owns that JSON. Entries are never pruned, so its shape is a format on disk,
   whatever types a store uses for its own rows. A new column on a project, item or task joins its record
   there and its store's restore, and `TestEveryModelFieldSurvivesAnUndo` fails until both carry it.
+- **An undo reaches only its own writer's entries.** Each entry records the `store.Writer`'s actor and
+  client, and a database with no API behind it records two empty strings. `service/undo_conflicts.go`
+  refuses an undo whose rows a later entry wrote, and drops the entry, because a kept one would refuse
+  every later undo. A new entity type takes a case in `rowsOf` there as well as in `Undo`.
 - **A store's statements carry what only a statement can do atomically, or what only it can sort.**
   `store/store.go` states each on its method: a new row's position, an item's `updated_at`, and a
   restore's handling of a row already there. Each store states them in its own `queries.sql`.

@@ -54,7 +54,8 @@ func (c *Client) DeleteTask(ctx context.Context, itemRef, taskID string) error {
 	return c.call(ctx, http.MethodDelete, taskPath(itemRef, taskID), nil, nil, nil)
 }
 
-// Undo reverses the latest write. A 409 says nothing is left to undo.
+// Undo reverses this client's latest write. A 409 says nothing is left to undo, or
+// that the undo was dropped because another client's later write would be reverted.
 func (c *Client) Undo(ctx context.Context) (wire.UndoResult, error) {
 	var result wire.UndoResult
 	err := c.call(ctx, http.MethodPost, "/undo", nil, nil, &result)

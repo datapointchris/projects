@@ -25,11 +25,13 @@ import (
 )
 
 // api is the routes behind the authentication production wraps them in, with a
-// person's token and a service's. Any rule's store answers here, and the service's
-// own suite proves the two stores agree.
+// person's token, the same person's token from a second machine, and a service's.
+// Any rule's store answers here, and the service's own suite proves the two stores
+// agree.
 type api struct {
 	handler http.Handler
 	person  string
+	laptop  string
 	service string
 }
 
@@ -52,6 +54,7 @@ func newAPI(t *testing.T) api {
 	return api{
 		handler: requestlog.Middleware(log, protected),
 		person:  provider.Person(t, config.PersonPrefix+"test", "a-person"),
+		laptop:  provider.Person(t, config.PersonPrefix+"laptop", "a-person"),
 		service: provider.Sign(t, "at+jwt", map[string]any{"client_id": config.ServicePrefix + "reader", "scp": []string{"projects.items.read"}}),
 	}
 }
@@ -354,5 +357,38 @@ func TestAPartialUpdateTellsNullFromLeftOut(t *testing.T) {
 	}
 	if refused.Errors[0].Loc[1] != "title" {
 		t.Errorf("the refusal marks %v", refused.Errors[0].Loc)
+	}
+}
+
+// One person's machines share the API, and an undo on one never reverts what
+// another wrote. Where the other wrote to the same row since, the undo is refused
+// with that write named, and both edits stand.
+func TestAnUndoRevertsOnlyItsOwnClientsWrite(t *testing.T) {
+	a := newAPI(t)
+	project := a.created(t, "/api/v1/projects", map[string]any{"name": "first"})
+	item := a.created(t, "/api/v1/project-items", map[string]any{"title": "before", "project_ids": []string{project}})
+	path := "/api/v1/project-items/" + item
+	if status, answer := a.send(t, a.person, http.MethodPatch, path, map[string]any{"title": "desk's edit"}); status != http.StatusOK {
+		t.Fatalf("the desk's edit answered %d: %s", status, answer)
+	}
+	status, answer := a.send(t, a.laptop, http.MethodPost, "/api/v1/project-items", map[string]any{"title": "laptop's item", "project_ids": []string{project}})
+	if status != http.StatusCreated {
+		t.Fatalf("the laptop's create answered %d: %s", status, answer)
+	}
+	var laptops struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(answer, &laptops); err != nil {
+		t.Fatal(err)
+	}
+
+	if status, answer := a.send(t, a.person, http.MethodPost, "/api/v1/undo", nil); status != http.StatusOK {
+		t.Fatalf("the desk's undo answered %d: %s", status, answer)
+	}
+	if status, answer := a.send(t, a.person, http.MethodGet, "/api/v1/project-items/"+laptops.ID, nil); status != http.StatusOK {
+		t.Errorf("the desk's undo removed the laptop's item, which answers %d: %s", status, answer)
+	}
+	if _, answer := a.send(t, a.person, http.MethodGet, path, nil); !bytes.Contains(answer, []byte(`"title":"before"`)) {
+		t.Errorf("the desk's undo left its own edit standing: %s", answer)
 	}
 }

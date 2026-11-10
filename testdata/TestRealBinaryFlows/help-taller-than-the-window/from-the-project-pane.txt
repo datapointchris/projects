@@ -20,7 +20,7 @@
               │    .                 show or hide shelved and closed projects        │
               │                                                                      │
               │    Everywhere                                                        │
-              │    u                 undo the last change                            │
+              │    u                 undo this machine's last change                 │
               │    R                 read the data again now                         │
               │    ?                 show these keys                                 │
               │    q Ctrl+c          quit                                            │

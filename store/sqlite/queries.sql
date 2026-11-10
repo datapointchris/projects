@@ -224,14 +224,17 @@ SELECT * FROM project_item_tasks ORDER BY item_id, position, created_at;
 -- Undo
 
 -- name: InsertUndoLog :exec
-INSERT INTO undo_log (action, entity_type, entity_id, previous_state)
-VALUES (?, ?, ?, ?);
+INSERT INTO undo_log (action, entity_type, entity_id, actor, client, previous_state)
+VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: GetLatestUndoLog :one
-SELECT * FROM undo_log ORDER BY id DESC LIMIT 1;
+SELECT * FROM undo_log WHERE actor = ? AND client = ? ORDER BY id DESC LIMIT 1;
+
+-- name: ListUndoLogsAfter :many
+SELECT * FROM undo_log WHERE id > ? ORDER BY id;
 
 -- name: DeleteUndoLog :exec
 DELETE FROM undo_log WHERE id = ?;
 
 -- name: CountUndoLogs :one
-SELECT COUNT(*) FROM undo_log;
+SELECT COUNT(*) FROM undo_log WHERE actor = ? AND client = ?;

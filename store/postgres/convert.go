@@ -85,3 +85,16 @@ func toModelTask(t generated.ProjectItemTask) model.ProjectItemTask {
 		CreatedAt:   t.CreatedAt.UTC(),
 	}
 }
+
+func toModelUndoEntry(row generated.UndoLog) model.UndoEntry {
+	return model.UndoEntry{
+		ID:            row.ID,
+		Action:        row.Action,
+		EntityType:    row.EntityType,
+		EntityID:      row.EntityID,
+		Actor:         row.Actor,
+		Client:        row.Client,
+		PreviousState: row.PreviousState,
+		CreatedAt:     row.CreatedAt.UTC(),
+	}
+}

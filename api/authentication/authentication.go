@@ -46,9 +46,10 @@ func Protect(routes *http.ServeMux, scopes map[string][]string, verifier goapiau
 }
 
 // bindWriter names the caller on the request's context, so the audit trail records
-// who each write was for. A person is recorded by subject and a service by client
-// id, because a service token's subject is only the client's own id or nothing. A
-// session carries no client id, so its request's log names webClientID.
+// who each write was for, and an undo reaches only its own client's writes. A
+// person is recorded by subject and a service by client id, because a service
+// token's subject is only the client's own id or nothing. A session carries no
+// client id, so its writer's client is webClientID.
 func bindWriter(next http.Handler, webClientID string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -62,11 +63,11 @@ func bindWriter(next http.Handler, webClientID string) http.Handler {
 			if identity.Service {
 				writer.Actor = identity.ClientID
 			}
-			clientID := identity.ClientID
-			if clientID == "" {
-				clientID = webClientID
+			writer.Client = identity.ClientID
+			if writer.Client == "" {
+				writer.Client = webClientID
 			}
-			requestlog.NoteCaller(ctx, writer.Actor, clientID, identity.Service)
+			requestlog.NoteCaller(ctx, writer.Actor, writer.Client, identity.Service)
 		}
 		next.ServeHTTP(w, r.WithContext(store.WithWriter(ctx, writer)))
 	})

@@ -41,11 +41,16 @@ func (q *Queries) AddItemToProject(ctx context.Context, arg AddItemToProjectPara
 }
 
 const countUndoLogs = `-- name: CountUndoLogs :one
-SELECT COUNT(*) FROM undo_log
+SELECT COUNT(*) FROM undo_log WHERE actor = ? AND client = ?
 `
 
-func (q *Queries) CountUndoLogs(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUndoLogs)
+type CountUndoLogsParams struct {
+	Actor  string
+	Client string
+}
+
+func (q *Queries) CountUndoLogs(ctx context.Context, arg CountUndoLogsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUndoLogs, arg.Actor, arg.Client)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -377,11 +382,16 @@ func (q *Queries) GetItemProjects(ctx context.Context, itemID string) ([]Project
 }
 
 const getLatestUndoLog = `-- name: GetLatestUndoLog :one
-SELECT id, "action", entity_type, entity_id, previous_state, created_at FROM undo_log ORDER BY id DESC LIMIT 1
+SELECT id, "action", entity_type, entity_id, previous_state, created_at, actor, client FROM undo_log WHERE actor = ? AND client = ? ORDER BY id DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestUndoLog(ctx context.Context) (UndoLog, error) {
-	row := q.db.QueryRowContext(ctx, getLatestUndoLog)
+type GetLatestUndoLogParams struct {
+	Actor  string
+	Client string
+}
+
+func (q *Queries) GetLatestUndoLog(ctx context.Context, arg GetLatestUndoLogParams) (UndoLog, error) {
+	row := q.db.QueryRowContext(ctx, getLatestUndoLog, arg.Actor, arg.Client)
 	var i UndoLog
 	err := row.Scan(
 		&i.ID,
@@ -390,6 +400,8 @@ func (q *Queries) GetLatestUndoLog(ctx context.Context) (UndoLog, error) {
 		&i.EntityID,
 		&i.PreviousState,
 		&i.CreatedAt,
+		&i.Actor,
+		&i.Client,
 	)
 	return i, err
 }
@@ -479,14 +491,16 @@ func (q *Queries) GetTask(ctx context.Context, id string) (ProjectItemTask, erro
 
 const insertUndoLog = `-- name: InsertUndoLog :exec
 
-INSERT INTO undo_log (action, entity_type, entity_id, previous_state)
-VALUES (?, ?, ?, ?)
+INSERT INTO undo_log (action, entity_type, entity_id, actor, client, previous_state)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type InsertUndoLogParams struct {
 	Action        string
 	EntityType    string
 	EntityID      string
+	Actor         string
+	Client        string
 	PreviousState sql.NullString
 }
 
@@ -496,6 +510,8 @@ func (q *Queries) InsertUndoLog(ctx context.Context, arg InsertUndoLogParams) er
 		arg.Action,
 		arg.EntityType,
 		arg.EntityID,
+		arg.Actor,
+		arg.Client,
 		arg.PreviousState,
 	)
 	return err
@@ -904,6 +920,42 @@ func (q *Queries) ListTasksByItem(ctx context.Context, itemID string) ([]Project
 			&i.CompletedAt,
 			&i.Position,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUndoLogsAfter = `-- name: ListUndoLogsAfter :many
+SELECT id, "action", entity_type, entity_id, previous_state, created_at, actor, client FROM undo_log WHERE id > ? ORDER BY id
+`
+
+func (q *Queries) ListUndoLogsAfter(ctx context.Context, id int64) ([]UndoLog, error) {
+	rows, err := q.db.QueryContext(ctx, listUndoLogsAfter, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UndoLog
+	for rows.Next() {
+		var i UndoLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.EntityType,
+			&i.EntityID,
+			&i.PreviousState,
+			&i.CreatedAt,
+			&i.Actor,
+			&i.Client,
 		); err != nil {
 			return nil, err
 		}

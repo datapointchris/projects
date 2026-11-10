@@ -79,5 +79,7 @@ CREATE TABLE undo_log (
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     previous_state TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    actor TEXT NOT NULL DEFAULT '',
+    client TEXT NOT NULL DEFAULT ''
 );

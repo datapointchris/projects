@@ -498,31 +498,34 @@ func (o operations) InsertUndoEntry(ctx context.Context, entry model.UndoEntry) 
 		Action:        entry.Action,
 		EntityType:    entry.EntityType,
 		EntityID:      entry.EntityID,
+		Actor:         entry.Actor,
+		Client:        entry.Client,
 		PreviousState: entry.PreviousState,
 	})
 }
 
-func (o operations) GetLatestUndoEntry(ctx context.Context) (model.UndoEntry, error) {
-	row, err := o.q.GetLatestUndoEntry(ctx)
+func (o operations) GetLatestUndoEntry(ctx context.Context, actor, client string) (model.UndoEntry, error) {
+	row, err := o.q.GetLatestUndoEntry(ctx, generated.GetLatestUndoEntryParams{Actor: actor, Client: client})
 	if err != nil {
 		return model.UndoEntry{}, rowError(err)
 	}
-	return model.UndoEntry{
-		ID:            row.ID,
-		Action:        row.Action,
-		EntityType:    row.EntityType,
-		EntityID:      row.EntityID,
-		PreviousState: row.PreviousState,
-		CreatedAt:     row.CreatedAt.UTC(),
-	}, nil
+	return toModelUndoEntry(row), nil
+}
+
+func (o operations) ListUndoEntriesAfter(ctx context.Context, id int64) ([]model.UndoEntry, error) {
+	rows, err := o.q.ListUndoEntriesAfter(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return listOf(rows, toModelUndoEntry), nil
 }
 
 func (o operations) DeleteUndoEntry(ctx context.Context, id int64) error {
 	return o.q.DeleteUndoEntry(ctx, id)
 }
 
-func (o operations) CountUndoEntries(ctx context.Context) (int, error) {
-	count, err := o.q.CountUndoEntries(ctx)
+func (o operations) CountUndoEntries(ctx context.Context, actor, client string) (int, error) {
+	count, err := o.q.CountUndoEntries(ctx, generated.CountUndoEntriesParams{Actor: actor, Client: client})
 	if err != nil {
 		return 0, err
 	}

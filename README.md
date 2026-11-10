@@ -173,13 +173,18 @@ space     open the note under its row, or mark a task done       c       mark do
 a         add a project, or an item to this project              M       move the row
 n / e     write the note, or the description, in $EDITOR         r       rename
 T         the dependency map on this item                        C       a Claude session on the row
-u         undo the last change                                   R       read the data again now
+u         undo this machine's last change                        R       read the data again now
 ?         every key the row you are on takes                     q       quit
 ```
 
 One table of actions builds the key handling, the hints in the status bar and in each prompt and
 picker, and the `?` overlay. A key the row cannot take is in none of them. The header names the view
 showing.
+
+`u` reverses the newest change this machine made. Through an API, each machine and each person keeps
+an undo history of their own, so an undo here never reverts a change made elsewhere. An undo whose
+row another machine changed after it is dropped instead, and the status bar names that change. So is
+undoing a project's create while the project holds an item. The next `u` reaches the change before it.
 
 **By project** lists the projects on the left and the items of the one under the cursor on the right.
 `space` on a project marks it, and the item pane then lists every marked project's items, each under

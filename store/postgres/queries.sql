@@ -254,14 +254,22 @@ ON CONFLICT (id) DO UPDATE SET
     position = excluded.position;
 
 -- name: InsertUndoEntry :exec
-INSERT INTO undo_log (action, entity_type, entity_id, previous_state)
-VALUES (sqlc.arg(action), sqlc.arg(entity_type), sqlc.arg(entity_id), sqlc.narg(previous_state));
+INSERT INTO undo_log (action, entity_type, entity_id, actor, client, previous_state)
+VALUES (
+    sqlc.arg(action), sqlc.arg(entity_type), sqlc.arg(entity_id),
+    sqlc.arg(actor), sqlc.arg(client), sqlc.narg(previous_state)
+);
 
 -- name: GetLatestUndoEntry :one
-SELECT * FROM undo_log ORDER BY id DESC LIMIT 1;
+SELECT * FROM undo_log
+WHERE actor = sqlc.arg(actor) AND client = sqlc.arg(client)
+ORDER BY id DESC LIMIT 1;
+
+-- name: ListUndoEntriesAfter :many
+SELECT * FROM undo_log WHERE id > sqlc.arg(id) ORDER BY id;
 
 -- name: DeleteUndoEntry :exec
 DELETE FROM undo_log WHERE id = sqlc.arg(id);
 
 -- name: CountUndoEntries :one
-SELECT count(*) FROM undo_log;
+SELECT count(*) FROM undo_log WHERE actor = sqlc.arg(actor) AND client = sqlc.arg(client);
