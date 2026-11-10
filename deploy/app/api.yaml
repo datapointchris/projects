@@ -132,8 +132,10 @@ spec:
             preStop:
               sleep:
                 seconds: 5
-          # /ready answers 503 while Postgres or the identity provider does not,
-          # which takes the pod out of the Service without restarting it.
+          # /ready answers 503 until Postgres and the identity provider have
+          # each answered once, and 200 after, so an outage of either is
+          # answered per request with the API's own 503 rather than taking
+          # every pod out of the Service.
           # timeoutSeconds outlasts readinessCheckDeadline in api/routes/routes.go.
           readinessProbe:
             httpGet:
