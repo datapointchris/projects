@@ -482,16 +482,25 @@ func (m *App) depTreeRow(row graph.Row, selected, markPinned bool, width int) st
 	}
 
 	prefix := fmt.Sprintf("%s%s%s %s ", pin, graph.Prefix(row), mark, itemHandle(node.Item))
-	suffix := ""
-	if tag := graph.CrossProjectTag(node, s.lookup[row.Parent], row.Parent != ""); tag != "" {
-		suffix += " [" + tag + "]"
-	}
+	repeated := ""
 	if row.Repeated {
-		suffix += " (*)"
+		repeated = " (*)"
 	}
 
-	avail := max(width-lipgloss.Width(prefix)-lipgloss.Width(suffix)-2, 4)
-	line := prefix + truncate(node.Item.Title, avail) + suffix
+	// The title is what a row is read for, so it takes the width first. The project
+	// tag gets what the title leaves, cut to fit, and is dropped where too little is
+	// left to say anything.
+	room := max(width-lipgloss.Width(prefix)-lipgloss.Width(repeated)-2, 4)
+	title := truncate(node.Item.Title, room)
+	line := prefix + title
+	if tag := graph.CrossProjectTag(node, s.lookup[row.Parent], row.Parent != ""); tag != "" {
+		const brackets = len(" []")
+		const shortestTag = 4
+		if left := room - lipgloss.Width(title) - brackets; left >= shortestTag {
+			line += " [" + truncate(tag, left) + "]"
+		}
+	}
+	line += repeated
 
 	if selected {
 		return itemSelectedStyle.Render(line)

@@ -2,7 +2,7 @@
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭────────────────────────────────────────────────╮
 ┃ All trees (2)                                  ┃│ Tree — waits on                                │
 ┃ ○ 9 Write up the trip on the new blog          ┃│ •○ 9 Write up the trip on the new blog         │
-┃  └── ○ 4 Point… [Move the blog to plain files] ┃│  └── ○ 4 Point… [Move the blog to plain files] │
+┃  └── ○ 4 Point DNS at the new host [Move the…] ┃│  └── ○ 4 Point DNS at the new host [Move the…] │
 ┃      └── ○ 3 Set up redirects for the old URLs ┃│      └── ○ 3 Set up redirects for the old URLs │
 ┃          └── ○ 1 Export posts from the old CMS ┃│          └── ○ 1 Export posts from the old CMS │
 ┃  ○ 7 Shut off the water and swap it            ┃│                                                │
