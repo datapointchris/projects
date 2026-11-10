@@ -2,10 +2,15 @@
 #
 # The cluster supplies what this directory does not create:
 #
-# - A ConfigMap and a Secret, both named projects-settings, holding the settings
-#   README.md lists as environment variables. POSTGRES_PASSWORD and
-#   WEB_CLIENT_SECRET go in the Secret. The pod reads both, so any other
-#   setting may sit in either.
+# - A ConfigMap named projects-settings, holding the settings README.md lists
+#   as environment variables, all but the Postgres login and WEB_CLIENT_SECRET.
+# - A Secret named postgres-app, holding the Postgres login as POSTGRES_HOST,
+#   POSTGRES_PORT, POSTGRES_USERNAME, POSTGRES_PASSWORD and POSTGRES_DB. Its
+#   role needs SELECT, INSERT, UPDATE and DELETE on every table and USAGE on
+#   every sequence, including those a later migration creates, and nothing
+#   that changes the schema. The migration Job alone logs in as the owner.
+# - A Secret named projects-settings, holding WEB_CLIENT_SECRET. Without it the
+#   API logs no browser in, and only a bearer token reaches it.
 # - No route of its own. projects-web, in web.yaml, passes /api and
 #   /.well-known here from the app's host, whose address PUBLIC_URL names.
 # - Each NetworkPolicy the pod reaches Postgres and the issuer through, and the
@@ -85,8 +90,40 @@ spec:
           envFrom:
             - configMapRef:
                 name: projects-settings
-            - secretRef:
-                name: projects-settings
+          # POSTGRES_PORT may be left out of the Secret, and then reads as 5432.
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: POSTGRES_PORT
+                  optional: true
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: POSTGRES_DB
+            - name: WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: projects-settings
+                  key: WEB_CLIENT_SECRET
+                  optional: true
           # Endpoints drop a terminating pod a moment after TERM reaches it, so
           # the sleep keeps it accepting until no proxy routes to it.
           lifecycle:

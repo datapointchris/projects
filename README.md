@@ -460,6 +460,8 @@ cosign verify --certificate-identity https://github.com/datapointchris/projects/
 ```
 
 `deploy/app/api.yaml` and `deploy/app/web.yaml` list what a cluster supplies around those manifests.
+The API logs in from Secret `postgres-app`, as a role holding DML and no DDL. The migrate Job logs in
+from Secret `postgres`, as the schema's owner.
 
 ## The web app — one page, on the API's own origin
 
