@@ -37,7 +37,7 @@ func (t *table) createProject(w http.ResponseWriter, r *http.Request) {
 		StatusReason: body.nullableString("status_reason"),
 		Position:     &position,
 	}
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	created, err := t.scoped(r).CreateProject(input)
@@ -71,7 +71,7 @@ func (t *table) updateProject(w http.ResponseWriter, r *http.Request) {
 		ClearStatusReason: clearReason,
 		Position:          body.partialInt("position"),
 	}
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	updated, err := t.scoped(r).UpdateProject(r.PathValue("id"), input)

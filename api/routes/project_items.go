@@ -59,7 +59,7 @@ func (t *table) createItem(w http.ResponseWriter, r *http.Request) {
 		Repo:       body.nullableString("repo"),
 		ProjectIDs: body.requiredStringList("project_ids"),
 	}
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	created, err := t.scoped(r).CreateItem(input)
@@ -92,7 +92,7 @@ func (t *table) updateItem(w http.ResponseWriter, r *http.Request) {
 		Completed:  body.partialBool("completed"),
 		Archived:   body.partialBool("archived"),
 	}
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	svc := t.scoped(r)
@@ -121,7 +121,7 @@ func (t *table) reorderItem(w http.ResponseWriter, r *http.Request) {
 	body := readRequestBody(r)
 	projectRef := body.requiredString("project_id")
 	position := body.requiredInt("position")
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	svc := t.scoped(r)
@@ -150,7 +150,7 @@ func (t *table) listItemProjects(w http.ResponseWriter, r *http.Request) {
 func (t *table) addItemToProject(w http.ResponseWriter, r *http.Request) {
 	body := readRequestBody(r)
 	projectRef := body.requiredString("project_id")
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	svc := t.scoped(r)
@@ -177,7 +177,7 @@ func (t *table) removeItemFromProject(w http.ResponseWriter, r *http.Request) {
 func (t *table) addDependency(w http.ResponseWriter, r *http.Request) {
 	body := readRequestBody(r)
 	dependsOn := body.requiredItemReference("depends_on_id")
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	svc := t.scoped(r)

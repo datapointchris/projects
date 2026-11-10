@@ -18,7 +18,11 @@
     },
     "code": {
       "type": "string",
-      "description": "A stable name for a refusal from authentication."
+      "description": "A stable name for a refusal a client branches on: unknown_field for a body key the route does not read, or one from authentication."
+    },
+    "field": {
+      "type": "string",
+      "description": "On unknown_field, the first refused key. errors lists each one."
     },
     "errors": {
       "type": "array",

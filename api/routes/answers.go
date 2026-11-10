@@ -33,8 +33,13 @@ func statusPhrase(status int) string {
 }
 
 func writeRefusal(w http.ResponseWriter, r *http.Request, status int, message string, problems []wire.ValidationError) {
-	requestlog.NoteRefusal(r.Context(), message)
-	writeJSON(w, status, wire.Error{Error: statusPhrase(status), Message: message, Errors: problems})
+	writeError(w, r, status, wire.Error{Message: message, Errors: problems})
+}
+
+func writeError(w http.ResponseWriter, r *http.Request, status int, answer wire.Error) {
+	requestlog.NoteRefusal(r.Context(), answer.Message)
+	answer.Error = statusPhrase(status)
+	writeJSON(w, status, answer)
 }
 
 // validationMessage is each refused field as `field: reason`, the field dotted below
@@ -59,12 +64,21 @@ func validationMessage(problems []wire.ValidationError) string {
 }
 
 // refuseInvalid answers a 422 when any input was refused, and reports whether it did.
+// An answer refusing a key the route does not read carries its code and names the
+// first such key, so a client tells it from a value it sent wrong.
 func refuseInvalid(w http.ResponseWriter, r *http.Request, problems ...[]wire.ValidationError) bool {
 	all := slices.Concat(problems...)
 	if len(all) == 0 {
 		return false
 	}
-	writeRefusal(w, r, http.StatusUnprocessableEntity, validationMessage(all), all)
+	answer := wire.Error{Message: validationMessage(all), Errors: all}
+	for _, problem := range all {
+		if problem.Type == typeUnknownField {
+			answer.Code, answer.Field = codeUnknownField, fmt.Sprint(problem.Loc[len(problem.Loc)-1])
+			break
+		}
+	}
+	writeError(w, r, http.StatusUnprocessableEntity, answer)
 	return true
 }
 

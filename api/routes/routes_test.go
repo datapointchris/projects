@@ -392,3 +392,65 @@ func TestAnUndoRevertsOnlyItsOwnClientsWrite(t *testing.T) {
 		t.Errorf("the desk's undo left its own edit standing: %s", answer)
 	}
 }
+
+// A key no route reads is refused by name before anything is written, so a client
+// released ahead of this server learns its field was not applied.
+func TestAKeyTheRouteDoesNotReadIsRefusedAndNothingIsWritten(t *testing.T) {
+	a := newAPI(t)
+	project := a.created(t, "/api/v1/projects", map[string]any{"name": "first"})
+	other := a.created(t, "/api/v1/projects", map[string]any{"name": "second"})
+	item := a.created(t, "/api/v1/project-items", map[string]any{"title": "an item", "project_ids": []string{project}})
+	blocker := a.created(t, "/api/v1/project-items", map[string]any{"title": "a blocker", "project_ids": []string{project}})
+	task := a.created(t, "/api/v1/project-items/"+item+"/tasks", map[string]any{"title": "a task"})
+	itemPath := "/api/v1/project-items/" + item
+
+	everything := func() string {
+		t.Helper()
+		var all []byte
+		for _, path := range []string{"/api/v1/projects?status=all", "/api/v1/project-items?status=all", itemPath + "/tasks"} {
+			_, answer := a.send(t, a.person, http.MethodGet, path, nil)
+			all = append(all, answer...)
+		}
+		return string(all)
+	}
+	before := everything()
+	errorSchema := schema(t, "error")
+
+	for _, c := range []struct {
+		method, path string
+		body         map[string]any
+	}{
+		{http.MethodPost, "/api/v1/projects", map[string]any{"name": "third"}},
+		{http.MethodPatch, "/api/v1/projects/" + project, map[string]any{"name": "renamed"}},
+		{http.MethodPost, "/api/v1/project-items", map[string]any{"title": "another", "project_ids": []string{project}}},
+		{http.MethodPatch, itemPath, map[string]any{"title": "renamed"}},
+		{http.MethodPatch, itemPath + "/reorder", map[string]any{"project_id": project, "position": 1}},
+		{http.MethodPost, itemPath + "/projects", map[string]any{"project_id": other}},
+		{http.MethodPost, itemPath + "/dependencies", map[string]any{"depends_on_id": blocker}},
+		{http.MethodPost, itemPath + "/tasks", map[string]any{"title": "another"}},
+		{http.MethodPatch, itemPath + "/tasks/" + task, map[string]any{"title": "renamed"}},
+	} {
+		t.Run(c.method+" "+c.path, func(t *testing.T) {
+			c.body["sent_ahead"] = "a field this server predates"
+			status, answer := a.send(t, a.person, c.method, c.path, c.body)
+			var refused struct {
+				Code  string `json:"code"`
+				Field string `json:"field"`
+			}
+			if err := json.Unmarshal(answer, &refused); err != nil {
+				t.Fatalf("reading %s: %v", answer, err)
+			}
+			if status != http.StatusUnprocessableEntity || refused.Code != "unknown_field" || refused.Field != "sent_ahead" {
+				t.Errorf("answered %d: %s", status, answer)
+			}
+			var document any
+			_ = json.Unmarshal(answer, &document)
+			if err := errorSchema.Validate(document); err != nil {
+				t.Errorf("%v\nanswer: %s", err, answer)
+			}
+		})
+	}
+	if after := everything(); after != before {
+		t.Errorf("a refused write changed the data\nbefore: %s\nafter:  %s", before, after)
+	}
+}

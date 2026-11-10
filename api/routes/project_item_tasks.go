@@ -25,7 +25,7 @@ func (t *table) createTask(w http.ResponseWriter, r *http.Request) {
 		Title:    body.requiredString("title"),
 		Position: body.intOr("position", 0),
 	}
-	if refuseInvalid(w, r, body.problems) {
+	if refuseInvalid(w, r, body.refusals()) {
 		return
 	}
 	created, err := t.scoped(r).CreateTask(r.PathValue("item_id"), input)
@@ -54,7 +54,7 @@ func (t *table) updateTask(w http.ResponseWriter, r *http.Request) {
 		Position:  body.partialInt("position"),
 	}
 	taskID, problems := pathTaskID(r)
-	if refuseInvalid(w, r, problems, body.problems) {
+	if refuseInvalid(w, r, problems, body.refusals()) {
 		return
 	}
 	updated, err := t.scoped(r).UpdateTask(r.PathValue("item_id"), taskID, input)

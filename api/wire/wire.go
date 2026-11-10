@@ -279,10 +279,13 @@ type ValidationError struct {
 }
 
 // Error is every refusal. Message always says why in one string. Errors lists each
-// refused input on a validation 422.
+// refused input on a validation 422. Code names a refusal a client branches on, and
+// Field is the first key an unknown_field refusal names.
 type Error struct {
 	Error   string            `json:"error"`
 	Message string            `json:"message"`
+	Code    string            `json:"code,omitempty"`
+	Field   string            `json:"field,omitempty"`
 	Errors  []ValidationError `json:"errors,omitempty"`
 }
 

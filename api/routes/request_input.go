@@ -31,6 +31,14 @@ const (
 	messageNotAnInstant  = "Input should be a valid datetime or date"
 	messageCannotBeNull  = "Value error, cannot be null; omit the field to leave it unchanged"
 	messageHoldsNUL      = "Input should not hold a NUL character"
+	messageUnknownField  = "Extra inputs are not permitted"
+)
+
+// typeUnknownField is a refused key's type, as Pydantic names it, and
+// codeUnknownField is the code of an answer refusing one, which a client branches on.
+const (
+	typeUnknownField = "extra_forbidden"
+	codeUnknownField = "unknown_field"
 )
 
 // requestBody reads a JSON object field by field. A partial update has to tell a
@@ -39,8 +47,37 @@ const (
 // collects in problems, so one answer names each refused field at once.
 type requestBody struct {
 	fields   map[string]json.RawMessage
+	asked    map[string]bool
 	whole    any
 	problems []wire.ValidationError
+}
+
+// sent is the field's raw value and whether the body holds it. It records the
+// field as one the route reads, which refusals checks every key against.
+func (b *requestBody) sent(field string) (json.RawMessage, bool) {
+	if b.asked == nil {
+		b.asked = map[string]bool{}
+	}
+	b.asked[field] = true
+	raw, holds := b.fields[field]
+	return raw, holds
+}
+
+// refusals is every refusal, with each key the route never asked for refused as
+// unknown. A handler calls it after its last read, so a field a client sends ahead
+// of this server is refused by name rather than dropped from a write that succeeds.
+func (b *requestBody) refusals() []wire.ValidationError {
+	unknown := make([]string, 0, len(b.fields))
+	for key := range b.fields {
+		if !b.asked[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	slices.Sort(unknown)
+	for _, key := range unknown {
+		b.refuseField(key, typeUnknownField, messageUnknownField, b.fields[key])
+	}
+	return b.problems
 }
 
 func readRequestBody(r *http.Request) *requestBody {
@@ -145,7 +182,7 @@ func stringField(b *requestBody, field string, raw json.RawMessage) *string {
 
 // requiredString refuses a field left out or null.
 func (b *requestBody) requiredString(field string) string {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		b.refuseMissing(field)
 		return ""
@@ -158,7 +195,7 @@ func (b *requestBody) requiredString(field string) string {
 
 // stringUnlessLeftOut answers nil for a field left out, and refuses null.
 func (b *requestBody) stringUnlessLeftOut(field string) *string {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		return nil
 	}
@@ -173,7 +210,7 @@ func (b *requestBody) nullableString(field string) *string {
 
 // clearableString tells a field left out from one sent as null, which clears it.
 func (b *requestBody) clearableString(field string) (value *string, cleared bool) {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		return nil, false
 	}
@@ -186,7 +223,7 @@ func (b *requestBody) clearableString(field string) (value *string, cleared bool
 // partial answers nil for a field left out, and refuses null. It reads a partial
 // update's field over a column that cannot hold null.
 func partial[T any](b *requestBody, field, kind, message string) *T {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		return nil
 	}
@@ -221,7 +258,7 @@ func (b *requestBody) partialInt(field string) *int {
 
 // intOr answers fallback for a field left out, and refuses null.
 func (b *requestBody) intOr(field string, fallback int) int {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		return fallback
 	}
@@ -232,7 +269,7 @@ func (b *requestBody) intOr(field string, fallback int) int {
 }
 
 func (b *requestBody) requiredInt(field string) int {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		b.refuseMissing(field)
 		return 0
@@ -245,7 +282,7 @@ func (b *requestBody) requiredInt(field string) int {
 
 // optionalUUID is an id a caller chose, which may be left out or null.
 func (b *requestBody) optionalUUID(field string) *string {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent || isJSONNull(raw) {
 		return nil
 	}
@@ -263,7 +300,7 @@ func (b *requestBody) optionalUUID(field string) *string {
 // requiredItemReference is an item's UUID or number. The number may come as a JSON
 // number or as text, because a CLI forwards what a person typed.
 func (b *requestBody) requiredItemReference(field string) string {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		b.refuseMissing(field)
 		return ""
@@ -280,7 +317,7 @@ func (b *requestBody) requiredItemReference(field string) string {
 
 // requiredStringList refuses a field left out, null, or holding anything but strings.
 func (b *requestBody) requiredStringList(field string) []string {
-	raw, sent := b.fields[field]
+	raw, sent := b.sent(field)
 	if !sent {
 		b.refuseMissing(field)
 		return nil

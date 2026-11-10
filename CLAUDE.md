@@ -315,6 +315,11 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   has no place for the field. A field added is not a new version, and a field reshaped or removed is.
 - **A `PATCH` is read field by field**, by `requestBody`, because a struct cannot tell a field left out
   from one sent as null. Left out keeps, null clears, and a column that cannot be empty refuses null.
+- **A body key no read asked for is refused**, with a 422 whose `code` is `unknown_field` and whose
+  `field` names it. Every accessor records its key through `requestBody.sent`, and a handler checks
+  `body.refusals()` after its last read. A client released ahead of the API would otherwise have its new
+  field dropped from a write that answers 200. A new body route reads each field it takes before that
+  call, and `TestAKeyTheRouteDoesNotReadIsRefusedAndNothingIsWritten` takes a row for it.
 - **A wildcard holds an escaped slash.** `{id}` matches one escaped segment, so a project name holding
   `/` is reached as `%2F`. A catch-all would widen what `LimitServices` matches by pattern.
 - **A scope lists registered patterns**, in `routes.ServiceScopes`. Renaming a route's wildcard takes it

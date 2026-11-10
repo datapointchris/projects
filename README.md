@@ -440,7 +440,9 @@ its number. A name holding a slash is reached by escaping it, as `/api/v1/projec
 and a field sent as `null` clears it. A field that cannot be empty refuses `null` by name.
 
 A refusal is `{"error": <status phrase>, "message": <why>}`. A refused input adds `errors`, listing each
-field with its `loc` and `msg`. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
+field with its `loc` and `msg`. **A body key the route does not read is refused rather than ignored**,
+so a write never succeeds without a field it was sent. That 422 adds `"code": "unknown_field"` and
+`field`, naming the first such key. [api/schemas](api/schemas) holds a JSON Schema for every answer, and
 `api/wire` holds the Go structs.
 
 **Each release publishes both images and their manifests under one version.**
