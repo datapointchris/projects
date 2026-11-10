@@ -10,7 +10,7 @@
 │                                      │┃                                                         2┃
 │                                      │┃       Item 2 · ✓ done                                    ┃
 │                                      │┃       Projects: Move the blog to plain files             ┃
-│                                      │┃       Created: <date>                               ┃
+│                                      │┃       Created: <date>                              ┃
 │                                      │┃                                                          ┃
 │                                      │┃       Notes                                              ┃
 │                                      │┃                                                          ┃

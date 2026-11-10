@@ -10,7 +10,7 @@
 │                                      │┃                                                         2┃
 │                                      │┃       Item 2 · ✓ done                                    ┃
 │                                      │┃       Projects: Move the blog to plain files             ┃
-│                                      │┃       Created: <date>                               ┃
+│                                      │┃       Created: <date>                              ┃
 │                                      │┃   ▸ ○ Set up redirects for the old URLs                  ┃
 │                                      │┃                                                         3┃
 │                                      │┃       └─ blocked by: Export posts from the old CMS (1)   ┃

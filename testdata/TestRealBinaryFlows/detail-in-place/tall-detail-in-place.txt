@@ -5,7 +5,7 @@
 │   Replace the kitchen faucet ○3 ✓0   │┃                                                         1┃
 │   Plan the Lisbon trip ○31 ✓0        │┃       Item 1 · ○ open                                    ┃
 │                                      │┃       Projects: Move the blog to plain files             ┃
-│                                      │┃       Created: <date>                               ┃
+│                                      │┃       Created: <date>                              ┃
 │                                      │┃                                                          ┃
 │                                      │┃       Blocks                                             ┃
 │                                      │┃       ○ Set up redirects for the old URLs (3)            ┃

@@ -121,7 +121,8 @@ type Operations interface {
 	AddItemToProject(ctx context.Context, membership model.Membership) error
 	RemoveItemFromProject(ctx context.Context, itemID, projectID string) error
 	UpdateItemPosition(ctx context.Context, membership model.Membership) error
-	// RestoreMembership inserts the row, and leaves an existing pairing alone.
+	// RestoreMembership inserts the row, and leaves an existing pairing alone. It
+	// fails when the item or the project is gone.
 	RestoreMembership(ctx context.Context, membership model.Membership) error
 
 	// ListAllDependencies orders by item and then what it depends on.
@@ -134,7 +135,8 @@ type Operations interface {
 	ListDependencyItems(ctx context.Context, itemID string) ([]model.ProjectItem, error)
 	AddDependency(ctx context.Context, edge model.Dependency) error
 	RemoveDependency(ctx context.Context, edge model.Dependency) error
-	// RestoreDependency inserts the edge, and leaves an existing one alone.
+	// RestoreDependency inserts the edge, and leaves an existing one alone. It
+	// fails when either item is gone.
 	RestoreDependency(ctx context.Context, edge model.Dependency) error
 
 	// ListAllTasks orders by item, position and then creation time.

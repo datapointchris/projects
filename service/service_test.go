@@ -827,6 +827,61 @@ func TestUndoRestoresDeletedProjectMemberships(t *testing.T) {
 	}
 }
 
+// A project or item can leave with no undo entry of its own, when something
+// outside the service deletes it. Undoing the delete of an item linked to it
+// restores the links whose other end remains, and consumes the entry rather than
+// failing on the foreign key every time.
+func TestUndoSkipsALinkWhoseOtherEndIsGone(t *testing.T) {
+	b := newTestBackend(t)
+	ctx := context.Background()
+
+	keep := mustCreateProject(t, b, "keep")
+	gone := mustCreateProject(t, b, "gone")
+	blocker := mustCreateItem(t, b, model.CreateProjectItem{Title: "blocker", ProjectIDs: []string{gone.ID}})
+	item := mustCreateItem(t, b, model.CreateProjectItem{
+		Title:      "doomed",
+		ProjectIDs: []string{keep.ID, gone.ID},
+	})
+	if err := b.AddDependency(item.ID, blocker.ID); err != nil {
+		t.Fatalf("adding dependency: %v", err)
+	}
+	if err := b.DeleteItem(item.ID); err != nil {
+		t.Fatalf("deleting item: %v", err)
+	}
+	if err := b.store.DeleteItem(ctx, blocker.ID); err != nil {
+		t.Fatalf("deleting the blocker outside the service: %v", err)
+	}
+	if err := b.store.DeleteProject(ctx, gone.ID); err != nil {
+		t.Fatalf("deleting the project outside the service: %v", err)
+	}
+
+	if _, err := b.Undo(); err != nil {
+		t.Fatalf("undoing: %v", err)
+	}
+
+	projects, err := b.GetItemProjects(item.ID)
+	if err != nil {
+		t.Fatalf("getting item projects: %v", err)
+	}
+	if len(projects) != 1 || projects[0].ID != keep.ID {
+		t.Errorf("expected the item back in the remaining project only, got %+v", projects)
+	}
+	blockers, err := b.GetBlockers(item.ID)
+	if err != nil {
+		t.Fatalf("getting blockers: %v", err)
+	}
+	if len(blockers) != 0 {
+		t.Errorf("expected no blocker restored, got %+v", blockers)
+	}
+	latest, err := b.store.GetLatestUndoEntry(ctx)
+	if err != nil {
+		t.Fatalf("reading the undo log: %v", err)
+	}
+	if latest.Action == model.UndoActionDelete && latest.EntityID == item.ID {
+		t.Errorf("the item's delete entry is still at the top of the log")
+	}
+}
+
 // Undo preserves identity, not just content: created_at drives item ordering
 // and a restore that stamps "now" silently reorders the list.
 func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {

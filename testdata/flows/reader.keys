@@ -1,6 +1,6 @@
 # Enter opens an item and a project full screen in gotermboard's reader. Esc closes each
 # onto the row it came from.
-mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+mask /Created: [A-Z][a-z]+ (\d\d, \d{4}|\d, \d{4} ?)/ "Created: <date>"
 mask /Project [0-9a-f]{8}/ "Project <id>"
 
 wait Export posts from the old CMS

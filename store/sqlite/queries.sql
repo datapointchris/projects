@@ -92,7 +92,7 @@ UPDATE project_item_memberships SET position = ? WHERE item_id = ? AND project_i
 
 -- Undo of a delete puts back rows that may already be there, and OR IGNORE leaves
 -- those alone. It does not cover a foreign key: a counterpart gone since fails
--- the undo.
+-- the insert.
 -- name: RestoreMembership :exec
 INSERT OR IGNORE INTO project_item_memberships (item_id, project_id, position)
 VALUES (?, ?, ?);

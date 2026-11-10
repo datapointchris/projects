@@ -142,7 +142,7 @@ func undoMembership(ctx context.Context, tx store.Operations, entry model.UndoEn
 		return nil
 	}
 
-	if err := tx.RestoreMembership(ctx, prev.toModel()); err != nil {
+	if err := restoreMembership(ctx, tx, prev.toModel()); err != nil {
 		return fmt.Errorf("restoring membership: %w", err)
 	}
 	return nil
@@ -164,7 +164,7 @@ func undoDependency(ctx context.Context, tx store.Operations, entry model.UndoEn
 		return nil
 	}
 
-	if err := tx.RestoreDependency(ctx, model.Dependency(prev)); err != nil {
+	if err := restoreDependency(ctx, tx, model.Dependency(prev)); err != nil {
 		return fmt.Errorf("restoring dependency: %w", err)
 	}
 	return nil
@@ -369,12 +369,12 @@ func restoreItemSnapshot(ctx context.Context, tx store.Operations, snapshot *ite
 
 func restoreWhatCascadedOffItem(ctx context.Context, tx store.Operations, snapshot *itemSnapshot) error {
 	for _, membership := range snapshot.Memberships {
-		if err := tx.RestoreMembership(ctx, membership.toModel()); err != nil {
+		if err := restoreMembership(ctx, tx, membership.toModel()); err != nil {
 			return fmt.Errorf("restoring item membership: %w", err)
 		}
 	}
 	for _, dependency := range snapshot.Dependencies {
-		if err := tx.RestoreDependency(ctx, model.Dependency(dependency)); err != nil {
+		if err := restoreDependency(ctx, tx, model.Dependency(dependency)); err != nil {
 			return fmt.Errorf("restoring item dependency: %w", err)
 		}
 	}
@@ -403,11 +403,53 @@ func restoreProjectSnapshot(ctx context.Context, tx store.Operations, snapshot *
 		}
 	}
 	for _, membership := range snapshot.Memberships {
-		if err := tx.RestoreMembership(ctx, membership.toModel()); err != nil {
+		if err := restoreMembership(ctx, tx, membership.toModel()); err != nil {
 			return fmt.Errorf("restoring project membership: %w", err)
 		}
 	}
 	return nil
+}
+
+// restoreMembership puts a membership back only while its item and its project
+// both exist. A row can leave with no undo entry of its own, when something
+// outside the service deletes it, and a link to it would fail the foreign key.
+// That failure would roll back the undo and leave its entry at the top of the
+// log, so every later undo would fail the same way. Skipping the link restores
+// what is left and lets the entry go.
+func restoreMembership(ctx context.Context, tx store.Operations, membership model.Membership) error {
+	itemThere, err := itemExists(ctx, tx, membership.ItemID)
+	if err != nil || !itemThere {
+		return err
+	}
+	if _, err := tx.GetProject(ctx, membership.ProjectID); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	return tx.RestoreMembership(ctx, membership)
+}
+
+// restoreDependency puts an edge back only while both its items exist, for the
+// reason restoreMembership gives.
+func restoreDependency(ctx context.Context, tx store.Operations, edge model.Dependency) error {
+	for _, id := range []string{edge.ItemID, edge.DependsOnID} {
+		there, err := itemExists(ctx, tx, id)
+		if err != nil || !there {
+			return err
+		}
+	}
+	return tx.RestoreDependency(ctx, edge)
+}
+
+func itemExists(ctx context.Context, tx store.Operations, id string) (bool, error) {
+	if _, err := tx.GetItem(ctx, id); err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // logUndo records a mutation in the transaction that made it, because undo reads

@@ -1,6 +1,6 @@
 # A window too small for the layout: the project pane sits at its minimum width, and
 # an overlay's text wraps inside its box.
-mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+mask /Created: [A-Z][a-z]+ (\d\d, \d{4}|\d, \d{4} ?)/ "Created: <date>"
 wait Projects
 frame first-screen
 

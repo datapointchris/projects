@@ -1,6 +1,6 @@
 # Walk the dependency map, read an item and come back, then link and unlink a
 # dependency through its overlays.
-mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+mask /Created: [A-Z][a-z]+ (\d\d, \d{4}|\d, \d{4} ?)/ "Created: <date>"
 
 wait Export posts from the old CMS
 press T

@@ -1,7 +1,7 @@
 # Enter opens an item's detail in place where it is short, and full screen where it runs past
 # the pane. Space opens it in place however tall, and closes it again. Every item has a detail,
 # so every item's row carries a chevron. Scrolling through the detail keeps the item's line on top.
-mask /Created: [A-Z][a-z]+ \d+, \d{4}/ "Created: <date>"
+mask /Created: [A-Z][a-z]+ (\d\d, \d{4}|\d, \d{4} ?)/ "Created: <date>"
 wait Export posts from the old CMS
 press l
 wait c complete
