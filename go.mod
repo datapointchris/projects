@@ -2,7 +2,7 @@ module github.com/datapointchris/projects
 
 go 1.26.8
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 // The web app holds no Go, and its npm packages can ship Go of their own.
 ignore ./web

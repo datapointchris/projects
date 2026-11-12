@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # The API's image. The TUI installs with `go install` and never reads this.
-FROM golang:1.26.10-alpine AS builder
+FROM golang:1.26.11-alpine AS builder
 
 WORKDIR /src
 
