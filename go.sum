@@ -93,8 +93,8 @@ github.com/datapointchris/goselfupdate v0.11.0 h1:aUJ27Cm9ZNGMfC7+kKChBsnm8offBE
 github.com/datapointchris/goselfupdate v0.11.0/go.mod h1:YcgyvM+wH6nh9zo9xioUqTHeH5HTYeCHevv4U+G7INc=
 github.com/datapointchris/gotermboard v0.43.0 h1:WQ5xgmogGwu7V+0BaoJYrr+qATVTc46XAqkX/6rDpZ8=
 github.com/datapointchris/gotermboard v0.43.0/go.mod h1:A/9phVumidQPEVvHBLHTIWGgMfwbyDT+1/0iOHtjmao=
-github.com/datapointchris/gotermstyle v0.5.0 h1:xdpuNASa4vS0jSMpBDQOO0rRFGY7jaft5H3hTHOrREE=
-github.com/datapointchris/gotermstyle v0.5.0/go.mod h1:pcTXWC/xls5Riw0rFtTueCQGlnszB3sqlepRItgdgeg=
+github.com/datapointchris/gotermstyle v0.6.0 h1:udz3/YAib//g5TUVacfHJaYlbuisyk005JyL5ed4B4c=
+github.com/datapointchris/gotermstyle v0.6.0/go.mod h1:pKINTy5wt7+1No+qXub+BoyOeZiLC/MYunXL/l9i1j4=
 github.com/datapointchris/tuidrive v0.1.0 h1:s6esDWL9P8EkQYzdvrPwvBxYjPF98u0ukpnZbfBIGOc=
 github.com/datapointchris/tuidrive v0.1.0/go.mod h1:lbRNaZkLTfPvfVqkJlcCzfuItgbePNp1flvS70mf/gI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
