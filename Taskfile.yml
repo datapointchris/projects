@@ -63,6 +63,65 @@ tasks:
     cmds:
       - npm run test:unit
 
+  # Each half runs what its commit hooks run, with their rewrites turned into checks.
+  lint:
+    desc: Run the Go and web app checks, writing no file
+    cmds:
+      - task: go:lint
+      - task: web:lint
+
+  # gofumpt -l lists the files it would rewrite and exits 0, so the list is the
+  # failure. A gofumpt that fails to run fails the task rather than listing nothing.
+  go:lint:
+    desc: Check Go formatting with gofumpt, then run golangci-lint and go vet
+    cmds:
+      - 'files=$(gofumpt -l .) && test -z "$files" || { echo "gofumpt would rewrite: $files"; exit 1; }'
+      - golangci-lint run --allow-parallel-runners
+      - go vet ./...
+
+  web:lint:
+    desc: Run eslint, the prettier check and the typecheck on the web app
+    dir: web
+    cmds:
+      - npm run lint
+      - npx prettier --check .
+      - task: web:typecheck
+
+  format:
+    desc: Rewrite Go and web app files with each formatter and linter's fixes
+    cmds:
+      - task: go:format
+      - task: web:format
+
+  go:format:
+    desc: Rewrite Go files with gofumpt and golangci-lint's fixes
+    cmds:
+      - gofumpt -w .
+      - golangci-lint run --fix --allow-parallel-runners
+
+  web:format:
+    desc: Apply eslint's fixes to the web app, then rewrite it with prettier
+    dir: web
+    cmds:
+      - npm run lint:fix
+      - npx prettier --write .
+
+  typecheck:
+    desc: Typecheck the web app; the Go build and go vet check the Go side
+    cmds:
+      - task: web:typecheck
+
+  web:typecheck:
+    desc: Typecheck the web app with vue-tsc
+    dir: web
+    cmds:
+      - npm run typecheck
+
+  dev:
+    desc: Serve the web app from source against the stack, reloading on each edit
+    cmds:
+      - task: web:dev
+
   # The browser reaches the stack at http://localhost:8096, and the stand-in
   # identity provider logs every login in as one person. Its database lives in
   # a volume, so a stop that keeps the data is `docker compose stop`.
