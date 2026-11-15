@@ -71,7 +71,7 @@ func migrate(db *sql.DB) error {
 		if _, err := db.Exec(schema); err != nil {
 			return fmt.Errorf("applying schema: %w", err)
 		}
-		return nil
+		return setUserVersion(db, orphansSweptVersion)
 	} else if err != nil {
 		return fmt.Errorf("checking schema: %w", err)
 	}
@@ -204,7 +204,19 @@ func boundAPI(db *sql.DB) string {
 // exist names no project, so nothing can reach it and nothing can render it. It
 // runs before migrateProjectStatus because that
 // migration's foreign key check is what these rows fail.
+//
+// The sweep runs once per database, gated on PRAGMA user_version. Every
+// connection enforces foreign keys, so a database swept once cannot collect
+// orphans again. Leaving no column behind, the sweep cannot be detected the way
+// the column migrations are.
 func migrateOrphanedChildRows(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("reading user_version: %w", err)
+	}
+	if version >= orphansSweptVersion {
+		return nil
+	}
 	sweeps := []struct {
 		table  string
 		delete string
@@ -231,6 +243,20 @@ func migrateOrphanedChildRows(db *sql.DB) error {
 		if _, err := db.Exec(sweep.delete); err != nil {
 			return fmt.Errorf("sweeping orphaned %s: %w", sweep.table, err)
 		}
+	}
+	return setUserVersion(db, orphansSweptVersion)
+}
+
+// orphansSweptVersion is the user_version of a database whose orphaned child
+// rows are gone. A database created from schema.sql starts there, because it
+// has enforced foreign keys from its first row.
+const orphansSweptVersion = 1
+
+// setUserVersion records version in the database header. PRAGMA takes no bound
+// parameter, so the value is formatted in.
+func setUserVersion(db *sql.DB, version int) error {
+	if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", version)); err != nil {
+		return fmt.Errorf("setting user_version: %w", err)
 	}
 	return nil
 }
@@ -340,8 +366,8 @@ func migrateItemNumber(db *sql.DB) error {
 }
 
 // migrateItemRepo adds project_items.repo to databases created before the
-// column existed. Detected by column presence rather than a version counter,
-// as every migration here is.
+// column existed. Detected by column presence, as every migration here that
+// adds a column is.
 func migrateItemRepo(db *sql.DB) error {
 	var name string
 	err := db.QueryRow("SELECT name FROM pragma_table_info('project_items') WHERE name = 'repo'").Scan(&name)
