@@ -735,6 +735,32 @@ func TestUndoRestoresDeletedItemMemberships(t *testing.T) {
 	}
 }
 
+func TestAnItemCompletesOnlyOnceEveryTaskIsDone(t *testing.T) {
+	b := newTestBackend(t)
+
+	p := mustCreateProject(t, b, "work")
+	item := mustCreateItem(t, b, model.CreateProjectItem{Title: "kitchen", ProjectIDs: []string{p.ID}})
+	task, err := b.CreateTask(item.ID, model.CreateProjectItemTask{Title: "Call contractor"})
+	if err != nil {
+		t.Fatalf("creating task: %v", err)
+	}
+
+	done := true
+	if _, err := b.UpdateItem(item.ID, model.UpdateProjectItem{Completed: &done}); !errors.Is(err, model.ErrIncompleteTasks) {
+		t.Fatalf("completing with an open task: err = %v, want ErrIncompleteTasks", err)
+	}
+	if _, err := b.UpdateTask(item.ID, task.ID, model.UpdateProjectItemTask{Completed: &done}); err != nil {
+		t.Fatalf("completing task: %v", err)
+	}
+	completed, err := b.UpdateItem(item.ID, model.UpdateProjectItem{Completed: &done})
+	if err != nil {
+		t.Fatalf("completing with every task done: %v", err)
+	}
+	if !completed.Completed {
+		t.Error("item not completed once its only task was done")
+	}
+}
+
 func TestUndoRestoresDeletedItemTasksAndDependencies(t *testing.T) {
 	b := newTestBackend(t)
 

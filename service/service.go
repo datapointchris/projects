@@ -599,7 +599,7 @@ func (s *Service) UpdateItem(ref string, input model.UpdateProjectItem) (*model.
 		}
 
 		if input.Completed != nil && *input.Completed && !current.Completed {
-			if err := refuseIncompleteTasks(ctx, tx, current.ID); err != nil {
+			if err := refuseIncompleteTasks(ctx, tx, current); err != nil {
 				return err
 			}
 		}
@@ -641,19 +641,22 @@ func (s *Service) UpdateItem(ref string, input model.UpdateProjectItem) (*model.
 	return &updated, nil
 }
 
-func refuseIncompleteTasks(ctx context.Context, tx store.Operations, itemID string) error {
-	tasks, err := tx.ListTasksByItem(ctx, itemID)
+// refuseIncompleteTasks names each open task by title and id, because the id is
+// what completing or removing a task takes.
+func refuseIncompleteTasks(ctx context.Context, tx store.Operations, item model.ProjectItem) error {
+	tasks, err := tx.ListTasksByItem(ctx, item.ID)
 	if err != nil {
 		return fmt.Errorf("listing the item's tasks: %w", err)
 	}
-	incomplete := 0
+	var open []string
 	for _, task := range tasks {
 		if !task.Completed {
-			incomplete++
+			open = append(open, fmt.Sprintf("%s (%s)", quoteName(task.Title), task.ID))
 		}
 	}
-	if incomplete > 0 {
-		return refuse(model.ErrIncompleteTasks, "Cannot complete item with %d incomplete task(s). Finish all tasks first.", incomplete)
+	if len(open) > 0 {
+		return refuse(model.ErrIncompleteTasks, "Cannot complete item %s while %d task(s) are open: %s. Complete or remove each task first.",
+			itemHandle(item), len(open), strings.Join(open, ", "))
 	}
 	return nil
 }

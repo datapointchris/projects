@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -383,6 +384,10 @@ func runItemUpdate(cmd *cobra.Command, ref string, edit apiclient.ItemChanges, a
 func updateItem(cmd *cobra.Command, source *dataSource, ref string, edit apiclient.ItemChanges, asJSON bool, done string) error {
 	item, err := source.client.UpdateItem(cmd.Context(), ref, edit)
 	if err != nil {
+		if refusedForOpenTasks(err, edit) {
+			return fmt.Errorf("%w\nComplete a task: projects items tasks complete %s <task>\nList the item's tasks: projects items tasks list %s",
+				source.explain(err), ref, ref)
+		}
 		return source.explain(err)
 	}
 	if asJSON {
@@ -390,6 +395,14 @@ func updateItem(cmd *cobra.Command, source *dataSource, ref string, edit apiclie
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s item %q → %s (%s)\n", done, item.Title, item.Status, handle(item.Number, item.ID))
 	return nil
+}
+
+// refusedForOpenTasks is the API refusing to complete an item, which it answers
+// with 400 only while one of the item's tasks is open.
+func refusedForOpenTasks(err error, edit apiclient.ItemChanges) bool {
+	var refused *apiclient.APIError
+	return edit.Completed != nil && *edit.Completed &&
+		errors.As(err, &refused) && refused.StatusCode == http.StatusBadRequest
 }
 
 func newItemsDeleteCommand() *cobra.Command {
