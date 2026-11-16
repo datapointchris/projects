@@ -91,12 +91,29 @@ func (o operations) ListProjectItemFacts(ctx context.Context) ([]model.ProjectIt
 	}
 	out := make([]model.ProjectItemFact, len(rows))
 	for i, r := range rows {
-		out[i] = model.ProjectItemFact{ProjectID: r.ProjectID, Completed: r.Completed != 0, Archived: r.Archived != 0}
-		if r.Repo.Valid {
-			out[i].Repo = &r.Repo.String
-		}
+		out[i] = toModelItemFact(r)
 	}
 	return out, nil
+}
+
+func (o operations) ListProjectItemFactsForProject(ctx context.Context, projectID string) ([]model.ProjectItemFact, error) {
+	rows, err := o.q.ListProjectItemFactsForProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.ProjectItemFact, len(rows))
+	for i, r := range rows {
+		out[i] = toModelItemFact(generated.ListProjectItemFactsRow(r))
+	}
+	return out, nil
+}
+
+func toModelItemFact(r generated.ListProjectItemFactsRow) model.ProjectItemFact {
+	fact := model.ProjectItemFact{ProjectID: r.ProjectID, Completed: r.Completed != 0, Archived: r.Archived != 0}
+	if r.Repo.Valid {
+		fact.Repo = &r.Repo.String
+	}
+	return fact
 }
 
 func (o operations) ListProjectKinds(ctx context.Context) ([]string, error) {

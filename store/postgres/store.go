@@ -138,6 +138,16 @@ func (o operations) ListProjectItemFacts(ctx context.Context) ([]model.ProjectIt
 	}), nil
 }
 
+func (o operations) ListProjectItemFactsForProject(ctx context.Context, projectID string) ([]model.ProjectItemFact, error) {
+	rows, err := o.q.ListProjectItemFactsForProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return listOf(rows, func(r generated.ListProjectItemFactsForProjectRow) model.ProjectItemFact {
+		return model.ProjectItemFact{ProjectID: r.ProjectID, Completed: r.Completed, Archived: r.Archived, Repo: r.Repo}
+	}), nil
+}
+
 func (o operations) ListProjectKinds(ctx context.Context) ([]string, error) {
 	return o.q.ListProjectKinds(ctx)
 }

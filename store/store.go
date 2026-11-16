@@ -69,6 +69,8 @@ type Operations interface {
 	ListProjects(ctx context.Context) ([]model.Project, error)
 	// ListProjectItemFacts answers one row per membership, in no promised order.
 	ListProjectItemFacts(ctx context.Context) ([]model.ProjectItemFact, error)
+	// ListProjectItemFactsForProject is ListProjectItemFacts for one project's memberships.
+	ListProjectItemFactsForProject(ctx context.Context, projectID string) ([]model.ProjectItemFact, error)
 	// ListProjectKinds orders by name, and so does ListProjectStatuses.
 	ListProjectKinds(ctx context.Context) ([]string, error)
 	ListProjectStatuses(ctx context.Context) ([]string, error)

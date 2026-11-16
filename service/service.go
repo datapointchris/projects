@@ -164,7 +164,7 @@ func (s *Service) GetProject(ref string) (*model.ProjectWithItemCount, error) {
 	if err != nil {
 		return nil, err
 	}
-	facts, err := s.store.ListProjectItemFacts(ctx)
+	facts, err := s.store.ListProjectItemFactsForProject(ctx, project.ID)
 	if err != nil {
 		return nil, fmt.Errorf("listing item counts: %w", err)
 	}

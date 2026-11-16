@@ -10,6 +10,12 @@ SELECT m.project_id, pi.completed, pi.archived, pi.repo
 FROM project_item_memberships m
 INNER JOIN project_items pi ON m.item_id = pi.id;
 
+-- name: ListProjectItemFactsForProject :many
+SELECT m.project_id, pi.completed, pi.archived, pi.repo
+FROM project_item_memberships m
+INNER JOIN project_items pi ON m.item_id = pi.id
+WHERE m.project_id = ?;
+
 -- name: GetProject :one
 SELECT * FROM projects WHERE id = ?;
 

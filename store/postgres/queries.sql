@@ -20,6 +20,12 @@ SELECT m.project_id, pi.completed, pi.archived, pi.repo
 FROM project_item_memberships AS m
 INNER JOIN project_items AS pi ON m.item_id = pi.id;
 
+-- name: ListProjectItemFactsForProject :many
+SELECT m.project_id, pi.completed, pi.archived, pi.repo
+FROM project_item_memberships AS m
+INNER JOIN project_items AS pi ON m.item_id = pi.id
+WHERE m.project_id = sqlc.arg(project_id);
+
 -- name: ListProjectKinds :many
 SELECT name FROM project_kinds ORDER BY name;
 

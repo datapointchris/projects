@@ -843,6 +843,48 @@ func (q *Queries) ListProjectItemFacts(ctx context.Context) ([]ListProjectItemFa
 	return items, nil
 }
 
+const listProjectItemFactsForProject = `-- name: ListProjectItemFactsForProject :many
+SELECT m.project_id, pi.completed, pi.archived, pi.repo
+FROM project_item_memberships m
+INNER JOIN project_items pi ON m.item_id = pi.id
+WHERE m.project_id = ?
+`
+
+type ListProjectItemFactsForProjectRow struct {
+	ProjectID string
+	Completed int64
+	Archived  int64
+	Repo      sql.NullString
+}
+
+func (q *Queries) ListProjectItemFactsForProject(ctx context.Context, projectID string) ([]ListProjectItemFactsForProjectRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectItemFactsForProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectItemFactsForProjectRow
+	for rows.Next() {
+		var i ListProjectItemFactsForProjectRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.Completed,
+			&i.Archived,
+			&i.Repo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectKinds = `-- name: ListProjectKinds :many
 SELECT name FROM project_kinds ORDER BY name
 `
