@@ -30,9 +30,10 @@ func newTestApp(t *testing.T, width, height int, itemTitles ...string) *App {
 // newTestAppWithItems is newTestApp for the cases that need more than a title,
 // such as an item holding a note.
 func newTestAppWithItems(t *testing.T, width, height int, inputs []model.CreateProjectItem) *App {
+	ctx := t.Context()
 	t.Helper()
 
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}

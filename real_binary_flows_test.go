@@ -85,8 +85,9 @@ func TestRealBinaryFlows(t *testing.T) {
 // way a deployed API is. It checks no token, as the API behind a proxy that
 // already did.
 func serveOverHTTP(t *testing.T, path string) string {
+	ctx := t.Context()
 	t.Helper()
-	database, err := sqlite.Open(path)
+	database, err := sqlite.Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,8 +116,9 @@ func writeAPIConfig(t *testing.T, dir, api string) {
 // so the fixture holds what the tool's own rules allow. The export note runs long,
 // because a one-line note hides layout bugs.
 func seedFixtureDatabase(t *testing.T, path string) {
+	ctx := t.Context()
 	t.Helper()
-	database, err := sqlite.Open(path)
+	database, err := sqlite.Open(ctx, path)
 	if err != nil {
 		t.Fatalf("opening %s: %v", path, err)
 	}

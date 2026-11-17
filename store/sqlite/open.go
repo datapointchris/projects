@@ -32,7 +32,7 @@ var lookupRows string
 const connectionOptions = "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate"
 
 // Open creates a SQLite connection and ensures the schema exists.
-func Open(path string) (*sql.DB, error) {
+func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path+connectionOptions)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -44,17 +44,17 @@ func Open(path string) (*sql.DB, error) {
 		db.SetMaxOpenConns(1)
 	}
 
-	if err := migrate(db); err != nil {
+	if err := migrate(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
-	if _, err := db.Exec(indexes); err != nil {
+	if _, err := db.ExecContext(ctx, indexes); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("creating indexes: %w", err)
 	}
 
-	if _, err := db.Exec(lookupRows); err != nil {
+	if _, err := db.ExecContext(ctx, lookupRows); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("seeding lookup tables: %w", err)
 	}
@@ -62,53 +62,53 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func migrate(db *sql.DB) error {
+func migrate(ctx context.Context, db *sql.DB) error {
 	// Check if schema already exists by looking for the projects table
 	var name string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='project_items'").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='project_items'").Scan(&name)
 	if err == sql.ErrNoRows {
 		// Fresh database — apply full schema
-		if _, err := db.Exec(schema); err != nil {
+		if _, err := db.ExecContext(ctx, schema); err != nil {
 			return fmt.Errorf("applying schema: %w", err)
 		}
-		return setUserVersion(db, orphansSweptVersion)
+		return setUserVersion(ctx, db, orphansSweptVersion)
 	} else if err != nil {
 		return fmt.Errorf("checking schema: %w", err)
 	}
 
 	// Existing database — apply incremental migrations
-	if err := dropSyncTables(db); err != nil {
+	if err := dropSyncTables(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateOrphanedChildRows(db); err != nil {
+	if err := migrateOrphanedChildRows(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateItemRepo(db); err != nil {
+	if err := migrateItemRepo(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateItemNumber(db); err != nil {
+	if err := migrateItemNumber(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateProjectStatus(db); err != nil {
+	if err := migrateProjectStatus(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateKindAndCompletedAt(db); err != nil {
+	if err := migrateKindAndCompletedAt(ctx, db); err != nil {
 		return err
 	}
-	return migrateUndoLogWriter(db)
+	return migrateUndoLogWriter(ctx, db)
 }
 
 // migrateKindAndCompletedAt adds the lookup tables and the columns a database from
 // before them lacks. A completed_at stays null, because the time an item was
 // finished before the column existed is unknown.
-func migrateKindAndCompletedAt(db *sql.DB) error {
+func migrateKindAndCompletedAt(ctx context.Context, db *sql.DB) error {
 	const lookups = `
 CREATE TABLE IF NOT EXISTS project_kinds (name TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
-	if _, err := db.Exec(lookups); err != nil {
+	if _, err := db.ExecContext(ctx, lookups); err != nil {
 		return fmt.Errorf("creating lookup tables: %w", err)
 	}
-	return addMissingColumns(db, []missingColumn{
+	return addMissingColumns(ctx, db, []missingColumn{
 		{"projects", "kind", "TEXT NOT NULL DEFAULT 'life'"},
 		{"project_items", "completed_at", "TEXT"},
 		{"project_item_tasks", "completed_at", "TEXT"},
@@ -118,8 +118,8 @@ CREATE TABLE IF NOT EXISTS project_statuses (name TEXT PRIMARY KEY);`
 // migrateUndoLogWriter adds the writer an undo entry records. An entry written
 // before the columns holds two empty strings, the writer a database with no API
 // behind it records, so its undo history carries on.
-func migrateUndoLogWriter(db *sql.DB) error {
-	return addMissingColumns(db, []missingColumn{
+func migrateUndoLogWriter(ctx context.Context, db *sql.DB) error {
+	return addMissingColumns(ctx, db, []missingColumn{
 		{"undo_log", "actor", "TEXT NOT NULL DEFAULT ''"},
 		{"undo_log", "client", "TEXT NOT NULL DEFAULT ''"},
 	})
@@ -129,25 +129,25 @@ type missingColumn struct{ table, column, definition string }
 
 // addMissingColumns appends each column its table lacks, in order, so an existing
 // table ends with the columns schema.sql gives a fresh one.
-func addMissingColumns(db *sql.DB, columns []missingColumn) error {
+func addMissingColumns(ctx context.Context, db *sql.DB, columns []missingColumn) error {
 	for _, c := range columns {
 		// Tasks arrived with the schema rather than through a migration, so a
 		// database old enough may not have the table at all.
 		var name string
-		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", c.table).Scan(&name)
+		err := db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name=?", c.table).Scan(&name)
 		if err == sql.ErrNoRows {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("checking %s: %w", c.table, err)
 		}
-		err = db.QueryRow("SELECT name FROM pragma_table_info(?) WHERE name = ?", c.table, c.column).Scan(&name)
+		err = db.QueryRowContext(ctx, "SELECT name FROM pragma_table_info(?) WHERE name = ?", c.table, c.column).Scan(&name)
 		if err == nil {
 			continue
 		}
 		if err != sql.ErrNoRows {
 			return fmt.Errorf("checking %s.%s: %w", c.table, c.column, err)
 		}
-		if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.definition)); err != nil {
+		if _, err := db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.definition)); err != nil {
 			return fmt.Errorf("adding %s.%s: %w", c.table, c.column, err)
 		}
 	}
@@ -160,36 +160,36 @@ func addMissingColumns(db *sql.DB, columns []missingColumn) error {
 // the only record saying so. The other two hold nothing a person wrote.
 //
 // MIGRATION: retires with config/retired_sync.go.
-func dropSyncTables(db *sql.DB) error {
+func dropSyncTables(ctx context.Context, db *sql.DB) error {
 	var name string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='pending_sync'").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='pending_sync'").Scan(&name)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("checking pending_sync: %w", err)
 	}
 	if err == nil {
 		var queued int
-		if err := db.QueryRow("SELECT COUNT(*) FROM pending_sync").Scan(&queued); err != nil {
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pending_sync").Scan(&queued); err != nil {
 			return fmt.Errorf("counting pending_sync: %w", err)
 		}
 		if queued > 0 {
 			return fmt.Errorf("%d edits here were queued for %s and never reached it. Push them with `projects sync` "+
-				"from v1.24.2, or discard them with DELETE FROM pending_sync", queued, boundAPI(db))
+				"from v1.24.2, or discard them with DELETE FROM pending_sync", queued, boundAPI(ctx, db))
 		}
 	}
 	const drop = `
 DROP TABLE IF EXISTS pending_sync;
 DROP TABLE IF EXISTS sync_state;
 DROP TABLE IF EXISTS sync_origin;`
-	if _, err := db.Exec(drop); err != nil {
+	if _, err := db.ExecContext(ctx, drop); err != nil {
 		return fmt.Errorf("dropping the sync tables: %w", err)
 	}
 	return nil
 }
 
 // boundAPI is the API a synced database was bound to, as its refusal names it.
-func boundAPI(db *sql.DB) string {
+func boundAPI(ctx context.Context, db *sql.DB) string {
 	var url string
-	if err := db.QueryRow("SELECT api_url FROM sync_origin WHERE id = 1").Scan(&url); err != nil {
+	if err := db.QueryRowContext(ctx, "SELECT api_url FROM sync_origin WHERE id = 1").Scan(&url); err != nil {
 		return "the API this database synced with"
 	}
 	return url
@@ -209,9 +209,9 @@ func boundAPI(db *sql.DB) string {
 // connection enforces foreign keys, so a database swept once cannot collect
 // orphans again. Leaving no column behind, the sweep cannot be detected the way
 // the column migrations are.
-func migrateOrphanedChildRows(db *sql.DB) error {
+func migrateOrphanedChildRows(ctx context.Context, db *sql.DB) error {
 	var version int
-	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("reading user_version: %w", err)
 	}
 	if version >= orphansSweptVersion {
@@ -234,17 +234,17 @@ func migrateOrphanedChildRows(db *sql.DB) error {
 		// Tasks and dependencies arrived with the schema rather than through a
 		// migration, so a database old enough may not have the table at all.
 		var name string
-		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", sweep.table).Scan(&name)
+		err := db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name=?", sweep.table).Scan(&name)
 		if err == sql.ErrNoRows {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("checking %s: %w", sweep.table, err)
 		}
-		if _, err := db.Exec(sweep.delete); err != nil {
+		if _, err := db.ExecContext(ctx, sweep.delete); err != nil {
 			return fmt.Errorf("sweeping orphaned %s: %w", sweep.table, err)
 		}
 	}
-	return setUserVersion(db, orphansSweptVersion)
+	return setUserVersion(ctx, db, orphansSweptVersion)
 }
 
 // orphansSweptVersion is the user_version of a database whose orphaned child
@@ -254,8 +254,8 @@ const orphansSweptVersion = 1
 
 // setUserVersion records version in the database header. PRAGMA takes no bound
 // parameter, so the value is formatted in.
-func setUserVersion(db *sql.DB, version int) error {
-	if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", version)); err != nil {
+func setUserVersion(ctx context.Context, db *sql.DB, version int) error {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", version)); err != nil {
 		return fmt.Errorf("setting user_version: %w", err)
 	}
 	return nil
@@ -280,16 +280,15 @@ func setUserVersion(db *sql.DB, version int) error {
 // the reserved *sql.Conn is for. Issued through the pool they land wherever, so
 // the rebuild would run with cascades live and DROP TABLE projects would take
 // every membership in the database with it.
-func migrateProjectStatus(db *sql.DB) error {
+func migrateProjectStatus(ctx context.Context, db *sql.DB) error {
 	var name string
-	err := db.QueryRow("SELECT name FROM pragma_table_info('projects') WHERE name = 'status'").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM pragma_table_info('projects') WHERE name = 'status'").Scan(&name)
 	if err == nil {
 		return nil
 	} else if err != sql.ErrNoRows {
 		return fmt.Errorf("checking projects.status: %w", err)
 	}
 
-	ctx := context.Background()
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("reserving a connection for the projects rebuild: %w", err)
@@ -327,12 +326,12 @@ INSERT INTO projects_rebuilt (id, name, description, position, created_at)
     SELECT id, name, description, position, created_at FROM projects;
 DROP TABLE projects;
 ALTER TABLE projects_rebuilt RENAME TO projects;`
-	if _, err := tx.Exec(rebuild); err != nil {
+	if _, err := tx.ExecContext(ctx, rebuild); err != nil {
 		return fmt.Errorf("rebuilding projects: %w", err)
 	}
 
 	var violations int
-	if err := tx.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&violations); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&violations); err != nil {
 		return fmt.Errorf("checking foreign keys after the projects rebuild: %w", err)
 	}
 	if violations > 0 {
@@ -351,11 +350,11 @@ ALTER TABLE projects_rebuilt RENAME TO projects;`
 //
 // The UNIQUE constraint lives in indexes.sql because ALTER TABLE ADD COLUMN
 // cannot carry one.
-func migrateItemNumber(db *sql.DB) error {
+func migrateItemNumber(ctx context.Context, db *sql.DB) error {
 	var name string
-	err := db.QueryRow("SELECT name FROM pragma_table_info('project_items') WHERE name = 'number'").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM pragma_table_info('project_items') WHERE name = 'number'").Scan(&name)
 	if err == sql.ErrNoRows {
-		if _, err := db.Exec("ALTER TABLE project_items ADD COLUMN number INTEGER"); err != nil {
+		if _, err := db.ExecContext(ctx, "ALTER TABLE project_items ADD COLUMN number INTEGER"); err != nil {
 			return fmt.Errorf("adding project_items.number: %w", err)
 		}
 		return nil
@@ -368,11 +367,11 @@ func migrateItemNumber(db *sql.DB) error {
 // migrateItemRepo adds project_items.repo to databases created before the
 // column existed. Detected by column presence, as every migration here that
 // adds a column is.
-func migrateItemRepo(db *sql.DB) error {
+func migrateItemRepo(ctx context.Context, db *sql.DB) error {
 	var name string
-	err := db.QueryRow("SELECT name FROM pragma_table_info('project_items') WHERE name = 'repo'").Scan(&name)
+	err := db.QueryRowContext(ctx, "SELECT name FROM pragma_table_info('project_items') WHERE name = 'repo'").Scan(&name)
 	if err == sql.ErrNoRows {
-		if _, err := db.Exec("ALTER TABLE project_items ADD COLUMN repo TEXT"); err != nil {
+		if _, err := db.ExecContext(ctx, "ALTER TABLE project_items ADD COLUMN repo TEXT"); err != nil {
 			return fmt.Errorf("adding project_items.repo: %w", err)
 		}
 		return nil

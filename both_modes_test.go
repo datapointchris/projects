@@ -97,9 +97,10 @@ func TestTheCommandsAnswerTheSameInBothModes(t *testing.T) {
 // commandRunner runs the binary in dir with its config under dir, and fails the
 // test when a run exits other than want.
 func commandRunner(t *testing.T, binary, dir string) func(want int, args ...string) []byte {
+	ctx := t.Context()
 	return func(want int, args ...string) []byte {
 		t.Helper()
-		cmd := exec.Command(binary, args...)
+		cmd := exec.CommandContext(ctx, binary, args...)
 		cmd.Dir = dir
 		cmd.Env = []string{
 			"PATH=" + os.Getenv("PATH"),
@@ -173,6 +174,7 @@ func TestAFieldTheAPIRefusesNamesBothVersions(t *testing.T) {
 		{"unread", "", "API unread"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			ctx := t.Context()
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if r.Method == http.MethodGet && r.URL.Path == "/api/v1/version" && c.answersVersion != "" {
@@ -192,7 +194,7 @@ func TestAFieldTheAPIRefusesNamesBothVersions(t *testing.T) {
 			dir := t.TempDir()
 			writeAPIConfig(t, dir, api.URL)
 
-			cmd := exec.Command(binary, "create", "--name", "A project", "--kind", "work")
+			cmd := exec.CommandContext(ctx, binary, "create", "--name", "A project", "--kind", "work")
 			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "XDG_CONFIG_HOME=" + filepath.Join(dir, "config")}
 			var stderr bytes.Buffer
 			cmd.Stderr = &stderr

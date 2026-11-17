@@ -28,11 +28,12 @@ func runsOnPostgres() bool {
 }
 
 func newTestBackend(t *testing.T) *Service {
+	ctx := t.Context()
 	t.Helper()
 	if runsOnPostgres() {
 		return New(postgres.New(postgrestest.Pool(t)))
 	}
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}
@@ -941,6 +942,7 @@ func TestUndoPreservesDeletedItemTimestamps(t *testing.T) {
 // refuses that upgrade once another writer has committed unless the transaction
 // began with the write lock.
 func TestAnEditSurvivesASecondWriter(t *testing.T) {
+	ctx := t.Context()
 	var writer func() *Service
 	if runsOnPostgres() {
 		url := postgrestest.URL(t)
@@ -955,7 +957,7 @@ func TestAnEditSurvivesASecondWriter(t *testing.T) {
 	} else {
 		path := filepath.Join(t.TempDir(), "projects.db")
 		writer = func() *Service {
-			database, err := sqlite.Open(path)
+			database, err := sqlite.Open(ctx, path)
 			if err != nil {
 				t.Fatalf("opening database: %v", err)
 			}
@@ -984,8 +986,9 @@ func TestAnEditSurvivesASecondWriter(t *testing.T) {
 
 // writeUndoEntry puts an entry in the log exactly as an earlier release left it.
 func writeUndoEntry(t *testing.T, database *sql.DB, action, entityType, entityID, previousState string) {
+	ctx := t.Context()
 	t.Helper()
-	if _, err := database.Exec(
+	if _, err := database.ExecContext(ctx,
 		`INSERT INTO undo_log (action, entity_type, entity_id, previous_state) VALUES (?, ?, ?, ?)`,
 		action, entityType, entityID, previousState,
 	); err != nil {
@@ -994,8 +997,9 @@ func writeUndoEntry(t *testing.T, database *sql.DB, action, entityType, entityID
 }
 
 func newTestBackendWithDatabase(t *testing.T) (*Service, *sql.DB) {
+	ctx := t.Context()
 	t.Helper()
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}

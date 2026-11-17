@@ -40,8 +40,9 @@ type api struct {
 }
 
 func newAPI(t *testing.T) api {
+	ctx := t.Context()
 	t.Helper()
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
@@ -64,6 +65,7 @@ func newAPI(t *testing.T) api {
 }
 
 func (a api) send(t *testing.T, token, method, path string, body any) (int, []byte) {
+	ctx := t.Context()
 	t.Helper()
 	var reader bytes.Buffer
 	if body != nil {
@@ -71,7 +73,7 @@ func (a api) send(t *testing.T, token, method, path string, body any) (int, []by
 			t.Fatalf("encoding body: %v", err)
 		}
 	}
-	request := httptest.NewRequest(method, path, &reader)
+	request := httptest.NewRequestWithContext(ctx, method, path, &reader)
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -465,6 +467,7 @@ func TestAKeyTheRouteDoesNotReadIsRefusedAndNothingIsWritten(t *testing.T) {
 // outage, which a request then meets as the API's own 503. Port 1 refuses every
 // connection, as a stopped database's address does.
 func TestAPodStaysReadyThroughAnOutageAndEachRequestAnswers503(t *testing.T) {
+	ctx := t.Context()
 	pool, err := postgres.Connect(t.Context(), "postgres://projects@127.0.0.1:1/projects?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
@@ -481,7 +484,7 @@ func TestAPodStaysReadyThroughAnOutageAndEachRequestAnswers503(t *testing.T) {
 	handler := routes.New(service.New(database), slog.New(slog.DiscardHandler), "v0.0.0-test", check)
 	send := func(method, path, body string) (int, []byte) {
 		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, httptest.NewRequest(method, path, strings.NewReader(body)))
+		handler.ServeHTTP(recorder, httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(body)))
 		return recorder.Code, recorder.Body.Bytes()
 	}
 
@@ -508,6 +511,7 @@ func TestAPodStaysReadyThroughAnOutageAndEachRequestAnswers503(t *testing.T) {
 // connection does. A lock another transaction holds keeps the write in flight until
 // the stop reaches it.
 func TestAQueryPostgresCutsOffWhileStoppingAnswers503(t *testing.T) {
+	ctx := t.Context()
 	url, stop := postgrestest.StoppableServer(t)
 	pool, err := postgres.Connect(t.Context(), url)
 	if err != nil {
@@ -526,7 +530,7 @@ func TestAQueryPostgresCutsOffWhileStoppingAnswers503(t *testing.T) {
 	answered := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
 		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/projects", strings.NewReader(`{"name":"in flight"}`)))
+		handler.ServeHTTP(recorder, httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/v1/projects", strings.NewReader(`{"name":"in flight"}`)))
 		answered <- recorder
 	}()
 

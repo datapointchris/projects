@@ -72,6 +72,7 @@ const (
 
 // openDataSource opens where this run's data lives, as decideMode answers it.
 func openDataSource(cmd *cobra.Command) (*dataSource, error) {
+	ctx := cmd.Context()
 	cfg, deployment, mode, err := decideMode(cmd)
 	if err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func openDataSource(cmd *cobra.Command) (*dataSource, error) {
 	if mode == apiMode {
 		return openAPI(cmd.Context(), cfg, deployment)
 	}
-	return openDatabase(cfg)
+	return openDatabase(ctx, cfg)
 }
 
 // decideMode reads the config file and the login settings in it, and answers
@@ -177,14 +178,14 @@ func tokenSource(ctx context.Context, d goclilogin.Deployment) (oauth2.TokenSour
 	return source, err
 }
 
-func openDatabase(cfg *config.Config) (*dataSource, error) {
+func openDatabase(ctx context.Context, cfg *config.Config) (*dataSource, error) {
 	if err := config.MoveDataUnderFormerName(cfg.Local.DBPath); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg.Local.DBPath), 0o755); err != nil {
 		return nil, fmt.Errorf("creating data directory: %w", err)
 	}
-	database, err := sqlite.Open(cfg.Local.DBPath)
+	database, err := sqlite.Open(ctx, cfg.Local.DBPath)
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", homeAsTilde(cfg.Local.DBPath), err)
 	}

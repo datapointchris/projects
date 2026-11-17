@@ -17,7 +17,7 @@ func TestEveryModelFieldSurvivesAnUndo(t *testing.T) {
 	ctx := context.Background()
 	storeForTest := func(t *testing.T) *sqlite.Store {
 		t.Helper()
-		database, err := sqlite.Open(":memory:")
+		database, err := sqlite.Open(ctx, ":memory:")
 		if err != nil {
 			t.Fatalf("opening test db: %v", err)
 		}

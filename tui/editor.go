@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ type externalEditDoneMsg struct {
 }
 
 // editorCommand runs $VISUAL, then $EDITOR, then vi. The variable may carry
-// arguments, as `code -w` does.
+// arguments, as `code -w` does. The editor waits on a person, so it carries no deadline.
 func editorCommand(path string) *exec.Cmd {
 	editor := os.Getenv("VISUAL")
 	if strings.TrimSpace(editor) == "" {
@@ -41,7 +42,7 @@ func editorCommand(path string) *exec.Cmd {
 	if len(fields) == 0 {
 		fields = []string{"vi"}
 	}
-	return exec.Command(fields[0], append(fields[1:], path)...)
+	return exec.CommandContext(context.Background(), fields[0], append(fields[1:], path)...)
 }
 
 // slugify keeps a file name readable in the editor's buffer line.

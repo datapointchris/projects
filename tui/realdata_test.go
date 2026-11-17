@@ -22,6 +22,7 @@ import (
 // is exactly the synthetic content that missed these in the first place. Set
 // PROJECTS_DB to run it; .envrc already points it at the dev database.
 func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
+	ctx := t.Context()
 	path := os.Getenv("PROJECTS_DB")
 	if path == "" {
 		t.Skip("PROJECTS_DB is not set: nothing real to walk")
@@ -30,7 +31,7 @@ func TestRealDatabaseSurvivesEverySizeAndProject(t *testing.T) {
 		t.Skipf("PROJECTS_DB=%s is not readable: %v", path, err)
 	}
 
-	database, err := sqlite.Open(path)
+	database, err := sqlite.Open(ctx, path)
 	if err != nil {
 		t.Fatalf("opening %s: %v", path, err)
 	}

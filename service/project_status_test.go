@@ -283,6 +283,7 @@ func ptr(s string) *string { return &s }
 // --- The repo-named-project ban ---
 
 func backendRefusingRepos(t *testing.T, names ...string) *Service {
+	ctx := t.Context()
 	t.Helper()
 	entries := make([]string, len(names))
 	for i, name := range names {
@@ -292,7 +293,7 @@ func backendRefusingRepos(t *testing.T, names ...string) *Service {
 	if err := os.WriteFile(path, []byte(`{"repos":[`+strings.Join(entries, ",")+`]}`), 0o600); err != nil {
 		t.Fatalf("writing registry: %v", err)
 	}
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening test db: %v", err)
 	}

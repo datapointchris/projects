@@ -10,8 +10,9 @@ import (
 )
 
 func newNumberTestDB(t *testing.T) *sql.DB {
+	ctx := t.Context()
 	t.Helper()
-	database, err := sqlite.Open(":memory:")
+	database, err := sqlite.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}

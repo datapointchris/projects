@@ -23,6 +23,7 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 	binary := tuidrive.Build(t, ".")
 
 	t.Run("the database moves with the rows only its WAL holds", func(t *testing.T) {
+		ctx := t.Context()
 		home := newScratchHome(t)
 		former, current := home.dataDir("todoui"), home.dataDir("projects")
 		seedFormerDatabaseWithUnflushedWAL(t, former)
@@ -38,7 +39,7 @@ func TestFormerNameOnFirstRun(t *testing.T) {
 		if got := readFile(t, filepath.Join(current, "dev.db")); got != "dev" {
 			t.Errorf("dev.db read %q after the move", got)
 		}
-		database, err := sqlite.Open(filepath.Join(current, "projects.db"))
+		database, err := sqlite.Open(ctx, filepath.Join(current, "projects.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,8 +158,9 @@ func (h scratchHome) dataDir(name string) string {
 }
 
 func (h scratchHome) run(t *testing.T, binary string, env ...string) (string, int) {
+	ctx := t.Context()
 	t.Helper()
-	cmd := exec.Command(binary, "list")
+	cmd := exec.CommandContext(ctx, binary, "list")
 	cmd.Dir = h.root
 	cmd.Env = append([]string{
 		"HOME=" + h.root,
@@ -177,9 +179,10 @@ func (h scratchHome) run(t *testing.T, binary string, env ...string) (string, in
 // seedFormerDatabaseWithUnflushedWAL copies a database while its connection is open,
 // because closing the last connection checkpoints the WAL and deletes it.
 func seedFormerDatabaseWithUnflushedWAL(t *testing.T, dir string) {
+	ctx := t.Context()
 	t.Helper()
 	live := filepath.Join(t.TempDir(), "live.db")
-	database, err := sqlite.Open(live)
+	database, err := sqlite.Open(ctx, live)
 	if err != nil {
 		t.Fatal(err)
 	}

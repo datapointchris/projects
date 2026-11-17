@@ -12,7 +12,8 @@ import (
 // The pragma has to hold on a file-backed database, on every connection the
 // pool hands out.
 func TestOpen_ForeignKeysEnabledOnEveryConnection(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "fk.db"))
+	ctx := t.Context()
+	database, err := Open(ctx, filepath.Join(t.TempDir(), "fk.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -26,7 +27,7 @@ func TestOpen_ForeignKeysEnabledOnEveryConnection(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			var fk int
-			if err := database.QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 1 {
+			if err := database.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 1 {
 				mu.Lock()
 				off++
 				mu.Unlock()
@@ -43,7 +44,8 @@ func TestOpen_ForeignKeysEnabledOnEveryConnection(t *testing.T) {
 // left its memberships behind for as long as the pragma only reached one
 // connection, which is how a real database collected 46 orphans.
 func TestDeletingAProjectTakesItsMembershipsWithIt(t *testing.T) {
-	database, err := Open(filepath.Join(t.TempDir(), "cascade.db"))
+	ctx := t.Context()
+	database, err := Open(ctx, filepath.Join(t.TempDir(), "cascade.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestDeletingAProjectTakesItsMembershipsWithIt(t *testing.T) {
 	mustExec(t, database, `DELETE FROM projects WHERE id = 'p1'`)
 
 	var left int
-	if err := database.QueryRow(`SELECT COUNT(*) FROM project_item_memberships`).Scan(&left); err != nil {
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM project_item_memberships`).Scan(&left); err != nil {
 		t.Fatalf("counting memberships: %v", err)
 	}
 	if left != 0 {
@@ -67,13 +69,14 @@ func TestDeletingAProjectTakesItsMembershipsWithIt(t *testing.T) {
 // that the projects rebuild's own foreign key check then refuses to migrate
 // past, which locks the user out of their data entirely.
 func TestOpen_SweepsOrphansLeftByTheUnenforcedCascade(t *testing.T) {
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "orphans.db")
 
 	raw, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatalf("opening raw: %v", err)
 	}
-	if _, err := raw.Exec(schema); err != nil {
+	if _, err := raw.ExecContext(ctx, schema); err != nil {
 		t.Fatalf("applying schema: %v", err)
 	}
 	mustExec(t, raw, `INSERT INTO project_items (id, title) VALUES ('i1', 'thing')`)
@@ -84,14 +87,14 @@ func TestOpen_SweepsOrphansLeftByTheUnenforcedCascade(t *testing.T) {
 		t.Fatalf("closing raw: %v", err)
 	}
 
-	database, err := Open(path)
+	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("Open refused a database with orphaned rows: %v", err)
 	}
 	defer func() { _ = database.Close() }()
 
 	var violations int
-	if err := database.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&violations); err != nil {
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&violations); err != nil {
 		t.Fatalf("checking foreign keys: %v", err)
 	}
 	if violations != 0 {
@@ -100,7 +103,7 @@ func TestOpen_SweepsOrphansLeftByTheUnenforcedCascade(t *testing.T) {
 
 	// The item itself is not collateral: only the unreachable rows go.
 	var items int
-	if err := database.QueryRow(`SELECT COUNT(*) FROM project_items`).Scan(&items); err != nil {
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM project_items`).Scan(&items); err != nil {
 		t.Fatalf("counting items: %v", err)
 	}
 	if items != 1 {
@@ -109,13 +112,15 @@ func TestOpen_SweepsOrphansLeftByTheUnenforcedCascade(t *testing.T) {
 }
 
 func mustExec(t *testing.T, database *sql.DB, query string) {
+	ctx := t.Context()
 	t.Helper()
-	if _, err := database.Exec(query); err != nil {
+	if _, err := database.ExecContext(ctx, query); err != nil {
 		t.Fatalf("%s: %v", query, err)
 	}
 }
 
 func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
+	ctx := t.Context()
 	database, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("opening raw db: %v", err)
@@ -124,7 +129,7 @@ func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
 
 	// A pre-repo database with a row already in it — the migration must add the
 	// column without disturbing existing items.
-	_, err = database.Exec(`
+	_, err = database.ExecContext(ctx, `
 		CREATE TABLE projects (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
@@ -147,13 +152,13 @@ func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
 		t.Fatalf("creating pre-repo table: %v", err)
 	}
 
-	if err := migrate(database); err != nil {
+	if err := migrate(ctx, database); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	var repo sql.NullString
 	var title string
-	row := database.QueryRow("SELECT title, repo FROM project_items WHERE id = 'i1'")
+	row := database.QueryRowContext(ctx, "SELECT title, repo FROM project_items WHERE id = 'i1'")
 	if err := row.Scan(&title, &repo); err != nil {
 		t.Fatalf("selecting migrated row: %v", err)
 	}
@@ -165,7 +170,7 @@ func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
 	}
 
 	// Idempotent: a second run must not fail on the already-present column.
-	if err := migrate(database); err != nil {
+	if err := migrate(ctx, database); err != nil {
 		t.Fatalf("second migrate: %v", err)
 	}
 }
@@ -173,29 +178,30 @@ func TestMigrate_AddsRepoColumnToExistingDatabase(t *testing.T) {
 // A database a user already has predates indexes.sql, and the name and number
 // rules live there. Applied only to new databases, an upgrade would drop both.
 func TestOpen_ExistingDatabaseGainsTheUniquenessRules(t *testing.T) {
+	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "existing.db")
 
 	legacy, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatalf("opening raw db: %v", err)
 	}
-	if _, err := legacy.Exec(schema); err != nil {
+	if _, err := legacy.ExecContext(ctx, schema); err != nil {
 		t.Fatalf("applying schema: %v", err)
 	}
 	_ = legacy.Close()
 
-	database, err := Open(path)
+	database, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	defer func() { _ = database.Close() }()
 
 	mustExec(t, database, "INSERT INTO projects (id, name) VALUES ('p1', 'taken')")
-	if _, err := database.Exec("INSERT INTO projects (id, name) VALUES ('p2', 'taken')"); err == nil {
+	if _, err := database.ExecContext(ctx, "INSERT INTO projects (id, name) VALUES ('p2', 'taken')"); err == nil {
 		t.Error("a second active project took a name an active project holds")
 	}
 	mustExec(t, database, "INSERT INTO project_items (id, title, number) VALUES ('i1', 'first', 7)")
-	if _, err := database.Exec("INSERT INTO project_items (id, title, number) VALUES ('i2', 'second', 7)"); err == nil {
+	if _, err := database.ExecContext(ctx, "INSERT INTO project_items (id, title, number) VALUES ('i2', 'second', 7)"); err == nil {
 		t.Error("a second item took a number another item holds")
 	}
 }
@@ -205,6 +211,7 @@ func TestOpen_ExistingDatabaseGainsTheUniquenessRules(t *testing.T) {
 // UNIQUE as an index no DDL can drop. Two things have to survive it: the rows,
 // and the memberships that cascade off projects when the old table is dropped.
 func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
+	ctx := t.Context()
 	database, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("opening raw db: %v", err)
@@ -212,10 +219,10 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 	database.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = database.Close() })
 
-	if _, err := database.Exec("PRAGMA foreign_keys=ON"); err != nil {
+	if _, err := database.ExecContext(ctx, "PRAGMA foreign_keys=ON"); err != nil {
 		t.Fatalf("enabling foreign keys: %v", err)
 	}
-	_, err = database.Exec(`
+	_, err = database.ExecContext(ctx, `
 		CREATE TABLE projects (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
@@ -248,13 +255,13 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 		t.Fatalf("creating pre-status tables: %v", err)
 	}
 
-	if err := migrate(database); err != nil {
+	if err := migrate(ctx, database); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
 	var name, description, status string
 	var position int
-	row := database.QueryRow("SELECT name, description, status, position FROM projects WHERE id = 'p1'")
+	row := database.QueryRowContext(ctx, "SELECT name, description, status, position FROM projects WHERE id = 'p1'")
 	if err := row.Scan(&name, &description, &status, &position); err != nil {
 		t.Fatalf("selecting migrated project: %v", err)
 	}
@@ -268,7 +275,7 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 	// The whole reason foreign keys are off for the swap: memberships cascade
 	// off projects, so dropping the old table with them on would take these.
 	var memberships int
-	if err := database.QueryRow("SELECT COUNT(*) FROM project_item_memberships").Scan(&memberships); err != nil {
+	if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM project_item_memberships").Scan(&memberships); err != nil {
 		t.Fatalf("counting memberships: %v", err)
 	}
 	if memberships != 1 {
@@ -276,14 +283,14 @@ func TestMigrate_ReplacesTheGlobalNameConstraint(t *testing.T) {
 	}
 
 	var foreignKeysOn int
-	if err := database.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeysOn); err != nil {
+	if err := database.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeysOn); err != nil {
 		t.Fatalf("reading foreign_keys pragma: %v", err)
 	}
 	if foreignKeysOn != 1 {
 		t.Error("foreign keys left off after the rebuild — every later cascade would silently stop working")
 	}
 
-	if _, err := database.Exec(
+	if _, err := database.ExecContext(ctx,
 		"INSERT INTO projects (id, name, status) VALUES ('p2', 'clisteno', 'completed')",
 	); err != nil {
 		t.Errorf("a closed project must be allowed to share a name: %v", err)
