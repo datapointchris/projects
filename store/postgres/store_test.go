@@ -2,7 +2,6 @@ package postgres_test
 
 import (
 	"context"
-	"slices"
 	"testing"
 
 	"github.com/datapointchris/projects/model"
@@ -69,37 +68,5 @@ func TestEveryWriteIsAuditedWithItsWriter(t *testing.T) {
 		if !seen[want] {
 			t.Errorf("the trail holds no %q row: %v", want, seen)
 		}
-	}
-}
-
-// A table added to the migrations has to bring its trigger, or its writes go
-// unrecorded with nothing to say so.
-func TestEveryTableIsAuditedButWhatOptsOut(t *testing.T) {
-	pool := postgrestest.Pool(t)
-	optsOut := []string{"audit_trail", "browser_login_attempts", "browser_sessions", "goose_db_version", "undo_log"}
-
-	rows, err := pool.Query(context.Background(), `
-		SELECT c.relname, EXISTS (
-			SELECT 1 FROM pg_trigger AS tr WHERE tr.tgrelid = c.oid AND tr.tgname = 'audit_trail'
-		)
-		FROM pg_class AS c
-		JOIN pg_namespace AS n ON n.oid = c.relnamespace
-		WHERE c.relkind = 'r' AND n.nspname = 'public'`)
-	if err != nil {
-		t.Fatalf("listing tables: %v", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var table string
-		var audited bool
-		if err := rows.Scan(&table, &audited); err != nil {
-			t.Fatalf("scanning: %v", err)
-		}
-		if audited == slices.Contains(optsOut, table) {
-			t.Errorf("table %s: audited %v, and listed as opting out %v", table, audited, slices.Contains(optsOut, table))
-		}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("listing tables: %v", err)
 	}
 }

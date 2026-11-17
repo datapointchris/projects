@@ -45,6 +45,10 @@ func Migrate(ctx context.Context, url string) error {
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
 	}
+	// No migration writes an audit trigger: each table's follows its row in audit_trail_tables.
+	if _, err := database.ExecContext(ctx, "SELECT audit_trail_reconcile()"); err != nil {
+		return fmt.Errorf("attaching the audit triggers: %w", err)
+	}
 	return upsertLookupRows(ctx, database)
 }
 

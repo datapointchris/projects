@@ -22,6 +22,20 @@ type AuditTrail struct {
 	Baggage     *string
 }
 
+type AuditTrailTable struct {
+	TableSchema    string
+	TableName      string
+	IsRecorded     bool
+	IgnoredColumns []string
+}
+
+type AuditTrailTarget struct {
+	AuditedTable   interface{}
+	IsRecorded     bool
+	IgnoredColumns []string
+	IsAttached     bool
+}
+
 type BrowserLoginAttempt struct {
 	StateSha256  []byte
 	Nonce        string

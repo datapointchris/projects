@@ -345,12 +345,14 @@ per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, 
   `InTx` binds `projects.actor`, `projects.request_id`, `projects.job_run_id`, `projects.traceparent` and
   `projects.baggage` with `set_config(..., true)`, and the trigger reads them. A person is recorded by
   subject and a service by client id. `undo_log` has no trigger: it writes on every write, and would copy
-  each whole row the real tables already audit. A new table brings its trigger, or
-  `TestEveryTableIsAuditedButWhatOptsOut` fails.
+  each whole row the real tables already audit. A migration writes no trigger. A table is recorded
+  unless its row in `audit_trail_tables` opts it out, and `Migrate` calls `audit_trail_reconcile()`
+  after the migrations, which attaches or drops each trigger to match and refuses a recorded column
+  named like a credential. `SELECT * FROM audit_trail_targets` shows each table's state.
 - **The API logs in as a role that changes no schema, and only the migrate Job as the owner.** The
-  trigger function runs as the writer, so the API's role appends to `audit_trail` itself.
-  `00004_app_role_appends_to_audit_trail.sql` revokes UPDATE and DELETE there from `<database>_app`,
-  and skips a database with no such role, as a test's has none. A migration that narrows the role
+  trigger function runs as its owner, so the API's role reads `audit_trail` and writes none of it.
+  `00005_audit_trail_reconciled_from_a_table.sql` revokes INSERT, UPDATE and DELETE there from
+  `<database>_app`, and skips a database with no such role, as a test's has none. A migration that narrows the role
   leaves it at least one of SELECT, INSERT, UPDATE and DELETE on each table, because a cluster
   granting it DML grants all four back on a table where it holds none.
 - **A kind or status is a row in `model.ProjectKinds` or `model.ProjectStatuses`**, and in SQLite's
