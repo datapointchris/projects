@@ -301,8 +301,12 @@ PROJECTS_TEST_STORE=postgres go test ./service/  # every rule on Postgres
 ```
 
 `postgrestest` starts one Postgres container per test binary with testcontainers, and clones a template
-per test. Set `TEST_DATABASE_URL` to use a running server. `-short` skips them, and the commit hook runs
-`-short`, so CI is what runs them.
+per test. Set `TEST_DATABASE_URL` to use a running server, logged in as a superuser. That login only
+creates the roles and databases: the template is migrated by `projects_test_template`, its owner, and
+each test logs in as `projects_test_template_app`, as the API logs in as `projects_app`. The roles carry
+the template's name because the migrations narrow `<database>_app`, and each clone copies the grants
+the template's migrations left. `-short` skips them, and the commit hook runs `-short`, so CI is what
+runs them.
 
 - **`api/wire` is the contract, and `model` is not.** A client depends on the wire, so an answer changes
   only by editing a `wire` struct and its file under `api/schemas`. `TestEveryAnswerMatchesItsSchema`
