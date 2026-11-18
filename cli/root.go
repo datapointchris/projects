@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate/autoupdate"
@@ -146,11 +145,12 @@ func NewRootCommand() *cobra.Command {
 // Execute runs the command tree, prints any error to stderr, and returns the
 // process exit code.
 func Execute() int {
-	err := goclikit.Execute(context.Background(), NewRootCommand(), autoupdate.Config{Update: UpdateConfig()},
+	root := NewRootCommand()
+	err := goclikit.Execute(context.Background(), root, autoupdate.Config{Update: UpdateConfig()},
 		goclikit.WithNotFound(notFound))
 	var code exitCode
 	if err != nil && !errors.As(err, &code) && !errors.Is(err, goclikit.ErrReported) {
-		_, _ = fmt.Fprintln(os.Stderr, "error:", err)
+		_, _ = fmt.Fprintln(root.ErrOrStderr(), "error:", err)
 	}
 	return exitCodeFor(err)
 }

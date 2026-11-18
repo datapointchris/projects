@@ -80,7 +80,7 @@ func openDataSource(cmd *cobra.Command) (*dataSource, error) {
 	if mode == apiMode {
 		return openAPI(cmd.Context(), cfg, deployment)
 	}
-	return openDatabase(ctx, cfg)
+	return openDatabase(ctx, cfg, cmd.ErrOrStderr())
 }
 
 // decideMode reads the config file and the login settings in it, and answers
@@ -178,7 +178,9 @@ func tokenSource(ctx context.Context, d goclilogin.Deployment) (oauth2.TokenSour
 	return source, err
 }
 
-func openDatabase(ctx context.Context, cfg *config.Config) (*dataSource, error) {
+// openDatabase serves the API's routes over the local database. A route's fault
+// is logged to diagnostics, the command's stderr.
+func openDatabase(ctx context.Context, cfg *config.Config, diagnostics io.Writer) (*dataSource, error) {
 	if err := config.MoveDataUnderFormerName(cfg.Local.DBPath); err != nil {
 		return nil, err
 	}
@@ -193,7 +195,7 @@ func openDatabase(ctx context.Context, cfg *config.Config) (*dataSource, error) 
 
 	// A fault in a route is logged with its cause, which the answer only names by
 	// request id. The request line itself is for a server's log, not a terminal.
-	faults := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	faults := slog.New(slog.NewTextHandler(diagnostics, &slog.HandlerOptions{Level: slog.LevelError}))
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	handler := requestlog.Middleware(quiet, routes.New(source.local, faults, Version()))
 	source.client = apiclient.New(inProcessBase, &http.Client{Transport: apiclient.InProcess(handler)})
