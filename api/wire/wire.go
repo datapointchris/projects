@@ -112,20 +112,44 @@ func NewProjectItemTask(t model.ProjectItemTask) ProjectItemTask {
 	}
 }
 
+// ProjectItemFields is an item's own row, which every item answer opens with.
+// Each item shape embeds it, and JSON flattens an embedded struct, so the fields
+// are declared once and every shape sends them under the same keys.
+type ProjectItemFields struct {
+	ID          string  `json:"id"`
+	Number      *int    `json:"number"`
+	Title       string  `json:"title"`
+	Notes       *string `json:"notes"`
+	Repo        *string `json:"repo"`
+	Completed   bool    `json:"completed"`
+	CompletedAt *Time   `json:"completed_at"`
+	Archived    bool    `json:"archived"`
+	Status      string  `json:"status"`
+	CreatedAt   Time    `json:"created_at"`
+	UpdatedAt   Time    `json:"updated_at"`
+}
+
+// NewProjectItemFields is the wire form of an item's own row.
+func NewProjectItemFields(i model.ProjectItem) ProjectItemFields {
+	return ProjectItemFields{
+		ID:          i.ID,
+		Number:      i.Number,
+		Title:       i.Title,
+		Notes:       i.Notes,
+		Repo:        i.Repo,
+		Completed:   i.Completed,
+		CompletedAt: optionalTime(i.CompletedAt),
+		Archived:    i.Archived,
+		Status:      i.Status(),
+		CreatedAt:   Time{i.CreatedAt},
+		UpdatedAt:   Time{i.UpdatedAt},
+	}
+}
+
 // ProjectItem is an item with what is filed against it, the shape a list returns,
 // so a client reconciling the whole list needs no request per item.
 type ProjectItem struct {
-	ID            string                  `json:"id"`
-	Number        *int                    `json:"number"`
-	Title         string                  `json:"title"`
-	Notes         *string                 `json:"notes"`
-	Repo          *string                 `json:"repo"`
-	Completed     bool                    `json:"completed"`
-	CompletedAt   *Time                   `json:"completed_at"`
-	Archived      bool                    `json:"archived"`
-	Status        string                  `json:"status"`
-	CreatedAt     Time                    `json:"created_at"`
-	UpdatedAt     Time                    `json:"updated_at"`
+	ProjectItemFields
 	Projects      []Project               `json:"projects"`
 	Memberships   []ProjectItemMembership `json:"memberships"`
 	DependencyIDs []string                `json:"dependency_ids"`
@@ -135,21 +159,11 @@ type ProjectItem struct {
 // NewProjectItem is the wire form of an item with what is filed against it.
 func NewProjectItem(d model.ProjectItemDetail) ProjectItem {
 	return ProjectItem{
-		ID:            d.ID,
-		Number:        d.Number,
-		Title:         d.Title,
-		Notes:         d.Notes,
-		Repo:          d.Repo,
-		Completed:     d.Completed,
-		CompletedAt:   optionalTime(d.CompletedAt),
-		Archived:      d.Archived,
-		Status:        d.Status(),
-		CreatedAt:     Time{d.CreatedAt},
-		UpdatedAt:     Time{d.UpdatedAt},
-		Projects:      Map(d.Projects, NewProject),
-		Memberships:   Map(d.Memberships, newProjectItemMembership),
-		DependencyIDs: nonNil(d.DependencyIDs),
-		Tasks:         Map(d.Tasks, NewProjectItemTask),
+		ProjectItemFields: NewProjectItemFields(d.ProjectItem),
+		Projects:          Map(d.Projects, NewProject),
+		Memberships:       Map(d.Memberships, newProjectItemMembership),
+		DependencyIDs:     nonNil(d.DependencyIDs),
+		Tasks:             Map(d.Tasks, NewProjectItemTask),
 	}
 }
 
@@ -175,17 +189,7 @@ func newProjectItemSummary(i model.ProjectItem) ProjectItemSummary {
 // ProjectItemDetail is one item read alone. It names what the item waits on, and
 // its tasks are their own route.
 type ProjectItemDetail struct {
-	ID            string                  `json:"id"`
-	Number        *int                    `json:"number"`
-	Title         string                  `json:"title"`
-	Notes         *string                 `json:"notes"`
-	Repo          *string                 `json:"repo"`
-	Completed     bool                    `json:"completed"`
-	CompletedAt   *Time                   `json:"completed_at"`
-	Archived      bool                    `json:"archived"`
-	Status        string                  `json:"status"`
-	CreatedAt     Time                    `json:"created_at"`
-	UpdatedAt     Time                    `json:"updated_at"`
+	ProjectItemFields
 	Projects      []Project               `json:"projects"`
 	Memberships   []ProjectItemMembership `json:"memberships"`
 	DependencyIDs []string                `json:"dependency_ids"`
@@ -195,21 +199,11 @@ type ProjectItemDetail struct {
 // NewProjectItemDetail is the wire form of one item read alone.
 func NewProjectItemDetail(d model.ProjectItemDetail) ProjectItemDetail {
 	return ProjectItemDetail{
-		ID:            d.ID,
-		Number:        d.Number,
-		Title:         d.Title,
-		Notes:         d.Notes,
-		Repo:          d.Repo,
-		Completed:     d.Completed,
-		CompletedAt:   optionalTime(d.CompletedAt),
-		Archived:      d.Archived,
-		Status:        d.Status(),
-		CreatedAt:     Time{d.CreatedAt},
-		UpdatedAt:     Time{d.UpdatedAt},
-		Projects:      Map(d.Projects, NewProject),
-		Memberships:   Map(d.Memberships, newProjectItemMembership),
-		DependencyIDs: nonNil(d.DependencyIDs),
-		DependsOn:     Map(d.DependsOn, newProjectItemSummary),
+		ProjectItemFields: NewProjectItemFields(d.ProjectItem),
+		Projects:          Map(d.Projects, NewProject),
+		Memberships:       Map(d.Memberships, newProjectItemMembership),
+		DependencyIDs:     nonNil(d.DependencyIDs),
+		DependsOn:         Map(d.DependsOn, newProjectItemSummary),
 	}
 }
 
@@ -217,37 +211,17 @@ func NewProjectItemDetail(d model.ProjectItemDetail) ProjectItemDetail {
 // projects hold it, which is what a client needs to refuse removing it from its
 // last one before asking.
 type ProjectItemInProject struct {
-	ID           string  `json:"id"`
-	Number       *int    `json:"number"`
-	Title        string  `json:"title"`
-	Notes        *string `json:"notes"`
-	Repo         *string `json:"repo"`
-	Completed    bool    `json:"completed"`
-	CompletedAt  *Time   `json:"completed_at"`
-	Archived     bool    `json:"archived"`
-	Status       string  `json:"status"`
-	CreatedAt    Time    `json:"created_at"`
-	UpdatedAt    Time    `json:"updated_at"`
-	Position     int     `json:"position"`
-	ProjectCount int     `json:"project_count"`
+	ProjectItemFields
+	Position     int `json:"position"`
+	ProjectCount int `json:"project_count"`
 }
 
 // NewProjectItemInProject is the wire form of an item as one project holds it.
 func NewProjectItemInProject(i model.ProjectItemInProject) ProjectItemInProject {
 	return ProjectItemInProject{
-		ID:           i.ID,
-		Number:       i.Number,
-		Title:        i.Title,
-		Notes:        i.Notes,
-		Repo:         i.Repo,
-		Completed:    i.Completed,
-		CompletedAt:  optionalTime(i.CompletedAt),
-		Archived:     i.Archived,
-		Status:       i.Status(),
-		CreatedAt:    Time{i.CreatedAt},
-		UpdatedAt:    Time{i.UpdatedAt},
-		Position:     i.Position,
-		ProjectCount: i.ProjectCount,
+		ProjectItemFields: NewProjectItemFields(i.ProjectItem),
+		Position:          i.Position,
+		ProjectCount:      i.ProjectCount,
 	}
 }
 

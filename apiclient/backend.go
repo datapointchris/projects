@@ -313,7 +313,8 @@ func countedProjectFrom(p wire.ProjectWithItemCount) model.ProjectWithItemCount 
 	}
 }
 
-func listedItemFrom(i wire.ProjectItem) model.ProjectItem {
+// itemFrom skips Status, because model derives it from Completed and Archived.
+func itemFrom(i wire.ProjectItemFields) model.ProjectItem {
 	return model.ProjectItem{
 		ID: i.ID, Number: i.Number, Title: i.Title, Notes: i.Notes, Repo: i.Repo,
 		Completed: i.Completed, CompletedAt: timeFrom(i.CompletedAt), Archived: i.Archived,
@@ -321,14 +322,14 @@ func listedItemFrom(i wire.ProjectItem) model.ProjectItem {
 	}
 }
 
+func listedItemFrom(i wire.ProjectItem) model.ProjectItem {
+	return itemFrom(i.ProjectItemFields)
+}
+
 func heldItemFrom(i wire.ProjectItemInProject) model.ProjectItemInProject {
 	return model.ProjectItemInProject{
-		ProjectItem: model.ProjectItem{
-			ID: i.ID, Number: i.Number, Title: i.Title, Notes: i.Notes, Repo: i.Repo,
-			Completed: i.Completed, CompletedAt: timeFrom(i.CompletedAt), Archived: i.Archived,
-			CreatedAt: i.CreatedAt.Time, UpdatedAt: i.UpdatedAt.Time,
-		},
-		Position: i.Position, ProjectCount: i.ProjectCount,
+		ProjectItem: itemFrom(i.ProjectItemFields),
+		Position:    i.Position, ProjectCount: i.ProjectCount,
 	}
 }
 
@@ -346,11 +347,7 @@ func detailFrom(d wire.ProjectItemDetail) model.ProjectItemDetail {
 		}
 	}
 	return model.ProjectItemDetail{
-		ProjectItem: model.ProjectItem{
-			ID: d.ID, Number: d.Number, Title: d.Title, Notes: d.Notes, Repo: d.Repo,
-			Completed: d.Completed, CompletedAt: timeFrom(d.CompletedAt), Archived: d.Archived,
-			CreatedAt: d.CreatedAt.Time, UpdatedAt: d.UpdatedAt.Time,
-		},
+		ProjectItem:   itemFrom(d.ProjectItemFields),
 		Projects:      wire.Map(d.Projects, projectFrom),
 		Memberships:   memberships,
 		DependencyIDs: d.DependencyIDs,
