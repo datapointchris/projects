@@ -16,19 +16,22 @@ func newTable(out io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 }
 
+// printProjectsTable leads with the name, which is how a person addresses a
+// project. The UUID stays in --json and `projects show`, because 36 characters of
+// it push a row past an 80-column terminal.
 func printProjectsTable(out io.Writer, projects []wire.ProjectWithItemCount, withStatus bool) {
 	if len(projects) == 0 {
 		_, _ = fmt.Fprintln(out, "No projects yet. Create one with `projects create --name ...`.")
 		return
 	}
 	tw := newTable(out)
-	header := []string{"ID", "NAME", "KIND", "OPEN", "DONE", "ITEMS", "POS", "REPOS"}
+	header := []string{"NAME", "KIND", "OPEN", "DONE", "ITEMS", "POS", "REPOS"}
 	if withStatus {
-		header = slices.Insert(header, 3, "STATUS")
+		header = slices.Insert(header, 2, "STATUS")
 	}
 	_, _ = fmt.Fprintln(tw, strings.Join(header, "\t"))
 	for _, p := range projects {
-		fields := []string{p.ID, p.Name, p.Kind}
+		fields := []string{p.Name, p.Kind}
 		if withStatus {
 			fields = append(fields, p.Status)
 		}
