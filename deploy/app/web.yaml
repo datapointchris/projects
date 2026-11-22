@@ -96,14 +96,18 @@ spec:
             periodSeconds: 20
             failureThreshold: 3
           # The limit equals the request, so the pod never uses more memory
-          # than the scheduler set aside for it. `docker stats` on the dev
-          # stack's `web` container reads what Caddy holds serving the page.
+          # than the scheduler set aside for it. It is sized from the
+          # container's working set in production, which
+          # `kubectl top pod --containers` reads. After the node's container
+          # runtime restarts, the cgroup is charged about 42 MiB of page cache
+          # beside Caddy's 16 MiB of RSS, so the working set peaks at 58.6 MiB.
+          # 96Mi leaves 37 MiB above that peak.
           resources:
             requests:
               cpu: 10m
-              memory: 64Mi
+              memory: 96Mi
             limits:
-              memory: 64Mi
+              memory: 96Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
