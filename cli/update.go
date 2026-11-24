@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"runtime/debug"
 
 	"github.com/datapointchris/goclikit"
@@ -47,7 +48,9 @@ func VersionCmd() *cobra.Command {
 		Example: "  projects version    print the version of this binary, such as v1.4.0",
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			cmd.Println(Version())
+			// The version is this command's result, so it goes to stdout, where
+			// `$(projects version)` captures it.
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), Version())
 		},
 	}
 }
