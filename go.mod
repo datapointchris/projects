@@ -15,7 +15,7 @@ require (
 	github.com/datapointchris/goapiauth v0.2.0
 	github.com/datapointchris/gobrowserlogin v0.2.0
 	github.com/datapointchris/goclikit v0.5.3
-	github.com/datapointchris/goclilogin v0.9.0
+	github.com/datapointchris/goclilogin v0.10.0
 	github.com/datapointchris/goselfupdate v0.11.0
 	github.com/datapointchris/gotermboard v0.43.0
 	github.com/datapointchris/gotermstyle v0.6.0
@@ -23,7 +23,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
-	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
@@ -120,6 +119,7 @@ require (
 	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86 // indirect
 	github.com/pingcap/log v1.1.0 // indirect
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20250324122243-d51e00e5bbf0 // indirect
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
